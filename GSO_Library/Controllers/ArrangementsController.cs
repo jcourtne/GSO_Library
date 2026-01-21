@@ -1,5 +1,6 @@
 using GSO_Library.Models;
 using GSO_Library.Repositories;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GSO_Library.Controllers;
@@ -16,6 +17,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Arrangement>> AddArrangement([FromBody] Arrangement arrangement)
     {
         var createdArrangement = await _arrangementRepository.AddArrangementAsync(arrangement);
@@ -23,6 +25,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [Authorize]
     public async Task<ActionResult<Arrangement>> GetArrangementById(int id)
     {
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
@@ -33,6 +36,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize]
     public async Task<ActionResult<IEnumerable<Arrangement>>> GetAllArrangements([FromQuery] int? gameId, [FromQuery] int? seriesId)
     {
         IEnumerable<Arrangement> arrangements;
@@ -54,6 +58,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPost("{arrangementId}/performances")]
+    [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Performance>> AddPerformance(int arrangementId, [FromBody] Performance performance)
     {
         var createdPerformance = await _arrangementRepository.AddPerformanceAsync(arrangementId, performance);
@@ -64,6 +69,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpDelete("{arrangementId}/performances/{performanceId}")]
+    [Authorize(Roles = "Admin,Editor")]
     public async Task<IActionResult> RemovePerformance(int arrangementId, int performanceId)
     {
         var success = await _arrangementRepository.RemovePerformanceAsync(arrangementId, performanceId);

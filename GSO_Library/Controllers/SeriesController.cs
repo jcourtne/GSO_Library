@@ -1,5 +1,6 @@
 using GSO_Library.Models;
 using GSO_Library.Repositories;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GSO_Library.Controllers;
@@ -16,6 +17,7 @@ public class SeriesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Series>> AddSeries([FromBody] Series series)
     {
         var createdSeries = await _seriesRepository.AddSeriesAsync(series);
@@ -23,6 +25,7 @@ public class SeriesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin,Editor")]
     public async Task<IActionResult> DeleteSeries(int id)
     {
         await _seriesRepository.DeleteSeriesAsync(id);

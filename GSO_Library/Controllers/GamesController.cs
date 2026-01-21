@@ -1,5 +1,6 @@
 using GSO_Library.Models;
 using GSO_Library.Repositories;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GSO_Library.Controllers;
@@ -16,6 +17,7 @@ public class GamesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Game>> AddGame([FromBody] Game game)
     {
         var createdGame = await _gameRepository.AddGameAsync(game);
@@ -23,6 +25,7 @@ public class GamesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin,Editor")]
     public async Task<IActionResult> DeleteGame(int id)
     {
         await _gameRepository.DeleteGameAsync(id);
