@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using GSO_Library.Data;
 using GSO_Library.Models;
 using GSO_Library.Repositories;
@@ -12,7 +13,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    });
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -67,7 +72,6 @@ builder.Services.AddMemoryCache();
 builder.Services.AddScoped<ArrangementRepository>();
 builder.Services.AddScoped<GameRepository>();
 builder.Services.AddScoped<SeriesRepository>();
-builder.Services.AddScoped<PerformanceRepository>();
 builder.Services.AddScoped<InstrumentRepository>();
 
 var app = builder.Build();

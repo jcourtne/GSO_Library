@@ -40,22 +40,24 @@ public class AuthController : ControllerBase
     public async Task<ActionResult<List<UserResponse>>> GetAllUsers()
     {
         var users = await _userManager.Users.ToListAsync();
-        var userResponses = new List<UserResponse>();
+        var userRoles = await _context.UserRoles.ToListAsync();
+        var roles = await _context.Roles.ToListAsync();
+        var roleLookup = userRoles
+            .GroupBy(ur => ur.UserId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(ur => roles.First(r => r.Id == ur.RoleId).Name!).ToList());
 
-        foreach (var user in users)
+        var userResponses = users.Select(user => new UserResponse
         {
-            var roles = await _userManager.GetRolesAsync(user);
-            userResponses.Add(new UserResponse
-            {
-                Id = user.Id,
-                UserName = user.UserName,
-                Email = user.Email,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                IsDisabled = user.IsDisabled,
-                Roles = roles.ToList()
-            });
-        }
+            Id = user.Id,
+            UserName = user.UserName,
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            IsDisabled = user.IsDisabled,
+            Roles = roleLookup.GetValueOrDefault(user.Id, [])
+        }).ToList();
 
         return Ok(userResponses);
     }
@@ -373,10 +375,73 @@ public class AuthController : ControllerBase
             });
         }
 
+        // Revoke all active refresh tokens for the disabled user
+        var tokens = await _context.RefreshTokens
+            .Where(rt => rt.UserId == userId && !rt.IsRevoked)
+            .ToListAsync();
+        foreach (var token in tokens)
+            token.IsRevoked = true;
+        await _context.SaveChangesAsync();
+
         return Ok(new AuthResponse
         {
             Success = true,
             Message = "Account disabled successfully",
+            UserId = user.Id,
+            Username = user.UserName
+        });
+    }
+
+    [HttpPost("enable/{userId}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<AuthResponse>> EnableAccount(string userId)
+    {
+        var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(adminId))
+        {
+            return Unauthorized(new AuthResponse
+            {
+                Success = false,
+                Message = "Admin not authenticated"
+            });
+        }
+
+        // Prevent admin from enabling themselves
+        if (userId == adminId)
+        {
+            return BadRequest(new AuthResponse
+            {
+                Success = false,
+                Message = "Admin accounts cannot enable themselves"
+            });
+        }
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            return NotFound(new AuthResponse
+            {
+                Success = false,
+                Message = "User not found"
+            });
+        }
+
+        user.IsDisabled = false;
+        var result = await _userManager.UpdateAsync(user);
+
+        if (!result.Succeeded)
+        {
+            return BadRequest(new AuthResponse
+            {
+                Success = false,
+                Message = string.Join(", ", result.Errors.Select(e => e.Description))
+            });
+        }
+
+        return Ok(new AuthResponse
+        {
+            Success = true,
+            Message = "Account enabled successfully",
             UserId = user.Id,
             Username = user.UserName
         });

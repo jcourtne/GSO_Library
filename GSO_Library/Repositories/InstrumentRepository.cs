@@ -1,26 +1,31 @@
 using GSO_Library.Data;
 using GSO_Library.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace GSO_Library.Repositories;
 
 public class InstrumentRepository
 {
     private readonly GSOLibraryContext _context;
+    private readonly IMemoryCache _cache;
 
-    public InstrumentRepository(GSOLibraryContext context)
+    public InstrumentRepository(GSOLibraryContext context, IMemoryCache cache)
     {
         _context = context;
+        _cache = cache;
     }
 
     public async Task<IEnumerable<Instrument>> GetAllInstrumentsAsync()
     {
-        return await _context.Instruments.ToListAsync();
+        return await _context.Instruments
+            .AsNoTracking()
+            .ToListAsync();
     }
 
     public async Task<PaginatedResult<Instrument>> GetAllInstrumentsAsync(int page, int pageSize)
     {
-        var query = _context.Instruments.AsQueryable();
+        var query = _context.Instruments.AsNoTracking();
         var totalCount = await query.CountAsync();
         var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
         return new PaginatedResult<Instrument> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
@@ -28,13 +33,16 @@ public class InstrumentRepository
 
     public async Task<Instrument?> GetInstrumentByIdAsync(int id)
     {
-        return await _context.Instruments.FindAsync(id);
+        return await _context.Instruments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(i => i.Id == id);
     }
 
     public async Task<Instrument> AddInstrumentAsync(Instrument instrument)
     {
         _context.Instruments.Add(instrument);
         await _context.SaveChangesAsync();
+        InvalidateArrangementCache();
         return instrument;
     }
 
@@ -46,6 +54,7 @@ public class InstrumentRepository
 
         existing.Name = instrument.Name;
         await _context.SaveChangesAsync();
+        InvalidateArrangementCache();
         return existing;
     }
 
@@ -57,6 +66,12 @@ public class InstrumentRepository
 
         _context.Instruments.Remove(instrument);
         await _context.SaveChangesAsync();
+        InvalidateArrangementCache();
         return true;
+    }
+
+    private void InvalidateArrangementCache()
+    {
+        _cache.Remove(ArrangementRepository.ArrangementsCacheKey);
     }
 }

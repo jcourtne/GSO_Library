@@ -6,11 +6,6 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace GSO_Library.Services;
 
-public interface ITokenService
-{
-    string GenerateToken(ApplicationUser user, IList<string> roles);
-}
-
 public class TokenService : ITokenService
 {
     private readonly IConfiguration _configuration;

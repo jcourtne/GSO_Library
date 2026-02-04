@@ -8,5 +8,4 @@ public class Series
     
     // Navigation properties
     public virtual ICollection<Game> Games { get; set; } = [];
-    public virtual ICollection<Arrangement> Arrangements { get; set; } = [];
 }

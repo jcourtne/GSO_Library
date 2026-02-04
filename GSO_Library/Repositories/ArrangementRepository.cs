@@ -1,4 +1,5 @@
 using GSO_Library.Data;
+using GSO_Library.Dtos;
 using GSO_Library.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -7,7 +8,10 @@ namespace GSO_Library.Repositories;
 
 public class ArrangementRepository
 {
-    private const string CacheKey = "ArrangementsWithIncludes";
+    // Cache key exposed for other repositories to invalidate when their entities change
+    public const string ArrangementsCacheKey = "ArrangementsWithIncludes";
+
+    private static readonly SemaphoreSlim _cacheLock = new(1, 1);
     private readonly GSOLibraryContext _context;
     private readonly IMemoryCache _cache;
 
@@ -17,10 +21,25 @@ public class ArrangementRepository
         _cache = cache;
     }
 
+    // Note: Cached entries must be treated as read-only. Do not mutate returned objects.
     private async Task<List<Arrangement>> GetCachedArrangementsAsync()
     {
-        if (!_cache.TryGetValue(CacheKey, out List<Arrangement>? arrangements))
+        // Fast path: check cache without lock
+        if (_cache.TryGetValue(ArrangementsCacheKey, out List<Arrangement>? arrangements))
         {
+            return arrangements!;
+        }
+
+        // Slow path: acquire lock and double-check
+        await _cacheLock.WaitAsync();
+        try
+        {
+            // Double-check after acquiring lock
+            if (_cache.TryGetValue(ArrangementsCacheKey, out arrangements))
+            {
+                return arrangements!;
+            }
+
             arrangements = await _context.Arrangements
                 .Include(a => a.Games)
                     .ThenInclude(g => g.Series)
@@ -30,15 +49,22 @@ public class ArrangementRepository
                 .AsNoTracking()
                 .ToListAsync();
 
-            _cache.Set(CacheKey, arrangements);
-        }
+            _cache.Set(ArrangementsCacheKey, arrangements, new MemoryCacheEntryOptions
+            {
+                SlidingExpiration = TimeSpan.FromMinutes(30)
+            });
 
-        return arrangements!;
+            return arrangements;
+        }
+        finally
+        {
+            _cacheLock.Release();
+        }
     }
 
     public void InvalidateCache()
     {
-        _cache.Remove(CacheKey);
+        _cache.Remove(ArrangementsCacheKey);
     }
 
     public async Task<Arrangement?> GetArrangementByIdAsync(int id)
@@ -67,45 +93,38 @@ public class ArrangementRepository
         return new PaginatedResult<Arrangement> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
     }
 
-    public async Task<Arrangement> AddArrangementAsync(Arrangement arrangement)
+    public async Task<Arrangement> AddArrangementAsync(ArrangementRequest request)
     {
+        var arrangement = new Arrangement
+        {
+            Name = request.Name,
+            Description = request.Description,
+            Arranger = request.Arranger,
+            Composer = request.Composer,
+            Key = request.Key,
+            DurationSeconds = request.DurationSeconds,
+            Year = request.Year
+        };
+
         _context.Arrangements.Add(arrangement);
         await _context.SaveChangesAsync();
         InvalidateCache();
         return arrangement;
     }
 
-    public async Task<Arrangement?> UpdateArrangementAsync(int id, Arrangement arrangement)
+    public async Task<Arrangement?> UpdateArrangementAsync(int id, ArrangementRequest request)
     {
-        var existing = await _context.Arrangements
-            .Include(a => a.Games)
-            .Include(a => a.Instruments)
-            .FirstOrDefaultAsync(a => a.Id == id);
-
+        var existing = await _context.Arrangements.FindAsync(id);
         if (existing == null)
             return null;
 
-        existing.Name = arrangement.Name;
-        existing.Description = arrangement.Description;
-        existing.Arranger = arrangement.Arranger;
-        existing.Composer = arrangement.Composer;
-        existing.Key = arrangement.Key;
-        existing.DurationSeconds = arrangement.DurationSeconds;
-        existing.Year = arrangement.Year;
-
-        existing.Games.Clear();
-        foreach (var game in arrangement.Games)
-        {
-            _context.Games.Attach(game);
-            existing.Games.Add(game);
-        }
-
-        existing.Instruments.Clear();
-        foreach (var instrument in arrangement.Instruments)
-        {
-            _context.Instruments.Attach(instrument);
-            existing.Instruments.Add(instrument);
-        }
+        existing.Name = request.Name;
+        existing.Description = request.Description;
+        existing.Arranger = request.Arranger;
+        existing.Composer = request.Composer;
+        existing.Key = request.Key;
+        existing.DurationSeconds = request.DurationSeconds;
+        existing.Year = request.Year;
 
         await _context.SaveChangesAsync();
         InvalidateCache();

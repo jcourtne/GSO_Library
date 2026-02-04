@@ -1,4 +1,5 @@
 using GSO_Library.Data;
+using GSO_Library.Dtos;
 using GSO_Library.Models;
 using GSO_Library.Repositories;
 using GSO_Library.Services;
@@ -28,10 +29,11 @@ public class ArrangementsController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Admin,Editor")]
-    public async Task<ActionResult<Arrangement>> AddArrangement([FromBody] Arrangement arrangement)
+    public async Task<ActionResult<Arrangement>> AddArrangement([FromBody] ArrangementRequest request)
     {
-        var createdArrangement = await _arrangementRepository.AddArrangementAsync(arrangement);
-        return CreatedAtAction(nameof(GetArrangementById), new { id = createdArrangement.Id }, createdArrangement);
+        var createdArrangement = await _arrangementRepository.AddArrangementAsync(request);
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(createdArrangement.Id);
+        return CreatedAtAction(nameof(GetArrangementById), new { id = createdArrangement.Id }, arrangement);
     }
 
     [HttpGet("{id}")]
@@ -58,11 +60,11 @@ public class ArrangementsController : ControllerBase
         return Ok(result);
     }
 
-    [HttpPut("{id}")]
+    [HttpPut("{id}/details")]
     [Authorize(Roles = "Admin,Editor")]
-    public async Task<ActionResult<Arrangement>> UpdateArrangement(int id, [FromBody] Arrangement arrangement)
+    public async Task<ActionResult<Arrangement>> UpdateArrangementDetails(int id, [FromBody] ArrangementRequest request)
     {
-        var updated = await _arrangementRepository.UpdateArrangementAsync(id, arrangement);
+        var updated = await _arrangementRepository.UpdateArrangementAsync(id, request);
         if (updated == null)
             return NotFound();
 
@@ -73,14 +75,21 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Editor")]
     public async Task<IActionResult> DeleteArrangement(int id)
     {
-        var files = await _arrangementRepository.DeleteArrangementAsync(id);
-        if (files == null)
+        // Get arrangement with files first (before DB deletion)
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
+        if (arrangement == null)
             return NotFound();
 
-        foreach (var file in files)
+        // Delete files from disk first
+        foreach (var file in arrangement.Files)
         {
             await _fileStorageService.DeleteFileAsync(id, file.StoredFileName);
         }
+
+        // Then delete from DB
+        var deleted = await _arrangementRepository.DeleteArrangementAsync(id);
+        if (deleted == null)
+            return NotFound();
 
         return NoContent();
     }
@@ -91,9 +100,9 @@ public class ArrangementsController : ControllerBase
     {
         var result = await _arrangementRepository.AddGameAsync(arrangementId, gameId);
         if (result == null)
-            return NotFound("Arrangement not found");
+            return NotFound();
         if (!result.Value)
-            return BadRequest("Game not found or already associated with this arrangement");
+            return BadRequest();
 
         return NoContent();
     }
@@ -104,9 +113,9 @@ public class ArrangementsController : ControllerBase
     {
         var result = await _arrangementRepository.RemoveGameAsync(arrangementId, gameId);
         if (result == null)
-            return NotFound("Arrangement not found");
+            return NotFound();
         if (!result.Value)
-            return NotFound("Game is not associated with this arrangement");
+            return NotFound();
 
         return NoContent();
     }
@@ -117,9 +126,9 @@ public class ArrangementsController : ControllerBase
     {
         var result = await _arrangementRepository.AddInstrumentAsync(arrangementId, instrumentId);
         if (result == null)
-            return NotFound("Arrangement not found");
+            return NotFound();
         if (!result.Value)
-            return BadRequest("Instrument not found or already associated with this arrangement");
+            return BadRequest();
 
         return NoContent();
     }
@@ -130,9 +139,9 @@ public class ArrangementsController : ControllerBase
     {
         var result = await _arrangementRepository.RemoveInstrumentAsync(arrangementId, instrumentId);
         if (result == null)
-            return NotFound("Arrangement not found");
+            return NotFound();
         if (!result.Value)
-            return NotFound("Instrument is not associated with this arrangement");
+            return NotFound();
 
         return NoContent();
     }
@@ -143,7 +152,7 @@ public class ArrangementsController : ControllerBase
     {
         var createdPerformance = await _arrangementRepository.AddPerformanceAsync(arrangementId, performance);
         if (createdPerformance == null)
-            return NotFound("Arrangement not found");
+            return NotFound();
 
         return CreatedAtAction(nameof(AddPerformance), new { arrangementId, performanceId = createdPerformance.Id }, createdPerformance);
     }
@@ -154,7 +163,7 @@ public class ArrangementsController : ControllerBase
     {
         var success = await _arrangementRepository.RemovePerformanceAsync(arrangementId, performanceId);
         if (!success)
-            return NotFound("Performance not found or does not belong to this arrangement");
+            return NotFound();
 
         return NoContent();
     }
@@ -165,7 +174,7 @@ public class ArrangementsController : ControllerBase
     {
         var arrangement = await _context.Arrangements.FindAsync(id);
         if (arrangement == null)
-            return NotFound("Arrangement not found");
+            return NotFound();
 
         var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
 
@@ -195,7 +204,7 @@ public class ArrangementsController : ControllerBase
     {
         var arrangement = await _context.Arrangements.FindAsync(id);
         if (arrangement == null)
-            return NotFound("Arrangement not found");
+            return NotFound();
 
         var files = await _context.ArrangementFiles
             .Where(f => f.ArrangementId == id)
@@ -212,10 +221,17 @@ public class ArrangementsController : ControllerBase
             .FirstOrDefaultAsync(f => f.Id == fileId && f.ArrangementId == id);
 
         if (arrangementFile == null)
-            return NotFound("File not found");
+            return NotFound();
 
-        var stream = await _fileStorageService.GetFileAsync(id, arrangementFile.StoredFileName);
-        return File(stream, arrangementFile.ContentType, arrangementFile.FileName);
+        try
+        {
+            var stream = await _fileStorageService.GetFileAsync(id, arrangementFile.StoredFileName);
+            return File(stream, arrangementFile.ContentType, arrangementFile.FileName);
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound();
+        }
     }
 
     [HttpDelete("{id}/files/{fileId}")]
@@ -226,7 +242,7 @@ public class ArrangementsController : ControllerBase
             .FirstOrDefaultAsync(f => f.Id == fileId && f.ArrangementId == id);
 
         if (arrangementFile == null)
-            return NotFound("File not found");
+            return NotFound();
 
         await _fileStorageService.DeleteFileAsync(id, arrangementFile.StoredFileName);
 

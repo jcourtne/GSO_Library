@@ -1,23 +1,26 @@
 using GSO_Library.Data;
 using GSO_Library.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace GSO_Library.Repositories;
 
 public class GameRepository
 {
     private readonly GSOLibraryContext _context;
+    private readonly IMemoryCache _cache;
 
-    public GameRepository(GSOLibraryContext context)
+    public GameRepository(GSOLibraryContext context, IMemoryCache cache)
     {
         _context = context;
+        _cache = cache;
     }
 
     public async Task<IEnumerable<Game>> GetAllGamesAsync()
     {
         return await _context.Games
             .Include(g => g.Series)
-            .Include(g => g.Arrangements)
+            .AsNoTracking()
             .ToListAsync();
     }
 
@@ -26,6 +29,7 @@ public class GameRepository
         return await _context.Games
             .Include(g => g.Series)
             .Include(g => g.Arrangements)
+            .AsNoTracking()
             .FirstOrDefaultAsync(g => g.Id == id);
     }
 
@@ -33,7 +37,7 @@ public class GameRepository
     {
         var query = _context.Games
             .Include(g => g.Series)
-            .Include(g => g.Arrangements);
+            .AsNoTracking();
         var totalCount = await query.CountAsync();
         var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
         return new PaginatedResult<Game> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
@@ -43,6 +47,7 @@ public class GameRepository
     {
         _context.Games.Add(game);
         await _context.SaveChangesAsync();
+        InvalidateArrangementCache();
         return game;
     }
 
@@ -56,6 +61,7 @@ public class GameRepository
         existing.Description = game.Description;
         existing.SeriesId = game.SeriesId;
         await _context.SaveChangesAsync();
+        InvalidateArrangementCache();
         return existing;
     }
 
@@ -67,6 +73,12 @@ public class GameRepository
 
         _context.Games.Remove(game);
         await _context.SaveChangesAsync();
+        InvalidateArrangementCache();
         return true;
+    }
+
+    private void InvalidateArrangementCache()
+    {
+        _cache.Remove(ArrangementRepository.ArrangementsCacheKey);
     }
 }
