@@ -18,7 +18,9 @@ public class ArrangementRepository
         return await _context.Arrangements
             .Include(a => a.Games)
                 .ThenInclude(g => g.Series)
+            .Include(a => a.Instruments)
             .Include(a => a.Performances)
+            .Include(a => a.Files)
             .FirstOrDefaultAsync(a => a.Id == id);
     }
 
@@ -27,7 +29,9 @@ public class ArrangementRepository
         return await _context.Arrangements
             .Include(a => a.Games)
                 .ThenInclude(g => g.Series)
+            .Include(a => a.Instruments)
             .Include(a => a.Performances)
+            .Include(a => a.Files)
             .ToListAsync();
     }
 
@@ -44,7 +48,9 @@ public class ArrangementRepository
             .Where(a => a.Games.Any(g => g.Id == gameId))
             .Include(a => a.Games)
                 .ThenInclude(g => g.Series)
+            .Include(a => a.Instruments)
             .Include(a => a.Performances)
+            .Include(a => a.Files)
             .ToListAsync();
     }
 
@@ -54,7 +60,21 @@ public class ArrangementRepository
             .Where(a => a.Games.Any(g => g.SeriesId == seriesId))
             .Include(a => a.Games)
                 .ThenInclude(g => g.Series)
+            .Include(a => a.Instruments)
             .Include(a => a.Performances)
+            .Include(a => a.Files)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<Arrangement>> GetArrangementsByInstrumentIdAsync(int instrumentId)
+    {
+        return await _context.Arrangements
+            .Where(a => a.Instruments.Any(i => i.Id == instrumentId))
+            .Include(a => a.Games)
+                .ThenInclude(g => g.Series)
+            .Include(a => a.Instruments)
+            .Include(a => a.Performances)
+            .Include(a => a.Files)
             .ToListAsync();
     }
 

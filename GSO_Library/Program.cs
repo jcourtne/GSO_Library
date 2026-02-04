@@ -1,6 +1,7 @@
 using System.Text;
 using GSO_Library.Data;
 using GSO_Library.Models;
+using GSO_Library.Repositories;
 using GSO_Library.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -55,6 +56,16 @@ builder.Services.AddAuthentication(options =>
 
 // Add Token Service
 builder.Services.AddScoped<ITokenService, TokenService>();
+
+// Add File Storage Service
+builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+
+// Add Repositories
+builder.Services.AddScoped<ArrangementRepository>();
+builder.Services.AddScoped<GameRepository>();
+builder.Services.AddScoped<SeriesRepository>();
+builder.Services.AddScoped<PerformanceRepository>();
+builder.Services.AddScoped<InstrumentRepository>();
 
 var app = builder.Build();
 

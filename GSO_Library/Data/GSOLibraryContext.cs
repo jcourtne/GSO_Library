@@ -11,9 +11,11 @@ public class GSOLibraryContext : IdentityDbContext<ApplicationUser>
     }
 
     public DbSet<Arrangement> Arrangements { get; set; }
+    public DbSet<ArrangementFile> ArrangementFiles { get; set; }
     public DbSet<Game> Games { get; set; }
     public DbSet<Series> Series { get; set; }
     public DbSet<Performance> Performances { get; set; }
+    public DbSet<Instrument> Instruments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -24,6 +26,12 @@ public class GSOLibraryContext : IdentityDbContext<ApplicationUser>
             .HasMany(a => a.Games)
             .WithMany(g => g.Arrangements)
             .UsingEntity(j => j.ToTable("ArrangementGames"));
+
+        // Configure Arrangement-Instrument many-to-many relationship
+        modelBuilder.Entity<Arrangement>()
+            .HasMany(a => a.Instruments)
+            .WithMany(i => i.Arrangements)
+            .UsingEntity(j => j.ToTable("ArrangementInstruments"));
 
         // Configure Game-Series one-to-many relationship
         modelBuilder.Entity<Game>()
@@ -37,6 +45,13 @@ public class GSOLibraryContext : IdentityDbContext<ApplicationUser>
             .HasOne(p => p.Arrangement)
             .WithMany(a => a.Performances)
             .HasForeignKey(p => p.ArrangementId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Configure Arrangement-ArrangementFile one-to-many relationship
+        modelBuilder.Entity<ArrangementFile>()
+            .HasOne(f => f.Arrangement)
+            .WithMany(a => a.Files)
+            .HasForeignKey(f => f.ArrangementId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
