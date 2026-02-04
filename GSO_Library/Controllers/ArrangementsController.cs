@@ -47,28 +47,60 @@ public class ArrangementsController : ControllerBase
 
     [HttpGet]
     [Authorize]
-    public async Task<ActionResult<IEnumerable<Arrangement>>> GetAllArrangements([FromQuery] int? gameId, [FromQuery] int? seriesId, [FromQuery] int? instrumentId)
+    public async Task<ActionResult<PaginatedResult<Arrangement>>> GetAllArrangements(
+        [FromQuery] int? gameId, [FromQuery] int? seriesId, [FromQuery] int? instrumentId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        IEnumerable<Arrangement> arrangements;
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        PaginatedResult<Arrangement> result;
 
         if (gameId.HasValue)
         {
-            arrangements = await _arrangementRepository.GetArrangementsByGameIdAsync(gameId.Value);
+            result = await _arrangementRepository.GetArrangementsByGameIdAsync(gameId.Value, page, pageSize);
         }
         else if (seriesId.HasValue)
         {
-            arrangements = await _arrangementRepository.GetArrangementsBySeriesIdAsync(seriesId.Value);
+            result = await _arrangementRepository.GetArrangementsBySeriesIdAsync(seriesId.Value, page, pageSize);
         }
         else if (instrumentId.HasValue)
         {
-            arrangements = await _arrangementRepository.GetArrangementsByInstrumentIdAsync(instrumentId.Value);
+            result = await _arrangementRepository.GetArrangementsByInstrumentIdAsync(instrumentId.Value, page, pageSize);
         }
         else
         {
-            arrangements = await _arrangementRepository.GetAllArrangementsAsync();
+            result = await _arrangementRepository.GetAllArrangementsAsync(page, pageSize);
         }
 
-        return Ok(arrangements);
+        return Ok(result);
+    }
+
+    [HttpPut("{id}")]
+    [Authorize(Roles = "Admin,Editor")]
+    public async Task<ActionResult<Arrangement>> UpdateArrangement(int id, [FromBody] Arrangement arrangement)
+    {
+        var updated = await _arrangementRepository.UpdateArrangementAsync(id, arrangement);
+        if (updated == null)
+            return NotFound();
+
+        return Ok(updated);
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin,Editor")]
+    public async Task<IActionResult> DeleteArrangement(int id)
+    {
+        var files = await _arrangementRepository.DeleteArrangementAsync(id);
+        if (files == null)
+            return NotFound();
+
+        foreach (var file in files)
+        {
+            await _fileStorageService.DeleteFileAsync(id, file.StoredFileName);
+        }
+
+        return NoContent();
     }
 
     [HttpPost("{arrangementId}/performances")]

@@ -16,19 +16,54 @@ public class GamesController : ControllerBase
         _gameRepository = gameRepository;
     }
 
+    [HttpGet]
+    [Authorize]
+    public async Task<ActionResult<PaginatedResult<Game>>> GetAllGames([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var result = await _gameRepository.GetAllGamesAsync(page, pageSize);
+        return Ok(result);
+    }
+
+    [HttpGet("{id}")]
+    [Authorize]
+    public async Task<ActionResult<Game>> GetGameById(int id)
+    {
+        var game = await _gameRepository.GetGameByIdAsync(id);
+        if (game == null)
+            return NotFound();
+
+        return Ok(game);
+    }
+
     [HttpPost]
     [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Game>> AddGame([FromBody] Game game)
     {
         var createdGame = await _gameRepository.AddGameAsync(game);
-        return CreatedAtAction(nameof(AddGame), new { id = createdGame.Id }, createdGame);
+        return CreatedAtAction(nameof(GetGameById), new { id = createdGame.Id }, createdGame);
+    }
+
+    [HttpPut("{id}")]
+    [Authorize(Roles = "Admin,Editor")]
+    public async Task<ActionResult<Game>> UpdateGame(int id, [FromBody] Game game)
+    {
+        var updated = await _gameRepository.UpdateGameAsync(id, game);
+        if (updated == null)
+            return NotFound();
+
+        return Ok(updated);
     }
 
     [HttpDelete("{id}")]
     [Authorize(Roles = "Admin,Editor")]
     public async Task<IActionResult> DeleteGame(int id)
     {
-        await _gameRepository.DeleteGameAsync(id);
+        var success = await _gameRepository.DeleteGameAsync(id);
+        if (!success)
+            return NotFound();
+
         return NoContent();
     }
 }

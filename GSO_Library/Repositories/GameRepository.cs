@@ -1,5 +1,6 @@
 using GSO_Library.Data;
 using GSO_Library.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace GSO_Library.Repositories;
 
@@ -12,6 +13,32 @@ public class GameRepository
         _context = context;
     }
 
+    public async Task<IEnumerable<Game>> GetAllGamesAsync()
+    {
+        return await _context.Games
+            .Include(g => g.Series)
+            .Include(g => g.Arrangements)
+            .ToListAsync();
+    }
+
+    public async Task<Game?> GetGameByIdAsync(int id)
+    {
+        return await _context.Games
+            .Include(g => g.Series)
+            .Include(g => g.Arrangements)
+            .FirstOrDefaultAsync(g => g.Id == id);
+    }
+
+    public async Task<PaginatedResult<Game>> GetAllGamesAsync(int page, int pageSize)
+    {
+        var query = _context.Games
+            .Include(g => g.Series)
+            .Include(g => g.Arrangements);
+        var totalCount = await query.CountAsync();
+        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        return new PaginatedResult<Game> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
+    }
+
     public async Task<Game> AddGameAsync(Game game)
     {
         _context.Games.Add(game);
@@ -19,13 +46,27 @@ public class GameRepository
         return game;
     }
 
-    public async Task DeleteGameAsync(int id)
+    public async Task<Game?> UpdateGameAsync(int id, Game game)
+    {
+        var existing = await _context.Games.FindAsync(id);
+        if (existing == null)
+            return null;
+
+        existing.Name = game.Name;
+        existing.Description = game.Description;
+        existing.SeriesId = game.SeriesId;
+        await _context.SaveChangesAsync();
+        return existing;
+    }
+
+    public async Task<bool> DeleteGameAsync(int id)
     {
         var game = await _context.Games.FindAsync(id);
-        if (game != null)
-        {
-            _context.Games.Remove(game);
-            await _context.SaveChangesAsync();
-        }
+        if (game == null)
+            return false;
+
+        _context.Games.Remove(game);
+        await _context.SaveChangesAsync();
+        return true;
     }
 }

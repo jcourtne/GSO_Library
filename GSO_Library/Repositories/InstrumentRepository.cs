@@ -18,6 +18,14 @@ public class InstrumentRepository
         return await _context.Instruments.ToListAsync();
     }
 
+    public async Task<PaginatedResult<Instrument>> GetAllInstrumentsAsync(int page, int pageSize)
+    {
+        var query = _context.Instruments.AsQueryable();
+        var totalCount = await query.CountAsync();
+        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        return new PaginatedResult<Instrument> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
+    }
+
     public async Task<Instrument?> GetInstrumentByIdAsync(int id)
     {
         return await _context.Instruments.FindAsync(id);

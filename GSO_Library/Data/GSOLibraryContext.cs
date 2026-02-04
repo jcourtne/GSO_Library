@@ -16,6 +16,7 @@ public class GSOLibraryContext : IdentityDbContext<ApplicationUser>
     public DbSet<Series> Series { get; set; }
     public DbSet<Performance> Performances { get; set; }
     public DbSet<Instrument> Instruments { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -53,5 +54,16 @@ public class GSOLibraryContext : IdentityDbContext<ApplicationUser>
             .WithMany(a => a.Files)
             .HasForeignKey(f => f.ArrangementId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Configure RefreshToken
+        modelBuilder.Entity<RefreshToken>()
+            .HasOne(rt => rt.User)
+            .WithMany()
+            .HasForeignKey(rt => rt.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(rt => rt.Token)
+            .IsUnique();
     }
 }

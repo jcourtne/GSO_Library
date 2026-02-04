@@ -1,9 +1,13 @@
+using System.Security.Claims;
+using System.Security.Cryptography;
+using GSO_Library.Data;
 using GSO_Library.Dtos;
 using GSO_Library.Models;
 using GSO_Library.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace GSO_Library.Controllers;
 
@@ -15,17 +19,66 @@ public class AuthController : ControllerBase
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly ITokenService _tokenService;
+    private readonly GSOLibraryContext _context;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         RoleManager<IdentityRole> roleManager,
-        ITokenService tokenService)
+        ITokenService tokenService,
+        GSOLibraryContext context)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _roleManager = roleManager;
         _tokenService = tokenService;
+        _context = context;
+    }
+
+    [HttpGet("users")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<List<UserResponse>>> GetAllUsers()
+    {
+        var users = await _userManager.Users.ToListAsync();
+        var userResponses = new List<UserResponse>();
+
+        foreach (var user in users)
+        {
+            var roles = await _userManager.GetRolesAsync(user);
+            userResponses.Add(new UserResponse
+            {
+                Id = user.Id,
+                UserName = user.UserName,
+                Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                IsDisabled = user.IsDisabled,
+                Roles = roles.ToList()
+            });
+        }
+
+        return Ok(userResponses);
+    }
+
+    [HttpGet("users/{id}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<UserResponse>> GetUserById(string id)
+    {
+        var user = await _userManager.FindByIdAsync(id);
+        if (user == null)
+            return NotFound();
+
+        var roles = await _userManager.GetRolesAsync(user);
+        return Ok(new UserResponse
+        {
+            Id = user.Id,
+            UserName = user.UserName,
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            IsDisabled = user.IsDisabled,
+            Roles = roles.ToList()
+        });
     }
 
     [HttpPost("register")]
@@ -97,21 +150,108 @@ public class AuthController : ControllerBase
         var roles = await _userManager.GetRolesAsync(user);
         var token = _tokenService.GenerateToken(user, roles);
 
+        var refreshToken = new RefreshToken
+        {
+            Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            CreatedAt = DateTime.UtcNow,
+            UserId = user.Id
+        };
+        _context.RefreshTokens.Add(refreshToken);
+        await _context.SaveChangesAsync();
+
         return Ok(new AuthResponse
         {
             Success = true,
             Message = "Login successful",
             Token = token,
+            RefreshToken = refreshToken.Token,
             UserId = user.Id,
             Username = user.UserName
         });
+    }
+
+    [HttpPost("refresh")]
+    public async Task<ActionResult<AuthResponse>> Refresh([FromBody] RefreshRequest request)
+    {
+        var refreshToken = await _context.RefreshTokens
+            .Include(rt => rt.User)
+            .FirstOrDefaultAsync(rt => rt.Token == request.RefreshToken);
+
+        if (refreshToken == null || refreshToken.IsRevoked || refreshToken.ExpiresAt <= DateTime.UtcNow)
+        {
+            return Unauthorized(new AuthResponse
+            {
+                Success = false,
+                Message = "Invalid or expired refresh token"
+            });
+        }
+
+        if (refreshToken.User.IsDisabled)
+        {
+            return Unauthorized(new AuthResponse
+            {
+                Success = false,
+                Message = "This account has been disabled"
+            });
+        }
+
+        // Revoke old token
+        refreshToken.IsRevoked = true;
+
+        // Generate new tokens
+        var user = refreshToken.User;
+        var roles = await _userManager.GetRolesAsync(user);
+        var newJwt = _tokenService.GenerateToken(user, roles);
+
+        var newRefreshToken = new RefreshToken
+        {
+            Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            CreatedAt = DateTime.UtcNow,
+            UserId = user.Id
+        };
+        _context.RefreshTokens.Add(newRefreshToken);
+        await _context.SaveChangesAsync();
+
+        return Ok(new AuthResponse
+        {
+            Success = true,
+            Message = "Token refreshed successfully",
+            Token = newJwt,
+            RefreshToken = newRefreshToken.Token,
+            UserId = user.Id,
+            Username = user.UserName
+        });
+    }
+
+    [HttpPost("revoke-token")]
+    [Authorize]
+    public async Task<IActionResult> RevokeToken([FromBody] RefreshRequest request)
+    {
+        var refreshToken = await _context.RefreshTokens
+            .FirstOrDefaultAsync(rt => rt.Token == request.RefreshToken);
+
+        if (refreshToken == null)
+            return NotFound();
+
+        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var isAdmin = User.IsInRole("Admin");
+
+        if (refreshToken.UserId != currentUserId && !isAdmin)
+            return Forbid();
+
+        refreshToken.IsRevoked = true;
+        await _context.SaveChangesAsync();
+
+        return NoContent();
     }
 
     [HttpPut("update-credentials")]
     [Authorize]
     public async Task<ActionResult<AuthResponse>> UpdateCredentials([FromBody] UpdateCredentialsRequest request)
     {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
         {
             return Unauthorized(new AuthResponse
@@ -191,7 +331,7 @@ public class AuthController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<AuthResponse>> DisableAccount(string userId)
     {
-        var adminId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(adminId))
         {
             return Unauthorized(new AuthResponse
@@ -246,7 +386,7 @@ public class AuthController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<RoleManagementResponse>> GrantRole([FromBody] RoleManagementRequest request)
     {
-        var adminId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         // Prevent admin from modifying their own permissions
         if (request.UserId == adminId)
@@ -313,7 +453,7 @@ public class AuthController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<RoleManagementResponse>> RemoveRole([FromBody] RoleManagementRequest request)
     {
-        var adminId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         // Prevent admin from modifying their own permissions
         if (request.UserId == adminId)
