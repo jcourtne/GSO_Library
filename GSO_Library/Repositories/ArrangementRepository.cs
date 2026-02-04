@@ -1,44 +1,69 @@
 using GSO_Library.Data;
 using GSO_Library.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace GSO_Library.Repositories;
 
 public class ArrangementRepository
 {
+    private const string CacheKey = "ArrangementsWithIncludes";
     private readonly GSOLibraryContext _context;
+    private readonly IMemoryCache _cache;
 
-    public ArrangementRepository(GSOLibraryContext context)
+    public ArrangementRepository(GSOLibraryContext context, IMemoryCache cache)
     {
         _context = context;
+        _cache = cache;
     }
 
-    private IQueryable<Arrangement> ArrangementsWithIncludes()
+    private async Task<List<Arrangement>> GetCachedArrangementsAsync()
     {
-        return _context.Arrangements
-            .Include(a => a.Games)
-                .ThenInclude(g => g.Series)
-            .Include(a => a.Instruments)
-            .Include(a => a.Performances)
-            .Include(a => a.Files);
+        if (!_cache.TryGetValue(CacheKey, out List<Arrangement>? arrangements))
+        {
+            arrangements = await _context.Arrangements
+                .Include(a => a.Games)
+                    .ThenInclude(g => g.Series)
+                .Include(a => a.Instruments)
+                .Include(a => a.Performances)
+                .Include(a => a.Files)
+                .AsNoTracking()
+                .ToListAsync();
+
+            _cache.Set(CacheKey, arrangements);
+        }
+
+        return arrangements!;
+    }
+
+    public void InvalidateCache()
+    {
+        _cache.Remove(CacheKey);
     }
 
     public async Task<Arrangement?> GetArrangementByIdAsync(int id)
     {
-        return await ArrangementsWithIncludes()
-            .FirstOrDefaultAsync(a => a.Id == id);
+        var arrangements = await GetCachedArrangementsAsync();
+        return arrangements.FirstOrDefault(a => a.Id == id);
     }
 
-    public async Task<IEnumerable<Arrangement>> GetAllArrangementsAsync()
+    public async Task<PaginatedResult<Arrangement>> GetArrangementsAsync(
+        int page, int pageSize, int? gameId = null, int? seriesId = null, int? instrumentId = null)
     {
-        return await ArrangementsWithIncludes().ToListAsync();
-    }
+        var arrangements = await GetCachedArrangementsAsync();
+        IEnumerable<Arrangement> filtered = arrangements;
 
-    public async Task<PaginatedResult<Arrangement>> GetAllArrangementsAsync(int page, int pageSize)
-    {
-        var query = ArrangementsWithIncludes();
-        var totalCount = await query.CountAsync();
-        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        if (gameId.HasValue)
+            filtered = filtered.Where(a => a.Games.Any(g => g.Id == gameId.Value));
+
+        if (seriesId.HasValue)
+            filtered = filtered.Where(a => a.Games.Any(g => g.SeriesId == seriesId.Value));
+
+        if (instrumentId.HasValue)
+            filtered = filtered.Where(a => a.Instruments.Any(i => i.Id == instrumentId.Value));
+
+        var totalCount = filtered.Count();
+        var items = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
         return new PaginatedResult<Arrangement> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
     }
 
@@ -46,6 +71,7 @@ public class ArrangementRepository
     {
         _context.Arrangements.Add(arrangement);
         await _context.SaveChangesAsync();
+        InvalidateCache();
         return arrangement;
     }
 
@@ -65,7 +91,6 @@ public class ArrangementRepository
         existing.Composer = arrangement.Composer;
         existing.Key = arrangement.Key;
         existing.DurationSeconds = arrangement.DurationSeconds;
-        existing.Difficulty = arrangement.Difficulty;
         existing.Year = arrangement.Year;
 
         existing.Games.Clear();
@@ -83,6 +108,7 @@ public class ArrangementRepository
         }
 
         await _context.SaveChangesAsync();
+        InvalidateCache();
         return existing;
     }
 
@@ -98,52 +124,86 @@ public class ArrangementRepository
         var files = arrangement.Files.ToList();
         _context.Arrangements.Remove(arrangement);
         await _context.SaveChangesAsync();
+        InvalidateCache();
         return files;
     }
 
-    public async Task<IEnumerable<Arrangement>> GetArrangementsByGameIdAsync(int gameId)
+    public async Task<bool?> AddGameAsync(int arrangementId, int gameId)
     {
-        return await ArrangementsWithIncludes()
-            .Where(a => a.Games.Any(g => g.Id == gameId))
-            .ToListAsync();
+        var arrangement = await _context.Arrangements
+            .Include(a => a.Games)
+            .FirstOrDefaultAsync(a => a.Id == arrangementId);
+        if (arrangement == null)
+            return null;
+
+        if (arrangement.Games.Any(g => g.Id == gameId))
+            return false;
+
+        var game = await _context.Games.FindAsync(gameId);
+        if (game == null)
+            return false;
+
+        arrangement.Games.Add(game);
+        await _context.SaveChangesAsync();
+        InvalidateCache();
+        return true;
     }
 
-    public async Task<PaginatedResult<Arrangement>> GetArrangementsByGameIdAsync(int gameId, int page, int pageSize)
+    public async Task<bool?> RemoveGameAsync(int arrangementId, int gameId)
     {
-        var query = ArrangementsWithIncludes().Where(a => a.Games.Any(g => g.Id == gameId));
-        var totalCount = await query.CountAsync();
-        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-        return new PaginatedResult<Arrangement> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
+        var arrangement = await _context.Arrangements
+            .Include(a => a.Games)
+            .FirstOrDefaultAsync(a => a.Id == arrangementId);
+        if (arrangement == null)
+            return null;
+
+        var game = arrangement.Games.FirstOrDefault(g => g.Id == gameId);
+        if (game == null)
+            return false;
+
+        arrangement.Games.Remove(game);
+        await _context.SaveChangesAsync();
+        InvalidateCache();
+        return true;
     }
 
-    public async Task<IEnumerable<Arrangement>> GetArrangementsBySeriesIdAsync(int seriesId)
+    public async Task<bool?> AddInstrumentAsync(int arrangementId, int instrumentId)
     {
-        return await ArrangementsWithIncludes()
-            .Where(a => a.Games.Any(g => g.SeriesId == seriesId))
-            .ToListAsync();
+        var arrangement = await _context.Arrangements
+            .Include(a => a.Instruments)
+            .FirstOrDefaultAsync(a => a.Id == arrangementId);
+        if (arrangement == null)
+            return null;
+
+        if (arrangement.Instruments.Any(i => i.Id == instrumentId))
+            return false;
+
+        var instrument = await _context.Instruments.FindAsync(instrumentId);
+        if (instrument == null)
+            return false;
+
+        arrangement.Instruments.Add(instrument);
+        await _context.SaveChangesAsync();
+        InvalidateCache();
+        return true;
     }
 
-    public async Task<PaginatedResult<Arrangement>> GetArrangementsBySeriesIdAsync(int seriesId, int page, int pageSize)
+    public async Task<bool?> RemoveInstrumentAsync(int arrangementId, int instrumentId)
     {
-        var query = ArrangementsWithIncludes().Where(a => a.Games.Any(g => g.SeriesId == seriesId));
-        var totalCount = await query.CountAsync();
-        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-        return new PaginatedResult<Arrangement> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
-    }
+        var arrangement = await _context.Arrangements
+            .Include(a => a.Instruments)
+            .FirstOrDefaultAsync(a => a.Id == arrangementId);
+        if (arrangement == null)
+            return null;
 
-    public async Task<IEnumerable<Arrangement>> GetArrangementsByInstrumentIdAsync(int instrumentId)
-    {
-        return await ArrangementsWithIncludes()
-            .Where(a => a.Instruments.Any(i => i.Id == instrumentId))
-            .ToListAsync();
-    }
+        var instrument = arrangement.Instruments.FirstOrDefault(i => i.Id == instrumentId);
+        if (instrument == null)
+            return false;
 
-    public async Task<PaginatedResult<Arrangement>> GetArrangementsByInstrumentIdAsync(int instrumentId, int page, int pageSize)
-    {
-        var query = ArrangementsWithIncludes().Where(a => a.Instruments.Any(i => i.Id == instrumentId));
-        var totalCount = await query.CountAsync();
-        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-        return new PaginatedResult<Arrangement> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
+        arrangement.Instruments.Remove(instrument);
+        await _context.SaveChangesAsync();
+        InvalidateCache();
+        return true;
     }
 
     public async Task<Performance?> AddPerformanceAsync(int arrangementId, Performance performance)
@@ -155,6 +215,7 @@ public class ArrangementRepository
         performance.ArrangementId = arrangementId;
         _context.Performances.Add(performance);
         await _context.SaveChangesAsync();
+        InvalidateCache();
         return performance;
     }
 
@@ -166,6 +227,7 @@ public class ArrangementRepository
 
         _context.Performances.Remove(performance);
         await _context.SaveChangesAsync();
+        InvalidateCache();
         return true;
     }
 }

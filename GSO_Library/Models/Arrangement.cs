@@ -9,7 +9,6 @@ public class Arrangement
     public string? Composer { get; set; }
     public string? Key { get; set; }
     public int? DurationSeconds { get; set; }
-    public Difficulty? Difficulty { get; set; }
     public int? Year { get; set; }
     // Navigation properties
     public virtual ICollection<ArrangementFile> Files { get; set; } = [];

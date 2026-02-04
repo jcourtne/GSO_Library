@@ -60,6 +60,9 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 // Add File Storage Service
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
+// Add Memory Cache
+builder.Services.AddMemoryCache();
+
 // Add Repositories
 builder.Services.AddScoped<ArrangementRepository>();
 builder.Services.AddScoped<GameRepository>();

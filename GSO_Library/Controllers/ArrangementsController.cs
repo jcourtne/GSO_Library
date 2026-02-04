@@ -54,25 +54,7 @@ public class ArrangementsController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        PaginatedResult<Arrangement> result;
-
-        if (gameId.HasValue)
-        {
-            result = await _arrangementRepository.GetArrangementsByGameIdAsync(gameId.Value, page, pageSize);
-        }
-        else if (seriesId.HasValue)
-        {
-            result = await _arrangementRepository.GetArrangementsBySeriesIdAsync(seriesId.Value, page, pageSize);
-        }
-        else if (instrumentId.HasValue)
-        {
-            result = await _arrangementRepository.GetArrangementsByInstrumentIdAsync(instrumentId.Value, page, pageSize);
-        }
-        else
-        {
-            result = await _arrangementRepository.GetAllArrangementsAsync(page, pageSize);
-        }
-
+        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameId, seriesId, instrumentId);
         return Ok(result);
     }
 
@@ -99,6 +81,58 @@ public class ArrangementsController : ControllerBase
         {
             await _fileStorageService.DeleteFileAsync(id, file.StoredFileName);
         }
+
+        return NoContent();
+    }
+
+    [HttpPost("{arrangementId}/games/{gameId}")]
+    [Authorize(Roles = "Admin,Editor")]
+    public async Task<IActionResult> AddGame(int arrangementId, int gameId)
+    {
+        var result = await _arrangementRepository.AddGameAsync(arrangementId, gameId);
+        if (result == null)
+            return NotFound("Arrangement not found");
+        if (!result.Value)
+            return BadRequest("Game not found or already associated with this arrangement");
+
+        return NoContent();
+    }
+
+    [HttpDelete("{arrangementId}/games/{gameId}")]
+    [Authorize(Roles = "Admin,Editor")]
+    public async Task<IActionResult> RemoveGame(int arrangementId, int gameId)
+    {
+        var result = await _arrangementRepository.RemoveGameAsync(arrangementId, gameId);
+        if (result == null)
+            return NotFound("Arrangement not found");
+        if (!result.Value)
+            return NotFound("Game is not associated with this arrangement");
+
+        return NoContent();
+    }
+
+    [HttpPost("{arrangementId}/instruments/{instrumentId}")]
+    [Authorize(Roles = "Admin,Editor")]
+    public async Task<IActionResult> AddInstrument(int arrangementId, int instrumentId)
+    {
+        var result = await _arrangementRepository.AddInstrumentAsync(arrangementId, instrumentId);
+        if (result == null)
+            return NotFound("Arrangement not found");
+        if (!result.Value)
+            return BadRequest("Instrument not found or already associated with this arrangement");
+
+        return NoContent();
+    }
+
+    [HttpDelete("{arrangementId}/instruments/{instrumentId}")]
+    [Authorize(Roles = "Admin,Editor")]
+    public async Task<IActionResult> RemoveInstrument(int arrangementId, int instrumentId)
+    {
+        var result = await _arrangementRepository.RemoveInstrumentAsync(arrangementId, instrumentId);
+        if (result == null)
+            return NotFound("Arrangement not found");
+        if (!result.Value)
+            return NotFound("Instrument is not associated with this arrangement");
 
         return NoContent();
     }
@@ -150,6 +184,7 @@ public class ArrangementsController : ControllerBase
 
         _context.ArrangementFiles.Add(arrangementFile);
         await _context.SaveChangesAsync();
+        _arrangementRepository.InvalidateCache();
 
         return CreatedAtAction(nameof(DownloadFile), new { id, fileId = arrangementFile.Id }, arrangementFile);
     }
@@ -197,6 +232,7 @@ public class ArrangementsController : ControllerBase
 
         _context.ArrangementFiles.Remove(arrangementFile);
         await _context.SaveChangesAsync();
+        _arrangementRepository.InvalidateCache();
 
         return NoContent();
     }
