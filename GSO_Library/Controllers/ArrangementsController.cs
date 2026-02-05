@@ -50,13 +50,13 @@ public class ArrangementsController : ControllerBase
     [HttpGet]
     [Authorize]
     public async Task<ActionResult<PaginatedResult<Arrangement>>> GetAllArrangements(
-        [FromQuery] int? gameId, [FromQuery] int? seriesId, [FromQuery] int? instrumentId,
+        [FromQuery] int? gameId, [FromQuery] int? seriesId, [FromQuery] int? instrumentId, [FromQuery] int? performanceId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameId, seriesId, instrumentId);
+        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameId, seriesId, instrumentId, performanceId);
         return Ok(result);
     }
 
@@ -146,23 +146,27 @@ public class ArrangementsController : ControllerBase
         return NoContent();
     }
 
-    [HttpPost("{arrangementId}/performances")]
+    [HttpPost("{arrangementId}/performances/{performanceId}")]
     [Authorize(Roles = "Admin,Editor")]
-    public async Task<ActionResult<Performance>> AddPerformance(int arrangementId, [FromBody] Performance performance)
+    public async Task<IActionResult> AddPerformance(int arrangementId, int performanceId)
     {
-        var createdPerformance = await _arrangementRepository.AddPerformanceAsync(arrangementId, performance);
-        if (createdPerformance == null)
+        var result = await _arrangementRepository.AddPerformanceAsync(arrangementId, performanceId);
+        if (result == null)
             return NotFound();
+        if (!result.Value)
+            return BadRequest();
 
-        return CreatedAtAction(nameof(AddPerformance), new { arrangementId, performanceId = createdPerformance.Id }, createdPerformance);
+        return NoContent();
     }
 
     [HttpDelete("{arrangementId}/performances/{performanceId}")]
     [Authorize(Roles = "Admin,Editor")]
     public async Task<IActionResult> RemovePerformance(int arrangementId, int performanceId)
     {
-        var success = await _arrangementRepository.RemovePerformanceAsync(arrangementId, performanceId);
-        if (!success)
+        var result = await _arrangementRepository.RemovePerformanceAsync(arrangementId, performanceId);
+        if (result == null)
+            return NotFound();
+        if (!result.Value)
             return NotFound();
 
         return NoContent();

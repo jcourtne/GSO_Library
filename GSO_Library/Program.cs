@@ -73,6 +73,7 @@ builder.Services.AddScoped<ArrangementRepository>();
 builder.Services.AddScoped<GameRepository>();
 builder.Services.AddScoped<SeriesRepository>();
 builder.Services.AddScoped<InstrumentRepository>();
+builder.Services.AddScoped<PerformanceRepository>();
 
 var app = builder.Build();
 
@@ -105,3 +106,5 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+public partial class Program { }

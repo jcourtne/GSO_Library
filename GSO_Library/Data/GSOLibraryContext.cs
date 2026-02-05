@@ -34,18 +34,17 @@ public class GSOLibraryContext : IdentityDbContext<ApplicationUser>
             .WithMany(i => i.Arrangements)
             .UsingEntity(j => j.ToTable("ArrangementInstruments"));
 
+        // Configure Arrangement-Performance many-to-many relationship
+        modelBuilder.Entity<Arrangement>()
+            .HasMany(a => a.Performances)
+            .WithMany(p => p.Arrangements)
+            .UsingEntity(j => j.ToTable("ArrangementPerformances"));
+
         // Configure Game-Series one-to-many relationship
         modelBuilder.Entity<Game>()
             .HasOne(g => g.Series)
             .WithMany(s => s.Games)
             .HasForeignKey(g => g.SeriesId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        // Configure Arrangement-Performance one-to-many relationship
-        modelBuilder.Entity<Performance>()
-            .HasOne(p => p.Arrangement)
-            .WithMany(a => a.Performances)
-            .HasForeignKey(p => p.ArrangementId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Configure Arrangement-ArrangementFile one-to-many relationship

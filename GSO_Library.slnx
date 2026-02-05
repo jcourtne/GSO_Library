@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="GSO_Library/GSO_Library.csproj" />
+  <Project Path="GSO_Library.Tests/GSO_Library.Tests.csproj" />
 </Solution>

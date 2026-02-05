@@ -74,7 +74,7 @@ public class ArrangementRepository
     }
 
     public async Task<PaginatedResult<Arrangement>> GetArrangementsAsync(
-        int page, int pageSize, int? gameId = null, int? seriesId = null, int? instrumentId = null)
+        int page, int pageSize, int? gameId = null, int? seriesId = null, int? instrumentId = null, int? performanceId = null)
     {
         var arrangements = await GetCachedArrangementsAsync();
         IEnumerable<Arrangement> filtered = arrangements;
@@ -87,6 +87,9 @@ public class ArrangementRepository
 
         if (instrumentId.HasValue)
             filtered = filtered.Where(a => a.Instruments.Any(i => i.Id == instrumentId.Value));
+
+        if (performanceId.HasValue)
+            filtered = filtered.Where(a => a.Performances.Any(p => p.Id == performanceId.Value));
 
         var totalCount = filtered.Count();
         var items = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
@@ -225,26 +228,40 @@ public class ArrangementRepository
         return true;
     }
 
-    public async Task<Performance?> AddPerformanceAsync(int arrangementId, Performance performance)
+    public async Task<bool?> AddPerformanceAsync(int arrangementId, int performanceId)
     {
-        var arrangement = await _context.Arrangements.FindAsync(arrangementId);
+        var arrangement = await _context.Arrangements
+            .Include(a => a.Performances)
+            .FirstOrDefaultAsync(a => a.Id == arrangementId);
         if (arrangement == null)
             return null;
 
-        performance.ArrangementId = arrangementId;
-        _context.Performances.Add(performance);
-        await _context.SaveChangesAsync();
-        InvalidateCache();
-        return performance;
-    }
-
-    public async Task<bool> RemovePerformanceAsync(int arrangementId, int performanceId)
-    {
-        var performance = await _context.Performances.FindAsync(performanceId);
-        if (performance == null || performance.ArrangementId != arrangementId)
+        if (arrangement.Performances.Any(p => p.Id == performanceId))
             return false;
 
-        _context.Performances.Remove(performance);
+        var performance = await _context.Performances.FindAsync(performanceId);
+        if (performance == null)
+            return false;
+
+        arrangement.Performances.Add(performance);
+        await _context.SaveChangesAsync();
+        InvalidateCache();
+        return true;
+    }
+
+    public async Task<bool?> RemovePerformanceAsync(int arrangementId, int performanceId)
+    {
+        var arrangement = await _context.Arrangements
+            .Include(a => a.Performances)
+            .FirstOrDefaultAsync(a => a.Id == arrangementId);
+        if (arrangement == null)
+            return null;
+
+        var performance = arrangement.Performances.FirstOrDefault(p => p.Id == performanceId);
+        if (performance == null)
+            return false;
+
+        arrangement.Performances.Remove(performance);
         await _context.SaveChangesAsync();
         InvalidateCache();
         return true;
