@@ -16,17 +16,20 @@ public class ArrangementsController : ControllerBase
     private readonly ArrangementFileRepository _fileRepository;
     private readonly IFileStorageService _fileStorageService;
     private readonly FileUploadSettings _fileUploadSettings;
+    private readonly IAuditService _auditService;
 
     public ArrangementsController(
         ArrangementRepository arrangementRepository,
         ArrangementFileRepository fileRepository,
         IFileStorageService fileStorageService,
-        FileUploadSettings fileUploadSettings)
+        FileUploadSettings fileUploadSettings,
+        IAuditService auditService)
     {
         _arrangementRepository = arrangementRepository;
         _fileRepository = fileRepository;
         _fileStorageService = fileStorageService;
         _fileUploadSettings = fileUploadSettings;
+        _auditService = auditService;
     }
 
     [HttpPost]
@@ -234,6 +237,9 @@ public class ArrangementsController : ControllerBase
         try
         {
             var stream = await _fileStorageService.GetFileAsync(id, arrangementFile.StoredFileName);
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+            await _auditService.LogAsync(Models.AuditEventType.FileDownload, User.Identity?.Name, null, ip,
+                $"arrangementId: {id}, fileId: {fileId}, filename: {arrangementFile.FileName}");
             return File(stream, arrangementFile.ContentType, arrangementFile.FileName);
         }
         catch (FileNotFoundException)

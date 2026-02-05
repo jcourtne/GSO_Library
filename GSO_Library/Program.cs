@@ -86,6 +86,9 @@ builder.Services.AddAuthentication(options =>
 // Add Token Service
 builder.Services.AddScoped<ITokenService, TokenService>();
 
+// Add Audit Service
+builder.Services.AddScoped<IAuditService, AuditService>();
+
 // Add File Storage Service
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 

@@ -20,19 +20,22 @@ public class AuthController : ControllerBase
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly ITokenService _tokenService;
     private readonly GSOLibraryContext _context;
+    private readonly IAuditService _auditService;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         RoleManager<IdentityRole> roleManager,
         ITokenService tokenService,
-        GSOLibraryContext context)
+        GSOLibraryContext context,
+        IAuditService auditService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _roleManager = roleManager;
         _tokenService = tokenService;
         _context = context;
+        _auditService = auditService;
     }
 
     [HttpGet("users")]
@@ -118,9 +121,11 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
     {
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
         var user = await _userManager.FindByNameAsync(request.Username);
         if (user == null)
         {
+            await _auditService.LogAsync(AuditEventType.LoginFailure, request.Username, null, ip, "reason: unknown_user");
             return Unauthorized(new AuthResponse
             {
                 Success = false,
@@ -130,6 +135,7 @@ public class AuthController : ControllerBase
 
         if (user.IsDisabled)
         {
+            await _auditService.LogAsync(AuditEventType.LoginFailure, request.Username, null, ip, "reason: disabled_account");
             return Unauthorized(new AuthResponse
             {
                 Success = false,
@@ -140,6 +146,7 @@ public class AuthController : ControllerBase
         var result = await _signInManager.PasswordSignInAsync(user, request.Password, false, false);
         if (!result.Succeeded)
         {
+            await _auditService.LogAsync(AuditEventType.LoginFailure, request.Username, null, ip, "reason: wrong_password");
             return Unauthorized(new AuthResponse
             {
                 Success = false,
@@ -159,6 +166,8 @@ public class AuthController : ControllerBase
         };
         _context.RefreshTokens.Add(refreshToken);
         await _context.SaveChangesAsync();
+
+        await _auditService.LogAsync(AuditEventType.LoginSuccess, user.UserName, null, ip, null);
 
         return Ok(new AuthResponse
         {
@@ -213,6 +222,9 @@ public class AuthController : ControllerBase
         };
         _context.RefreshTokens.Add(newRefreshToken);
         await _context.SaveChangesAsync();
+
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        await _auditService.LogAsync(AuditEventType.TokenRefresh, user.UserName, null, ip, null);
 
         return Ok(new AuthResponse
         {
@@ -381,6 +393,9 @@ public class AuthController : ControllerBase
             token.IsRevoked = true;
         await _context.SaveChangesAsync();
 
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        await _auditService.LogAsync(AuditEventType.AccountDisable, User.Identity?.Name, user.UserName, ip, null);
+
         return Ok(new AuthResponse
         {
             Success = true,
@@ -435,6 +450,9 @@ public class AuthController : ControllerBase
                 Message = string.Join(", ", result.Errors.Select(e => e.Description))
             });
         }
+
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        await _auditService.LogAsync(AuditEventType.AccountEnable, User.Identity?.Name, user.UserName, ip, null);
 
         return Ok(new AuthResponse
         {
@@ -500,6 +518,9 @@ public class AuthController : ControllerBase
                 Message = string.Join(", ", result.Errors.Select(e => e.Description))
             });
         }
+
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        await _auditService.LogAsync(AuditEventType.RoleGrant, User.Identity?.Name, user.UserName, ip, $"role: {request.Role}");
 
         var roles = await _userManager.GetRolesAsync(user);
         return Ok(new RoleManagementResponse
@@ -567,6 +588,9 @@ public class AuthController : ControllerBase
                 Message = string.Join(", ", result.Errors.Select(e => e.Description))
             });
         }
+
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        await _auditService.LogAsync(AuditEventType.RoleRemove, User.Identity?.Name, user.UserName, ip, $"role: {request.Role}");
 
         var roles = await _userManager.GetRolesAsync(user);
         return Ok(new RoleManagementResponse

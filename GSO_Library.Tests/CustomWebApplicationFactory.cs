@@ -125,6 +125,16 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 performance_id INTEGER NOT NULL REFERENCES performances(id) ON DELETE CASCADE,
                 PRIMARY KEY (arrangement_id, performance_id)
             );
+
+            CREATE TABLE IF NOT EXISTS audit_events (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type      TEXT NOT NULL,
+                username        TEXT,
+                target_username TEXT,
+                ip_address      TEXT,
+                detail          TEXT,
+                created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            );
             """);
     }
 
