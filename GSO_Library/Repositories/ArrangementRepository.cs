@@ -1,7 +1,7 @@
+using Dapper;
 using GSO_Library.Data;
 using GSO_Library.Dtos;
 using GSO_Library.Models;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace GSO_Library.Repositories;
@@ -12,12 +12,12 @@ public class ArrangementRepository
     public const string ArrangementsCacheKey = "ArrangementsWithIncludes";
 
     private static readonly SemaphoreSlim _cacheLock = new(1, 1);
-    private readonly GSOLibraryContext _context;
+    private readonly IDbConnectionFactory _connectionFactory;
     private readonly IMemoryCache _cache;
 
-    public ArrangementRepository(GSOLibraryContext context, IMemoryCache cache)
+    public ArrangementRepository(IDbConnectionFactory connectionFactory, IMemoryCache cache)
     {
-        _context = context;
+        _connectionFactory = connectionFactory;
         _cache = cache;
     }
 
@@ -40,14 +40,69 @@ public class ArrangementRepository
                 return arrangements!;
             }
 
-            arrangements = await _context.Arrangements
-                .Include(a => a.Games)
-                    .ThenInclude(g => g.Series)
-                .Include(a => a.Instruments)
-                .Include(a => a.Performances)
-                .Include(a => a.Files)
-                .AsNoTracking()
-                .ToListAsync();
+            using var connection = _connectionFactory.CreateConnection();
+
+            // Query all tables in separate queries, then assemble in memory
+            var allArrangements = (await connection.QueryAsync<Arrangement>(
+                "SELECT id, name, description, arranger, composer, key, duration_seconds, year FROM arrangements")).ToList();
+
+            var allFiles = (await connection.QueryAsync<ArrangementFile>(
+                "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id FROM arrangement_files")).ToList();
+
+            var allGames = (await connection.QueryAsync<Game>(
+                "SELECT id, name, description, series_id FROM games")).ToList();
+
+            var allSeries = (await connection.QueryAsync<Series>(
+                "SELECT id, name, description FROM series")).ToList();
+
+            var allInstruments = (await connection.QueryAsync<Instrument>(
+                "SELECT id, name FROM instruments")).ToList();
+
+            var allPerformances = (await connection.QueryAsync<Performance>(
+                "SELECT id, name, link, performance_date, notes FROM performances")).ToList();
+
+            var arrangementGames = (await connection.QueryAsync<(int ArrangementId, int GameId)>(
+                "SELECT arrangement_id, game_id FROM arrangement_games")).ToList();
+
+            var arrangementInstruments = (await connection.QueryAsync<(int ArrangementId, int InstrumentId)>(
+                "SELECT arrangement_id, instrument_id FROM arrangement_instruments")).ToList();
+
+            var arrangementPerformances = (await connection.QueryAsync<(int ArrangementId, int PerformanceId)>(
+                "SELECT arrangement_id, performance_id FROM arrangement_performances")).ToList();
+
+            // Build lookups
+            var seriesLookup = allSeries.ToDictionary(s => s.Id);
+            var gameLookup = allGames.ToDictionary(g => g.Id);
+            var instrumentLookup = allInstruments.ToDictionary(i => i.Id);
+            var performanceLookup = allPerformances.ToDictionary(p => p.Id);
+
+            // Assign Series to Games
+            foreach (var game in allGames)
+                game.Series = seriesLookup.GetValueOrDefault(game.SeriesId);
+
+            // Build junction lookups
+            var gamesByArrangement = arrangementGames.GroupBy(ag => ag.ArrangementId)
+                .ToDictionary(g => g.Key, g => g.Select(ag => gameLookup.GetValueOrDefault(ag.GameId)).Where(x => x != null).ToList()!);
+
+            var instrumentsByArrangement = arrangementInstruments.GroupBy(ai => ai.ArrangementId)
+                .ToDictionary(g => g.Key, g => g.Select(ai => instrumentLookup.GetValueOrDefault(ai.InstrumentId)).Where(x => x != null).ToList()!);
+
+            var performancesByArrangement = arrangementPerformances.GroupBy(ap => ap.ArrangementId)
+                .ToDictionary(g => g.Key, g => g.Select(ap => performanceLookup.GetValueOrDefault(ap.PerformanceId)).Where(x => x != null).ToList()!);
+
+            var filesByArrangement = allFiles.GroupBy(f => f.ArrangementId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            // Assemble navigation properties
+            foreach (var a in allArrangements)
+            {
+                a.Games = gamesByArrangement.GetValueOrDefault(a.Id, [])!;
+                a.Instruments = instrumentsByArrangement.GetValueOrDefault(a.Id, [])!;
+                a.Performances = performancesByArrangement.GetValueOrDefault(a.Id, [])!;
+                a.Files = filesByArrangement.GetValueOrDefault(a.Id, []);
+            }
+
+            arrangements = allArrangements;
 
             _cache.Set(ArrangementsCacheKey, arrangements, new MemoryCacheEntryOptions
             {
@@ -98,8 +153,15 @@ public class ArrangementRepository
 
     public async Task<Arrangement> AddArrangementAsync(ArrangementRequest request)
     {
+        using var connection = _connectionFactory.CreateConnection();
+        var id = await connection.InsertReturningIdAsync(
+            @"INSERT INTO arrangements (name, description, arranger, composer, key, duration_seconds, year)
+              VALUES (@Name, @Description, @Arranger, @Composer, @Key, @DurationSeconds, @Year)",
+            new { request.Name, request.Description, request.Arranger, request.Composer, request.Key, request.DurationSeconds, request.Year });
+
         var arrangement = new Arrangement
         {
+            Id = id,
             Name = request.Name,
             Description = request.Description,
             Arranger = request.Arranger,
@@ -109,160 +171,170 @@ public class ArrangementRepository
             Year = request.Year
         };
 
-        _context.Arrangements.Add(arrangement);
-        await _context.SaveChangesAsync();
         InvalidateCache();
         return arrangement;
     }
 
     public async Task<Arrangement?> UpdateArrangementAsync(int id, ArrangementRequest request)
     {
-        var existing = await _context.Arrangements.FindAsync(id);
-        if (existing == null)
-            return null;
+        using var connection = _connectionFactory.CreateConnection();
+        var rows = await connection.ExecuteAsync(
+            @"UPDATE arrangements SET name = @Name, description = @Description, arranger = @Arranger,
+              composer = @Composer, key = @Key, duration_seconds = @DurationSeconds, year = @Year
+              WHERE id = @Id",
+            new { request.Name, request.Description, request.Arranger, request.Composer, request.Key, request.DurationSeconds, request.Year, Id = id });
 
-        existing.Name = request.Name;
-        existing.Description = request.Description;
-        existing.Arranger = request.Arranger;
-        existing.Composer = request.Composer;
-        existing.Key = request.Key;
-        existing.DurationSeconds = request.DurationSeconds;
-        existing.Year = request.Year;
+        if (rows == 0) return null;
 
-        await _context.SaveChangesAsync();
         InvalidateCache();
-        return existing;
+        return new Arrangement
+        {
+            Id = id,
+            Name = request.Name,
+            Description = request.Description,
+            Arranger = request.Arranger,
+            Composer = request.Composer,
+            Key = request.Key,
+            DurationSeconds = request.DurationSeconds,
+            Year = request.Year
+        };
     }
 
     public async Task<List<ArrangementFile>?> DeleteArrangementAsync(int id)
     {
-        var arrangement = await _context.Arrangements
-            .Include(a => a.Files)
-            .FirstOrDefaultAsync(a => a.Id == id);
+        using var connection = _connectionFactory.CreateConnection();
 
-        if (arrangement == null)
-            return null;
+        // Get files before deleting (CASCADE will remove them)
+        var files = (await connection.QueryAsync<ArrangementFile>(
+            "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id FROM arrangement_files WHERE arrangement_id = @Id",
+            new { Id = id })).ToList();
 
-        var files = arrangement.Files.ToList();
-        _context.Arrangements.Remove(arrangement);
-        await _context.SaveChangesAsync();
+        var rows = await connection.ExecuteAsync("DELETE FROM arrangements WHERE id = @Id", new { Id = id });
+        if (rows == 0) return null;
+
         InvalidateCache();
         return files;
     }
 
     public async Task<bool?> AddGameAsync(int arrangementId, int gameId)
     {
-        var arrangement = await _context.Arrangements
-            .Include(a => a.Games)
-            .FirstOrDefaultAsync(a => a.Id == arrangementId);
-        if (arrangement == null)
-            return null;
+        using var connection = _connectionFactory.CreateConnection();
 
-        if (arrangement.Games.Any(g => g.Id == gameId))
-            return false;
+        var arrangementExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangements WHERE id = @Id", new { Id = arrangementId });
+        if (arrangementExists == 0) return null;
 
-        var game = await _context.Games.FindAsync(gameId);
-        if (game == null)
-            return false;
+        var gameExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM games WHERE id = @Id", new { Id = gameId });
+        if (gameExists == 0) return false;
 
-        arrangement.Games.Add(game);
-        await _context.SaveChangesAsync();
+        var linkExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangement_games WHERE arrangement_id = @ArrangementId AND game_id = @GameId",
+            new { ArrangementId = arrangementId, GameId = gameId });
+        if (linkExists > 0) return false;
+
+        await connection.ExecuteAsync(
+            "INSERT INTO arrangement_games (arrangement_id, game_id) VALUES (@ArrangementId, @GameId)",
+            new { ArrangementId = arrangementId, GameId = gameId });
         InvalidateCache();
         return true;
     }
 
     public async Task<bool?> RemoveGameAsync(int arrangementId, int gameId)
     {
-        var arrangement = await _context.Arrangements
-            .Include(a => a.Games)
-            .FirstOrDefaultAsync(a => a.Id == arrangementId);
-        if (arrangement == null)
-            return null;
+        using var connection = _connectionFactory.CreateConnection();
 
-        var game = arrangement.Games.FirstOrDefault(g => g.Id == gameId);
-        if (game == null)
-            return false;
+        var arrangementExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangements WHERE id = @Id", new { Id = arrangementId });
+        if (arrangementExists == 0) return null;
 
-        arrangement.Games.Remove(game);
-        await _context.SaveChangesAsync();
+        var rows = await connection.ExecuteAsync(
+            "DELETE FROM arrangement_games WHERE arrangement_id = @ArrangementId AND game_id = @GameId",
+            new { ArrangementId = arrangementId, GameId = gameId });
+        if (rows == 0) return false;
+
         InvalidateCache();
         return true;
     }
 
     public async Task<bool?> AddInstrumentAsync(int arrangementId, int instrumentId)
     {
-        var arrangement = await _context.Arrangements
-            .Include(a => a.Instruments)
-            .FirstOrDefaultAsync(a => a.Id == arrangementId);
-        if (arrangement == null)
-            return null;
+        using var connection = _connectionFactory.CreateConnection();
 
-        if (arrangement.Instruments.Any(i => i.Id == instrumentId))
-            return false;
+        var arrangementExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangements WHERE id = @Id", new { Id = arrangementId });
+        if (arrangementExists == 0) return null;
 
-        var instrument = await _context.Instruments.FindAsync(instrumentId);
-        if (instrument == null)
-            return false;
+        var instrumentExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM instruments WHERE id = @Id", new { Id = instrumentId });
+        if (instrumentExists == 0) return false;
 
-        arrangement.Instruments.Add(instrument);
-        await _context.SaveChangesAsync();
+        var linkExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangement_instruments WHERE arrangement_id = @ArrangementId AND instrument_id = @InstrumentId",
+            new { ArrangementId = arrangementId, InstrumentId = instrumentId });
+        if (linkExists > 0) return false;
+
+        await connection.ExecuteAsync(
+            "INSERT INTO arrangement_instruments (arrangement_id, instrument_id) VALUES (@ArrangementId, @InstrumentId)",
+            new { ArrangementId = arrangementId, InstrumentId = instrumentId });
         InvalidateCache();
         return true;
     }
 
     public async Task<bool?> RemoveInstrumentAsync(int arrangementId, int instrumentId)
     {
-        var arrangement = await _context.Arrangements
-            .Include(a => a.Instruments)
-            .FirstOrDefaultAsync(a => a.Id == arrangementId);
-        if (arrangement == null)
-            return null;
+        using var connection = _connectionFactory.CreateConnection();
 
-        var instrument = arrangement.Instruments.FirstOrDefault(i => i.Id == instrumentId);
-        if (instrument == null)
-            return false;
+        var arrangementExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangements WHERE id = @Id", new { Id = arrangementId });
+        if (arrangementExists == 0) return null;
 
-        arrangement.Instruments.Remove(instrument);
-        await _context.SaveChangesAsync();
+        var rows = await connection.ExecuteAsync(
+            "DELETE FROM arrangement_instruments WHERE arrangement_id = @ArrangementId AND instrument_id = @InstrumentId",
+            new { ArrangementId = arrangementId, InstrumentId = instrumentId });
+        if (rows == 0) return false;
+
         InvalidateCache();
         return true;
     }
 
     public async Task<bool?> AddPerformanceAsync(int arrangementId, int performanceId)
     {
-        var arrangement = await _context.Arrangements
-            .Include(a => a.Performances)
-            .FirstOrDefaultAsync(a => a.Id == arrangementId);
-        if (arrangement == null)
-            return null;
+        using var connection = _connectionFactory.CreateConnection();
 
-        if (arrangement.Performances.Any(p => p.Id == performanceId))
-            return false;
+        var arrangementExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangements WHERE id = @Id", new { Id = arrangementId });
+        if (arrangementExists == 0) return null;
 
-        var performance = await _context.Performances.FindAsync(performanceId);
-        if (performance == null)
-            return false;
+        var performanceExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM performances WHERE id = @Id", new { Id = performanceId });
+        if (performanceExists == 0) return false;
 
-        arrangement.Performances.Add(performance);
-        await _context.SaveChangesAsync();
+        var linkExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangement_performances WHERE arrangement_id = @ArrangementId AND performance_id = @PerformanceId",
+            new { ArrangementId = arrangementId, PerformanceId = performanceId });
+        if (linkExists > 0) return false;
+
+        await connection.ExecuteAsync(
+            "INSERT INTO arrangement_performances (arrangement_id, performance_id) VALUES (@ArrangementId, @PerformanceId)",
+            new { ArrangementId = arrangementId, PerformanceId = performanceId });
         InvalidateCache();
         return true;
     }
 
     public async Task<bool?> RemovePerformanceAsync(int arrangementId, int performanceId)
     {
-        var arrangement = await _context.Arrangements
-            .Include(a => a.Performances)
-            .FirstOrDefaultAsync(a => a.Id == arrangementId);
-        if (arrangement == null)
-            return null;
+        using var connection = _connectionFactory.CreateConnection();
 
-        var performance = arrangement.Performances.FirstOrDefault(p => p.Id == performanceId);
-        if (performance == null)
-            return false;
+        var arrangementExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangements WHERE id = @Id", new { Id = arrangementId });
+        if (arrangementExists == 0) return null;
 
-        arrangement.Performances.Remove(performance);
-        await _context.SaveChangesAsync();
+        var rows = await connection.ExecuteAsync(
+            "DELETE FROM arrangement_performances WHERE arrangement_id = @ArrangementId AND performance_id = @PerformanceId",
+            new { ArrangementId = arrangementId, PerformanceId = performanceId });
+        if (rows == 0) return false;
+
         InvalidateCache();
         return true;
     }

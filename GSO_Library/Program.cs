@@ -21,9 +21,17 @@ builder.Services.AddControllers()
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-// Add DbContext
+// Configure Dapper to map snake_case columns to PascalCase properties
+Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
+
+// Add DbContext (Identity-only, using Npgsql)
 builder.Services.AddDbContext<GSOLibraryContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Register Dapper connection factory
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not configured");
+builder.Services.AddSingleton<IDbConnectionFactory>(new NpgsqlConnectionFactory(connectionString));
 
 // Add Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -70,6 +78,7 @@ builder.Services.AddMemoryCache();
 
 // Add Repositories
 builder.Services.AddScoped<ArrangementRepository>();
+builder.Services.AddScoped<ArrangementFileRepository>();
 builder.Services.AddScoped<GameRepository>();
 builder.Services.AddScoped<SeriesRepository>();
 builder.Services.AddScoped<InstrumentRepository>();

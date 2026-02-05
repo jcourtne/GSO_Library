@@ -1,71 +1,71 @@
+using Dapper;
 using GSO_Library.Data;
 using GSO_Library.Models;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace GSO_Library.Repositories;
 
 public class InstrumentRepository
 {
-    private readonly GSOLibraryContext _context;
+    private readonly IDbConnectionFactory _connectionFactory;
     private readonly IMemoryCache _cache;
 
-    public InstrumentRepository(GSOLibraryContext context, IMemoryCache cache)
+    public InstrumentRepository(IDbConnectionFactory connectionFactory, IMemoryCache cache)
     {
-        _context = context;
+        _connectionFactory = connectionFactory;
         _cache = cache;
     }
 
     public async Task<IEnumerable<Instrument>> GetAllInstrumentsAsync()
     {
-        return await _context.Instruments
-            .AsNoTracking()
-            .ToListAsync();
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QueryAsync<Instrument>("SELECT id, name FROM instruments");
     }
 
     public async Task<PaginatedResult<Instrument>> GetAllInstrumentsAsync(int page, int pageSize)
     {
-        var query = _context.Instruments.AsNoTracking();
-        var totalCount = await query.CountAsync();
-        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-        return new PaginatedResult<Instrument> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
+        using var connection = _connectionFactory.CreateConnection();
+        var totalCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM instruments");
+        var items = await connection.QueryAsync<Instrument>(
+            "SELECT id, name FROM instruments ORDER BY id LIMIT @Limit OFFSET @Offset",
+            new { Limit = pageSize, Offset = (page - 1) * pageSize });
+        return new PaginatedResult<Instrument> { Items = items.ToList(), Page = page, PageSize = pageSize, TotalCount = totalCount };
     }
 
     public async Task<Instrument?> GetInstrumentByIdAsync(int id)
     {
-        return await _context.Instruments
-            .AsNoTracking()
-            .FirstOrDefaultAsync(i => i.Id == id);
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QuerySingleOrDefaultAsync<Instrument>(
+            "SELECT id, name FROM instruments WHERE id = @Id", new { Id = id });
     }
 
     public async Task<Instrument> AddInstrumentAsync(Instrument instrument)
     {
-        _context.Instruments.Add(instrument);
-        await _context.SaveChangesAsync();
+        using var connection = _connectionFactory.CreateConnection();
+        var id = await connection.InsertReturningIdAsync(
+            "INSERT INTO instruments (name) VALUES (@Name)", new { instrument.Name });
+        instrument.Id = id;
         InvalidateArrangementCache();
         return instrument;
     }
 
     public async Task<Instrument?> UpdateInstrumentAsync(int id, Instrument instrument)
     {
-        var existing = await _context.Instruments.FindAsync(id);
-        if (existing == null)
-            return null;
-
-        existing.Name = instrument.Name;
-        await _context.SaveChangesAsync();
+        using var connection = _connectionFactory.CreateConnection();
+        var rows = await connection.ExecuteAsync(
+            "UPDATE instruments SET name = @Name WHERE id = @Id",
+            new { instrument.Name, Id = id });
+        if (rows == 0) return null;
+        instrument.Id = id;
         InvalidateArrangementCache();
-        return existing;
+        return instrument;
     }
 
     public async Task<bool> DeleteInstrumentAsync(int id)
     {
-        var instrument = await _context.Instruments.FindAsync(id);
-        if (instrument == null)
-            return false;
-
-        _context.Instruments.Remove(instrument);
-        await _context.SaveChangesAsync();
+        using var connection = _connectionFactory.CreateConnection();
+        var rows = await connection.ExecuteAsync("DELETE FROM instruments WHERE id = @Id", new { Id = id });
+        if (rows == 0) return false;
         InvalidateArrangementCache();
         return true;
     }

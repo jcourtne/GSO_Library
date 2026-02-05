@@ -1,3 +1,5 @@
+using System.Data;
+using Dapper;
 using GSO_Library.Data;
 using GSO_Library.Models;
 using GSO_Library.Services;
@@ -15,22 +17,108 @@ namespace GSO_Library.Tests;
 
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
-    private readonly SqliteConnection _connection;
+    private readonly string _dbName = $"file:testdb_{Guid.NewGuid():N}?mode=memory&cache=shared";
+    private readonly SqliteConnection _keepAliveConnection;
 
     public CustomWebApplicationFactory()
     {
-        // Open the connection once and keep it alive for the factory's lifetime.
-        // All DbContext instances will share this same in-memory database.
-        _connection = new SqliteConnection("DataSource=:memory:");
-        _connection.Open();
+        // Open a keep-alive connection so the shared in-memory database persists.
+        _keepAliveConnection = new SqliteConnection($"DataSource={_dbName}");
+        _keepAliveConnection.Open();
 
-        // Create the schema immediately so that Program.cs role seeding
-        // (which runs during host startup) finds the tables it needs.
+        // Enable foreign keys
+        using var cmd = _keepAliveConnection.CreateCommand();
+        cmd.CommandText = "PRAGMA foreign_keys = ON;";
+        cmd.ExecuteNonQuery();
+
+        // Create Identity schema via EF
         var options = new DbContextOptionsBuilder<GSOLibraryContext>()
-            .UseSqlite(_connection)
+            .UseSqlite(_keepAliveConnection)
             .Options;
         using var ctx = new GSOLibraryContext(options);
         ctx.Database.EnsureCreated();
+
+        // Create application tables (SQLite-compatible DDL)
+        CreateApplicationTables(_keepAliveConnection);
+    }
+
+    private static void CreateApplicationTables(SqliteConnection connection)
+    {
+        connection.Execute("""
+            CREATE TABLE IF NOT EXISTS series (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS games (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS arrangements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                arranger TEXT,
+                composer TEXT,
+                key TEXT,
+                duration_seconds INTEGER,
+                year INTEGER
+            );
+
+            CREATE TABLE IF NOT EXISTS arrangement_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                stored_file_name TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                uploaded_at TEXT NOT NULL,
+                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS instruments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS performances (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                link TEXT NOT NULL,
+                performance_date TEXT,
+                notes TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS arrangement_games (
+                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
+                game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+                PRIMARY KEY (arrangement_id, game_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS arrangement_instruments (
+                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
+                instrument_id INTEGER NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
+                PRIMARY KEY (arrangement_id, instrument_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS arrangement_performances (
+                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
+                performance_id INTEGER NOT NULL REFERENCES performances(id) ON DELETE CASCADE,
+                PRIMARY KEY (arrangement_id, performance_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS refresh_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token TEXT NOT NULL UNIQUE,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                is_revoked INTEGER NOT NULL DEFAULT 0,
+                user_id TEXT NOT NULL REFERENCES "AspNetUsers"("Id") ON DELETE CASCADE
+            );
+            """);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -44,7 +132,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll(typeof(DbContextOptions));
             services.RemoveAll(typeof(GSOLibraryContext));
 
-            // Remove IDbContextOptionsConfiguration registrations (carries the UseSqlServer config)
+            // Remove IDbContextOptionsConfiguration registrations (carries the UseNpgsql config)
             var optionConfigDescriptors = services
                 .Where(d => d.ServiceType.IsGenericType &&
                             d.ServiceType.GetGenericTypeDefinition() == typeof(IDbContextOptionsConfiguration<>))
@@ -52,12 +140,16 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             foreach (var d in optionConfigDescriptors)
                 services.Remove(d);
 
-            // Remove existing IFileStorageService
+            // Remove existing IFileStorageService and IDbConnectionFactory
             services.RemoveAll(typeof(IFileStorageService));
+            services.RemoveAll(typeof(IDbConnectionFactory));
 
             // Re-register GSOLibraryContext with the shared SQLite connection
             services.AddDbContext<GSOLibraryContext>(options =>
-                options.UseSqlite(_connection));
+                options.UseSqlite($"DataSource={_dbName}"));
+
+            // Register SQLite connection factory for Dapper
+            services.AddSingleton<IDbConnectionFactory>(new SqliteConnectionFactory(_dbName));
 
             // Register in-memory file storage stub
             services.AddScoped<IFileStorageService, InMemoryFileStorageService>();
@@ -118,7 +210,32 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     {
         base.Dispose(disposing);
         if (disposing)
-            _connection.Dispose();
+            _keepAliveConnection.Dispose();
+    }
+}
+
+/// <summary>
+/// SQLite connection factory for integration tests.
+/// Creates connections to a shared in-memory SQLite database.
+/// </summary>
+public class SqliteConnectionFactory : IDbConnectionFactory
+{
+    private readonly string _dbName;
+
+    public SqliteConnectionFactory(string dbName)
+    {
+        _dbName = dbName;
+    }
+
+    public IDbConnection CreateConnection()
+    {
+        var connection = new SqliteConnection($"DataSource={_dbName}");
+        connection.Open();
+        // Enable foreign keys for each new connection
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "PRAGMA foreign_keys = ON;";
+        cmd.ExecuteNonQuery();
+        return connection;
     }
 }
 

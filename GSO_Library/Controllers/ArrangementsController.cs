@@ -1,11 +1,9 @@
-using GSO_Library.Data;
 using GSO_Library.Dtos;
 using GSO_Library.Models;
 using GSO_Library.Repositories;
 using GSO_Library.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace GSO_Library.Controllers;
 
@@ -14,17 +12,17 @@ namespace GSO_Library.Controllers;
 public class ArrangementsController : ControllerBase
 {
     private readonly ArrangementRepository _arrangementRepository;
+    private readonly ArrangementFileRepository _fileRepository;
     private readonly IFileStorageService _fileStorageService;
-    private readonly GSOLibraryContext _context;
 
     public ArrangementsController(
         ArrangementRepository arrangementRepository,
-        IFileStorageService fileStorageService,
-        GSOLibraryContext context)
+        ArrangementFileRepository fileRepository,
+        IFileStorageService fileStorageService)
     {
         _arrangementRepository = arrangementRepository;
+        _fileRepository = fileRepository;
         _fileStorageService = fileStorageService;
-        _context = context;
     }
 
     [HttpPost]
@@ -176,8 +174,7 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<ArrangementFile>> UploadFile(int id, IFormFile file)
     {
-        var arrangement = await _context.Arrangements.FindAsync(id);
-        if (arrangement == null)
+        if (!await _fileRepository.ArrangementExistsAsync(id))
             return NotFound();
 
         var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
@@ -195,8 +192,7 @@ public class ArrangementsController : ControllerBase
             ArrangementId = id
         };
 
-        _context.ArrangementFiles.Add(arrangementFile);
-        await _context.SaveChangesAsync();
+        await _fileRepository.AddFileAsync(arrangementFile);
         _arrangementRepository.InvalidateCache();
 
         return CreatedAtAction(nameof(DownloadFile), new { id, fileId = arrangementFile.Id }, arrangementFile);
@@ -206,14 +202,10 @@ public class ArrangementsController : ControllerBase
     [Authorize]
     public async Task<ActionResult<IEnumerable<ArrangementFile>>> ListFiles(int id)
     {
-        var arrangement = await _context.Arrangements.FindAsync(id);
-        if (arrangement == null)
+        if (!await _fileRepository.ArrangementExistsAsync(id))
             return NotFound();
 
-        var files = await _context.ArrangementFiles
-            .Where(f => f.ArrangementId == id)
-            .ToListAsync();
-
+        var files = await _fileRepository.GetFilesByArrangementIdAsync(id);
         return Ok(files);
     }
 
@@ -221,9 +213,7 @@ public class ArrangementsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> DownloadFile(int id, int fileId)
     {
-        var arrangementFile = await _context.ArrangementFiles
-            .FirstOrDefaultAsync(f => f.Id == fileId && f.ArrangementId == id);
-
+        var arrangementFile = await _fileRepository.GetFileAsync(id, fileId);
         if (arrangementFile == null)
             return NotFound();
 
@@ -242,16 +232,12 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Editor")]
     public async Task<IActionResult> DeleteFile(int id, int fileId)
     {
-        var arrangementFile = await _context.ArrangementFiles
-            .FirstOrDefaultAsync(f => f.Id == fileId && f.ArrangementId == id);
-
+        var arrangementFile = await _fileRepository.GetFileAsync(id, fileId);
         if (arrangementFile == null)
             return NotFound();
 
         await _fileStorageService.DeleteFileAsync(id, arrangementFile.StoredFileName);
-
-        _context.ArrangementFiles.Remove(arrangementFile);
-        await _context.SaveChangesAsync();
+        await _fileRepository.DeleteFileAsync(id, fileId);
         _arrangementRepository.InvalidateCache();
 
         return NoContent();
