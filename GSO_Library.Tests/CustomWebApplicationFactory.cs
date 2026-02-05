@@ -109,15 +109,6 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 performance_id INTEGER NOT NULL REFERENCES performances(id) ON DELETE CASCADE,
                 PRIMARY KEY (arrangement_id, performance_id)
             );
-
-            CREATE TABLE IF NOT EXISTS refresh_tokens (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                token TEXT NOT NULL UNIQUE,
-                expires_at TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                is_revoked INTEGER NOT NULL DEFAULT 0,
-                user_id TEXT NOT NULL REFERENCES "AspNetUsers"("Id") ON DELETE CASCADE
-            );
             """);
     }
 

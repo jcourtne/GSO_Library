@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
-using Dapper;
 using GSO_Library.Data;
 using GSO_Library.Dtos;
 using GSO_Library.Models;
@@ -20,20 +19,20 @@ public class AuthController : ControllerBase
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly ITokenService _tokenService;
-    private readonly IDbConnectionFactory _connectionFactory;
+    private readonly GSOLibraryContext _context;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         RoleManager<IdentityRole> roleManager,
         ITokenService tokenService,
-        IDbConnectionFactory connectionFactory)
+        GSOLibraryContext context)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _roleManager = roleManager;
         _tokenService = tokenService;
-        _connectionFactory = connectionFactory;
+        _context = context;
     }
 
     [HttpGet("users")]
@@ -158,12 +157,8 @@ public class AuthController : ControllerBase
             CreatedAt = DateTime.UtcNow,
             UserId = user.Id
         };
-
-        using var connection = _connectionFactory.CreateConnection();
-        await connection.ExecuteAsync(
-            @"INSERT INTO refresh_tokens (token, expires_at, created_at, is_revoked, user_id)
-              VALUES (@Token, @ExpiresAt, @CreatedAt, @IsRevoked, @UserId)",
-            new { refreshToken.Token, refreshToken.ExpiresAt, refreshToken.CreatedAt, refreshToken.IsRevoked, refreshToken.UserId });
+        _context.RefreshTokens.Add(refreshToken);
+        await _context.SaveChangesAsync();
 
         return Ok(new AuthResponse
         {
@@ -179,10 +174,9 @@ public class AuthController : ControllerBase
     [HttpPost("refresh")]
     public async Task<ActionResult<AuthResponse>> Refresh([FromBody] RefreshRequest request)
     {
-        using var connection = _connectionFactory.CreateConnection();
-        var refreshToken = await connection.QuerySingleOrDefaultAsync<RefreshToken>(
-            "SELECT id, token, expires_at, created_at, is_revoked, user_id FROM refresh_tokens WHERE token = @Token",
-            new { Token = request.RefreshToken });
+        var refreshToken = await _context.RefreshTokens
+            .Include(rt => rt.User)
+            .FirstOrDefaultAsync(rt => rt.Token == request.RefreshToken);
 
         if (refreshToken == null || refreshToken.IsRevoked || refreshToken.ExpiresAt <= DateTime.UtcNow)
         {
@@ -193,22 +187,20 @@ public class AuthController : ControllerBase
             });
         }
 
-        var user = await _userManager.FindByIdAsync(refreshToken.UserId);
-        if (user == null || user.IsDisabled)
+        if (refreshToken.User.IsDisabled)
         {
             return Unauthorized(new AuthResponse
             {
                 Success = false,
-                Message = user == null ? "Invalid or expired refresh token" : "This account has been disabled"
+                Message = "This account has been disabled"
             });
         }
 
         // Revoke old token
-        await connection.ExecuteAsync(
-            "UPDATE refresh_tokens SET is_revoked = 1 WHERE id = @Id",
-            new { refreshToken.Id });
+        refreshToken.IsRevoked = true;
 
         // Generate new tokens
+        var user = refreshToken.User;
         var roles = await _userManager.GetRolesAsync(user);
         var newJwt = _tokenService.GenerateToken(user, roles);
 
@@ -219,11 +211,8 @@ public class AuthController : ControllerBase
             CreatedAt = DateTime.UtcNow,
             UserId = user.Id
         };
-
-        await connection.ExecuteAsync(
-            @"INSERT INTO refresh_tokens (token, expires_at, created_at, is_revoked, user_id)
-              VALUES (@Token, @ExpiresAt, @CreatedAt, @IsRevoked, @UserId)",
-            new { newRefreshToken.Token, newRefreshToken.ExpiresAt, newRefreshToken.CreatedAt, newRefreshToken.IsRevoked, newRefreshToken.UserId });
+        _context.RefreshTokens.Add(newRefreshToken);
+        await _context.SaveChangesAsync();
 
         return Ok(new AuthResponse
         {
@@ -240,10 +229,8 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> RevokeToken([FromBody] RefreshRequest request)
     {
-        using var connection = _connectionFactory.CreateConnection();
-        var refreshToken = await connection.QuerySingleOrDefaultAsync<RefreshToken>(
-            "SELECT id, token, expires_at, created_at, is_revoked, user_id FROM refresh_tokens WHERE token = @Token",
-            new { Token = request.RefreshToken });
+        var refreshToken = await _context.RefreshTokens
+            .FirstOrDefaultAsync(rt => rt.Token == request.RefreshToken);
 
         if (refreshToken == null)
             return NotFound();
@@ -254,9 +241,8 @@ public class AuthController : ControllerBase
         if (refreshToken.UserId != currentUserId && !isAdmin)
             return Forbid();
 
-        await connection.ExecuteAsync(
-            "UPDATE refresh_tokens SET is_revoked = 1 WHERE id = @Id",
-            new { refreshToken.Id });
+        refreshToken.IsRevoked = true;
+        await _context.SaveChangesAsync();
 
         return NoContent();
     }
@@ -388,10 +374,12 @@ public class AuthController : ControllerBase
         }
 
         // Revoke all active refresh tokens for the disabled user
-        using var connection = _connectionFactory.CreateConnection();
-        await connection.ExecuteAsync(
-            "UPDATE refresh_tokens SET is_revoked = 1 WHERE user_id = @UserId AND is_revoked = 0",
-            new { UserId = userId });
+        var tokens = await _context.RefreshTokens
+            .Where(rt => rt.UserId == userId && !rt.IsRevoked)
+            .ToListAsync();
+        foreach (var token in tokens)
+            token.IsRevoked = true;
+        await _context.SaveChangesAsync();
 
         return Ok(new AuthResponse
         {

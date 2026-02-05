@@ -70,13 +70,3 @@ CREATE TABLE IF NOT EXISTS arrangement_performances (
     PRIMARY KEY (arrangement_id, performance_id)
 );
 CREATE INDEX IF NOT EXISTS ix_arrangement_performances_performance_id ON arrangement_performances(performance_id);
-
-CREATE TABLE IF NOT EXISTS refresh_tokens (
-    id SERIAL PRIMARY KEY,
-    token TEXT NOT NULL UNIQUE,
-    expires_at TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
-    user_id TEXT NOT NULL REFERENCES "AspNetUsers"("Id") ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS ix_refresh_tokens_user_id ON refresh_tokens(user_id);
