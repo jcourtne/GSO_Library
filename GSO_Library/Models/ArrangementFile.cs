@@ -9,6 +9,8 @@ public class ArrangementFile
     public long FileSize { get; set; }
     public DateTime UploadedAt { get; set; }
 
+    public string? CreatedBy { get; set; }
+
     // Foreign key
     public int ArrangementId { get; set; }
 

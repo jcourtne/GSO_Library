@@ -25,9 +25,9 @@ public class ArrangementFileRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var id = await connection.InsertReturningIdAsync(
-            @"INSERT INTO arrangement_files (file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id)
-              VALUES (@FileName, @StoredFileName, @ContentType, @FileSize, @UploadedAt, @ArrangementId)",
-            new { file.FileName, file.StoredFileName, file.ContentType, file.FileSize, file.UploadedAt, file.ArrangementId });
+            @"INSERT INTO arrangement_files (file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by)
+              VALUES (@FileName, @StoredFileName, @ContentType, @FileSize, @UploadedAt, @ArrangementId, @CreatedBy)",
+            new { file.FileName, file.StoredFileName, file.ContentType, file.FileSize, file.UploadedAt, file.ArrangementId, file.CreatedBy });
         file.Id = id;
         return file;
     }
@@ -36,7 +36,7 @@ public class ArrangementFileRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var files = await connection.QueryAsync<ArrangementFile>(
-            "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id FROM arrangement_files WHERE arrangement_id = @Id",
+            "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by FROM arrangement_files WHERE arrangement_id = @Id",
             new { Id = arrangementId });
         return files.ToList();
     }
@@ -45,7 +45,7 @@ public class ArrangementFileRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QuerySingleOrDefaultAsync<ArrangementFile>(
-            "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id FROM arrangement_files WHERE id = @FileId AND arrangement_id = @ArrangementId",
+            "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by FROM arrangement_files WHERE id = @FileId AND arrangement_id = @ArrangementId",
             new { FileId = fileId, ArrangementId = arrangementId });
     }
 

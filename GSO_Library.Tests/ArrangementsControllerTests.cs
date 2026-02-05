@@ -283,6 +283,109 @@ public class ArrangementsControllerTests : IntegrationTestBase
         Assert.All(result.Items, a => Assert.Contains(a.Games, g => g.Id == gameId));
     }
 
+    // ───── Sorting ─────
+
+    [Fact]
+    public async Task GetArrangements_SortByNameAsc_ReturnsSorted()
+    {
+        var client = await GetEditorClientAsync();
+        await CreateArrangementAsync(client, "ZZZ_Last");
+        await CreateArrangementAsync(client, "AAA_First");
+
+        var response = await client.GetAsync("/api/arrangements?sortBy=name&sortDirection=asc");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Arrangement>>(JsonOpts);
+        var names = result!.Items.Select(a => a.Name).ToList();
+        Assert.Equal(names.OrderBy(n => n).ToList(), names);
+    }
+
+    [Fact]
+    public async Task GetArrangements_SortByNameDesc_ReturnsSorted()
+    {
+        var client = await GetEditorClientAsync();
+        await CreateArrangementAsync(client, "AAA_Sort");
+        await CreateArrangementAsync(client, "ZZZ_Sort");
+
+        var response = await client.GetAsync("/api/arrangements?sortBy=name&sortDirection=desc");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Arrangement>>(JsonOpts);
+        var names = result!.Items.Select(a => a.Name).ToList();
+        Assert.Equal(names.OrderByDescending(n => n).ToList(), names);
+    }
+
+    // ───── Audit fields ─────
+
+    [Fact]
+    public async Task CreateArrangement_SetsAuditFields()
+    {
+        var client = await GetEditorClientAsync();
+        var before = DateTime.UtcNow.AddSeconds(-1);
+
+        var response = await client.PostAsJsonAsync("/api/arrangements", new ArrangementRequest
+        {
+            Name = "Audit Test"
+        });
+        response.EnsureSuccessStatusCode();
+        var arrangement = await response.Content.ReadFromJsonAsync<Arrangement>(JsonOpts);
+
+        Assert.NotEqual(default, arrangement!.CreatedAt);
+        Assert.NotEqual(default, arrangement.UpdatedAt);
+        Assert.Equal("testeditor", arrangement.CreatedBy);
+        Assert.True(arrangement.CreatedAt >= before);
+    }
+
+    // ───── File upload validation ─────
+
+    [Fact]
+    public async Task UploadFile_DisallowedExtension_Returns400()
+    {
+        var client = await GetEditorClientAsync();
+        var arrangement = await CreateArrangementAsync(client, "FileValExt");
+
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("data"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        content.Add(fileContent, "file", "malicious.exe");
+
+        var response = await client.PostAsync($"/api/arrangements/{arrangement.Id}/files", content);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains(".exe", body);
+    }
+
+    [Fact]
+    public async Task UploadFile_AllowedExtension_Returns201()
+    {
+        var client = await GetEditorClientAsync();
+        var arrangement = await CreateArrangementAsync(client, "FileValPdf");
+
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("pdf data"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(fileContent, "file", "score.pdf");
+
+        var response = await client.PostAsync($"/api/arrangements/{arrangement.Id}/files", content);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UploadFile_SetsCreatedBy()
+    {
+        var client = await GetEditorClientAsync();
+        var arrangement = await CreateArrangementAsync(client, "FileAudit");
+
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("test"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(fileContent, "file", "audit-test.pdf");
+
+        var response = await client.PostAsync($"/api/arrangements/{arrangement.Id}/files", content);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var file = await response.Content.ReadFromJsonAsync<ArrangementFile>(JsonOpts);
+        Assert.Equal("testeditor", file!.CreatedBy);
+    }
+
     // ───── Error cases ─────
 
     [Fact]

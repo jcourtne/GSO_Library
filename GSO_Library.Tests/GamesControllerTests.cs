@@ -124,6 +124,44 @@ public class GamesControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
+    // ───── Sorting ─────
+
+    [Fact]
+    public async Task GetAllGames_SortByNameDesc_ReturnsSorted()
+    {
+        var client = await GetEditorClientAsync();
+        var seriesId = await CreateSeriesAsync(client);
+        await client.PostAsJsonAsync("/api/games", new { Name = "AAA_GameSort", SeriesId = seriesId });
+        await client.PostAsJsonAsync("/api/games", new { Name = "ZZZ_GameSort", SeriesId = seriesId });
+
+        var response = await client.GetAsync("/api/games?sortBy=name&sortDirection=desc");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Game>>(JsonOpts);
+        var names = result!.Items.Select(g => g.Name).ToList();
+        Assert.Equal(names.OrderByDescending(n => n).ToList(), names);
+    }
+
+    // ───── Audit fields ─────
+
+    [Fact]
+    public async Task CreateGame_SetsAuditFields()
+    {
+        var client = await GetEditorClientAsync();
+        var seriesId = await CreateSeriesAsync(client);
+
+        var response = await client.PostAsJsonAsync("/api/games", new
+        {
+            Name = "AuditGame",
+            SeriesId = seriesId
+        });
+        response.EnsureSuccessStatusCode();
+        var game = await response.Content.ReadFromJsonAsync<Game>(JsonOpts);
+
+        Assert.NotEqual(default, game!.CreatedAt);
+        Assert.NotEqual(default, game.UpdatedAt);
+        Assert.Equal("testeditor", game.CreatedBy);
+    }
+
     // ───── Error cases ─────
 
     [Fact]

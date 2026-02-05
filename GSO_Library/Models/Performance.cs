@@ -7,6 +7,9 @@ public class Performance
     public string Link { get; set; } = string.Empty;
     public DateTime? PerformanceDate { get; set; }
     public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
 
     // Navigation properties
     public virtual ICollection<Arrangement> Arrangements { get; set; } = [];

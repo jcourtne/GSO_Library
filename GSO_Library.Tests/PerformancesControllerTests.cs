@@ -117,6 +117,42 @@ public class PerformancesControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
+    // ───── Sorting ─────
+
+    [Fact]
+    public async Task GetAllPerformances_SortByNameDesc_ReturnsSorted()
+    {
+        var client = await GetEditorClientAsync();
+        await client.PostAsJsonAsync("/api/performances", new { Name = "AAA_PerfSort", Link = "https://example.com/a" });
+        await client.PostAsJsonAsync("/api/performances", new { Name = "ZZZ_PerfSort", Link = "https://example.com/z" });
+
+        var response = await client.GetAsync("/api/performances?sortBy=name&sortDirection=desc");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Performance>>(JsonOpts);
+        var names = result!.Items.Select(p => p.Name).ToList();
+        Assert.Equal(names.OrderByDescending(n => n).ToList(), names);
+    }
+
+    // ───── Audit fields ─────
+
+    [Fact]
+    public async Task CreatePerformance_SetsAuditFields()
+    {
+        var client = await GetEditorClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/performances", new
+        {
+            Name = "AuditPerf",
+            Link = "https://example.com/audit"
+        });
+        response.EnsureSuccessStatusCode();
+        var perf = await response.Content.ReadFromJsonAsync<Performance>(JsonOpts);
+
+        Assert.NotEqual(default, perf!.CreatedAt);
+        Assert.NotEqual(default, perf.UpdatedAt);
+        Assert.Equal("testeditor", perf.CreatedBy);
+    }
+
     // ───── Error cases ─────
 
     [Fact]

@@ -93,6 +93,38 @@ public class InstrumentsControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
+    // ───── Sorting ─────
+
+    [Fact]
+    public async Task GetAllInstruments_SortByNameDesc_ReturnsSorted()
+    {
+        var client = await GetEditorClientAsync();
+        await client.PostAsJsonAsync("/api/instruments", new { Name = "AAA_InstSort" });
+        await client.PostAsJsonAsync("/api/instruments", new { Name = "ZZZ_InstSort" });
+
+        var response = await client.GetAsync("/api/instruments?sortBy=name&sortDirection=desc");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Instrument>>(JsonOpts);
+        var names = result!.Items.Select(i => i.Name).ToList();
+        Assert.Equal(names.OrderByDescending(n => n).ToList(), names);
+    }
+
+    // ───── Audit fields ─────
+
+    [Fact]
+    public async Task CreateInstrument_SetsAuditFields()
+    {
+        var client = await GetEditorClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/instruments", new { Name = "AuditInstrument" });
+        response.EnsureSuccessStatusCode();
+        var instrument = await response.Content.ReadFromJsonAsync<Instrument>(JsonOpts);
+
+        Assert.NotEqual(default, instrument!.CreatedAt);
+        Assert.NotEqual(default, instrument.UpdatedAt);
+        Assert.Equal("testeditor", instrument.CreatedBy);
+    }
+
     // ───── Error cases ─────
 
     [Fact]

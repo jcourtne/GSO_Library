@@ -10,6 +10,9 @@ public class Arrangement
     public string? Key { get; set; }
     public int? DurationSeconds { get; set; }
     public int? Year { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public string? CreatedBy { get; set; }
     // Navigation properties
     public virtual ICollection<ArrangementFile> Files { get; set; } = [];
     public virtual ICollection<Game> Games { get; set; } = [];

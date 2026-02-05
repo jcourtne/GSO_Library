@@ -1,3 +1,4 @@
+using GSO_Library.Configuration;
 using GSO_Library.Dtos;
 using GSO_Library.Models;
 using GSO_Library.Repositories;
@@ -14,22 +15,25 @@ public class ArrangementsController : ControllerBase
     private readonly ArrangementRepository _arrangementRepository;
     private readonly ArrangementFileRepository _fileRepository;
     private readonly IFileStorageService _fileStorageService;
+    private readonly FileUploadSettings _fileUploadSettings;
 
     public ArrangementsController(
         ArrangementRepository arrangementRepository,
         ArrangementFileRepository fileRepository,
-        IFileStorageService fileStorageService)
+        IFileStorageService fileStorageService,
+        FileUploadSettings fileUploadSettings)
     {
         _arrangementRepository = arrangementRepository;
         _fileRepository = fileRepository;
         _fileStorageService = fileStorageService;
+        _fileUploadSettings = fileUploadSettings;
     }
 
     [HttpPost]
     [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Arrangement>> AddArrangement([FromBody] ArrangementRequest request)
     {
-        var createdArrangement = await _arrangementRepository.AddArrangementAsync(request);
+        var createdArrangement = await _arrangementRepository.AddArrangementAsync(request, User.Identity?.Name);
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(createdArrangement.Id);
         return CreatedAtAction(nameof(GetArrangementById), new { id = createdArrangement.Id }, arrangement);
     }
@@ -49,12 +53,13 @@ public class ArrangementsController : ControllerBase
     [Authorize]
     public async Task<ActionResult<PaginatedResult<Arrangement>>> GetAllArrangements(
         [FromQuery] int? gameId, [FromQuery] int? seriesId, [FromQuery] int? instrumentId, [FromQuery] int? performanceId,
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameId, seriesId, instrumentId, performanceId);
+        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameId, seriesId, instrumentId, performanceId, sortBy, sortDirection);
         return Ok(result);
     }
 
@@ -177,7 +182,15 @@ public class ArrangementsController : ControllerBase
         if (!await _fileRepository.ArrangementExistsAsync(id))
             return NotFound();
 
-        var storedFileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        if (file.Length > _fileUploadSettings.MaxFileSizeBytes)
+            return BadRequest($"File size exceeds the maximum allowed size of {_fileUploadSettings.MaxFileSizeBytes} bytes.");
+
+        var extension = Path.GetExtension(file.FileName)?.ToLowerInvariant();
+        if (_fileUploadSettings.AllowedExtensions.Length > 0 &&
+            (string.IsNullOrEmpty(extension) || !_fileUploadSettings.AllowedExtensions.Contains(extension)))
+            return BadRequest($"File extension '{extension}' is not allowed. Allowed extensions: {string.Join(", ", _fileUploadSettings.AllowedExtensions)}");
+
+        var storedFileName = $"{Guid.NewGuid()}{extension}";
 
         using var stream = file.OpenReadStream();
         await _fileStorageService.SaveFileAsync(id, storedFileName, stream);
@@ -189,7 +202,8 @@ public class ArrangementsController : ControllerBase
             ContentType = file.ContentType,
             FileSize = file.Length,
             UploadedAt = DateTime.UtcNow,
-            ArrangementId = id
+            ArrangementId = id,
+            CreatedBy = User.Identity?.Name
         };
 
         await _fileRepository.AddFileAsync(arrangementFile);

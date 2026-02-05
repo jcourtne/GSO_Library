@@ -18,11 +18,13 @@ public class GamesController : ControllerBase
 
     [HttpGet]
     [Authorize]
-    public async Task<ActionResult<PaginatedResult<Game>>> GetAllGames([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<ActionResult<PaginatedResult<Game>>> GetAllGames(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var result = await _gameRepository.GetAllGamesAsync(page, pageSize);
+        var result = await _gameRepository.GetAllGamesAsync(page, pageSize, sortBy, sortDirection);
         return Ok(result);
     }
 
@@ -41,6 +43,10 @@ public class GamesController : ControllerBase
     [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Game>> AddGame([FromBody] Game game)
     {
+        var now = DateTime.UtcNow;
+        game.CreatedAt = now;
+        game.UpdatedAt = now;
+        game.CreatedBy = User.Identity?.Name;
         var createdGame = await _gameRepository.AddGameAsync(game);
         return CreatedAtAction(nameof(GetGameById), new { id = createdGame.Id }, createdGame);
     }
@@ -49,6 +55,7 @@ public class GamesController : ControllerBase
     [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Game>> UpdateGame(int id, [FromBody] Game game)
     {
+        game.UpdatedAt = DateTime.UtcNow;
         var updated = await _gameRepository.UpdateGameAsync(id, game);
         if (updated == null)
             return NotFound();

@@ -18,11 +18,13 @@ public class InstrumentsController : ControllerBase
 
     [HttpGet]
     [Authorize]
-    public async Task<ActionResult<PaginatedResult<Instrument>>> GetAllInstruments([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<ActionResult<PaginatedResult<Instrument>>> GetAllInstruments(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var result = await _instrumentRepository.GetAllInstrumentsAsync(page, pageSize);
+        var result = await _instrumentRepository.GetAllInstrumentsAsync(page, pageSize, sortBy, sortDirection);
         return Ok(result);
     }
 
@@ -41,6 +43,10 @@ public class InstrumentsController : ControllerBase
     [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Instrument>> AddInstrument([FromBody] Instrument instrument)
     {
+        var now = DateTime.UtcNow;
+        instrument.CreatedAt = now;
+        instrument.UpdatedAt = now;
+        instrument.CreatedBy = User.Identity?.Name;
         var created = await _instrumentRepository.AddInstrumentAsync(instrument);
         return CreatedAtAction(nameof(GetInstrumentById), new { id = created.Id }, created);
     }
@@ -49,6 +55,7 @@ public class InstrumentsController : ControllerBase
     [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Instrument>> UpdateInstrument(int id, [FromBody] Instrument instrument)
     {
+        instrument.UpdatedAt = DateTime.UtcNow;
         var updated = await _instrumentRepository.UpdateInstrumentAsync(id, instrument);
         if (updated == null)
             return NotFound();

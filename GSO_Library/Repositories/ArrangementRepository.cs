@@ -44,22 +44,22 @@ public class ArrangementRepository
 
             // Query all tables in separate queries, then assemble in memory
             var allArrangements = (await connection.QueryAsync<Arrangement>(
-                "SELECT id, name, description, arranger, composer, key, duration_seconds, year FROM arrangements")).ToList();
+                "SELECT id, name, description, arranger, composer, key, duration_seconds, year, created_at, updated_at, created_by FROM arrangements")).ToList();
 
             var allFiles = (await connection.QueryAsync<ArrangementFile>(
-                "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id FROM arrangement_files")).ToList();
+                "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by FROM arrangement_files")).ToList();
 
             var allGames = (await connection.QueryAsync<Game>(
-                "SELECT id, name, description, series_id FROM games")).ToList();
+                "SELECT id, name, description, series_id, created_at, updated_at, created_by FROM games")).ToList();
 
             var allSeries = (await connection.QueryAsync<Series>(
-                "SELECT id, name, description FROM series")).ToList();
+                "SELECT id, name, description, created_at, updated_at, created_by FROM series")).ToList();
 
             var allInstruments = (await connection.QueryAsync<Instrument>(
-                "SELECT id, name FROM instruments")).ToList();
+                "SELECT id, name, created_at, updated_at, created_by FROM instruments")).ToList();
 
             var allPerformances = (await connection.QueryAsync<Performance>(
-                "SELECT id, name, link, performance_date, notes FROM performances")).ToList();
+                "SELECT id, name, link, performance_date, notes, created_at, updated_at, created_by FROM performances")).ToList();
 
             var arrangementGames = (await connection.QueryAsync<(int ArrangementId, int GameId)>(
                 "SELECT arrangement_id, game_id FROM arrangement_games")).ToList();
@@ -129,7 +129,8 @@ public class ArrangementRepository
     }
 
     public async Task<PaginatedResult<Arrangement>> GetArrangementsAsync(
-        int page, int pageSize, int? gameId = null, int? seriesId = null, int? instrumentId = null, int? performanceId = null)
+        int page, int pageSize, int? gameId = null, int? seriesId = null, int? instrumentId = null, int? performanceId = null,
+        string? sortBy = null, string? sortDirection = null)
     {
         var arrangements = await GetCachedArrangementsAsync();
         IEnumerable<Arrangement> filtered = arrangements;
@@ -146,18 +147,32 @@ public class ArrangementRepository
         if (performanceId.HasValue)
             filtered = filtered.Where(a => a.Performances.Any(p => p.Id == performanceId.Value));
 
+        var desc = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+        filtered = (sortBy?.ToLowerInvariant()) switch
+        {
+            "name" => desc ? filtered.OrderByDescending(a => a.Name) : filtered.OrderBy(a => a.Name),
+            "arranger" => desc ? filtered.OrderByDescending(a => a.Arranger) : filtered.OrderBy(a => a.Arranger),
+            "composer" => desc ? filtered.OrderByDescending(a => a.Composer) : filtered.OrderBy(a => a.Composer),
+            "key" => desc ? filtered.OrderByDescending(a => a.Key) : filtered.OrderBy(a => a.Key),
+            "year" => desc ? filtered.OrderByDescending(a => a.Year) : filtered.OrderBy(a => a.Year),
+            "durationseconds" => desc ? filtered.OrderByDescending(a => a.DurationSeconds) : filtered.OrderBy(a => a.DurationSeconds),
+            "createdat" => desc ? filtered.OrderByDescending(a => a.CreatedAt) : filtered.OrderBy(a => a.CreatedAt),
+            _ => desc ? filtered.OrderByDescending(a => a.Id) : filtered.OrderBy(a => a.Id),
+        };
+
         var totalCount = filtered.Count();
         var items = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
         return new PaginatedResult<Arrangement> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
     }
 
-    public async Task<Arrangement> AddArrangementAsync(ArrangementRequest request)
+    public async Task<Arrangement> AddArrangementAsync(ArrangementRequest request, string? createdBy = null)
     {
+        var now = DateTime.UtcNow;
         using var connection = _connectionFactory.CreateConnection();
         var id = await connection.InsertReturningIdAsync(
-            @"INSERT INTO arrangements (name, description, arranger, composer, key, duration_seconds, year)
-              VALUES (@Name, @Description, @Arranger, @Composer, @Key, @DurationSeconds, @Year)",
-            new { request.Name, request.Description, request.Arranger, request.Composer, request.Key, request.DurationSeconds, request.Year });
+            @"INSERT INTO arrangements (name, description, arranger, composer, key, duration_seconds, year, created_at, updated_at, created_by)
+              VALUES (@Name, @Description, @Arranger, @Composer, @Key, @DurationSeconds, @Year, @CreatedAt, @UpdatedAt, @CreatedBy)",
+            new { request.Name, request.Description, request.Arranger, request.Composer, request.Key, request.DurationSeconds, request.Year, CreatedAt = now, UpdatedAt = now, CreatedBy = createdBy });
 
         var arrangement = new Arrangement
         {
@@ -168,7 +183,10 @@ public class ArrangementRepository
             Composer = request.Composer,
             Key = request.Key,
             DurationSeconds = request.DurationSeconds,
-            Year = request.Year
+            Year = request.Year,
+            CreatedAt = now,
+            UpdatedAt = now,
+            CreatedBy = createdBy
         };
 
         InvalidateCache();
@@ -177,12 +195,14 @@ public class ArrangementRepository
 
     public async Task<Arrangement?> UpdateArrangementAsync(int id, ArrangementRequest request)
     {
+        var now = DateTime.UtcNow;
         using var connection = _connectionFactory.CreateConnection();
         var rows = await connection.ExecuteAsync(
             @"UPDATE arrangements SET name = @Name, description = @Description, arranger = @Arranger,
-              composer = @Composer, key = @Key, duration_seconds = @DurationSeconds, year = @Year
+              composer = @Composer, key = @Key, duration_seconds = @DurationSeconds, year = @Year,
+              updated_at = @UpdatedAt
               WHERE id = @Id",
-            new { request.Name, request.Description, request.Arranger, request.Composer, request.Key, request.DurationSeconds, request.Year, Id = id });
+            new { request.Name, request.Description, request.Arranger, request.Composer, request.Key, request.DurationSeconds, request.Year, UpdatedAt = now, Id = id });
 
         if (rows == 0) return null;
 
@@ -196,7 +216,8 @@ public class ArrangementRepository
             Composer = request.Composer,
             Key = request.Key,
             DurationSeconds = request.DurationSeconds,
-            Year = request.Year
+            Year = request.Year,
+            UpdatedAt = now
         };
     }
 
@@ -206,7 +227,7 @@ public class ArrangementRepository
 
         // Get files before deleting (CASCADE will remove them)
         var files = (await connection.QueryAsync<ArrangementFile>(
-            "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id FROM arrangement_files WHERE arrangement_id = @Id",
+            "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by FROM arrangement_files WHERE arrangement_id = @Id",
             new { Id = id })).ToList();
 
         var rows = await connection.ExecuteAsync("DELETE FROM arrangements WHERE id = @Id", new { Id = id });

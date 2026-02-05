@@ -110,6 +110,39 @@ public class SeriesControllerTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
 
+    // ───── Sorting ─────
+
+    [Fact]
+    public async Task GetAllSeries_SortByNameDesc_ReturnsSorted()
+    {
+        var client = await GetEditorClientAsync();
+        await client.PostAsJsonAsync("/api/series", new { Name = "AAA_SeriesSort" });
+        await client.PostAsJsonAsync("/api/series", new { Name = "ZZZ_SeriesSort" });
+
+        var userClient = await GetUserClientAsync();
+        var response = await userClient.GetAsync("/api/series?sortBy=name&sortDirection=desc");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Series>>(JsonOpts);
+        var names = result!.Items.Select(s => s.Name).ToList();
+        Assert.Equal(names.OrderByDescending(n => n).ToList(), names);
+    }
+
+    // ───── Audit fields ─────
+
+    [Fact]
+    public async Task CreateSeries_SetsAuditFields()
+    {
+        var client = await GetEditorClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/series", new { Name = "AuditSeries" });
+        response.EnsureSuccessStatusCode();
+        var series = await response.Content.ReadFromJsonAsync<Series>(JsonOpts);
+
+        Assert.NotEqual(default, series!.CreatedAt);
+        Assert.NotEqual(default, series.UpdatedAt);
+        Assert.Equal("testeditor", series.CreatedBy);
+    }
+
     // ───── Error cases ─────
 
     [Fact]

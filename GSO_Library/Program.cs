@@ -1,15 +1,31 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using GSO_Library.Configuration;
 using GSO_Library.Data;
 using GSO_Library.Models;
 using GSO_Library.Repositories;
 using GSO_Library.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure file upload settings
+var fileUploadSettings = builder.Configuration.GetSection("FileUpload").Get<FileUploadSettings>() ?? new FileUploadSettings();
+builder.Services.AddSingleton(fileUploadSettings);
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = fileUploadSettings.MaxFileSizeBytes;
+});
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = fileUploadSettings.MaxFileSizeBytes;
+});
 
 // Add services to the container.
 

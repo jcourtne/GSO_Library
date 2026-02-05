@@ -48,14 +48,20 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             CREATE TABLE IF NOT EXISTS series (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                description TEXT
+                description TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT
             );
 
             CREATE TABLE IF NOT EXISTS games (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 description TEXT,
-                series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE
+                series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT
             );
 
             CREATE TABLE IF NOT EXISTS arrangements (
@@ -66,7 +72,10 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 composer TEXT,
                 key TEXT,
                 duration_seconds INTEGER,
-                year INTEGER
+                year INTEGER,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT
             );
 
             CREATE TABLE IF NOT EXISTS arrangement_files (
@@ -76,12 +85,16 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 content_type TEXT NOT NULL,
                 file_size INTEGER NOT NULL,
                 uploaded_at TEXT NOT NULL,
-                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE
+                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
+                created_by TEXT
             );
 
             CREATE TABLE IF NOT EXISTS instruments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL
+                name TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT
             );
 
             CREATE TABLE IF NOT EXISTS performances (
@@ -89,7 +102,10 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 name TEXT NOT NULL,
                 link TEXT NOT NULL,
                 performance_date TEXT,
-                notes TEXT
+                notes TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT
             );
 
             CREATE TABLE IF NOT EXISTS arrangement_games (

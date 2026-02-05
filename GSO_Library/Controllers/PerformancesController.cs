@@ -18,11 +18,13 @@ public class PerformancesController : ControllerBase
 
     [HttpGet]
     [Authorize]
-    public async Task<ActionResult<PaginatedResult<Performance>>> GetAllPerformances([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<ActionResult<PaginatedResult<Performance>>> GetAllPerformances(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var result = await _performanceRepository.GetAllPerformancesAsync(page, pageSize);
+        var result = await _performanceRepository.GetAllPerformancesAsync(page, pageSize, sortBy, sortDirection);
         return Ok(result);
     }
 
@@ -41,6 +43,10 @@ public class PerformancesController : ControllerBase
     [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Performance>> AddPerformance([FromBody] Performance performance)
     {
+        var now = DateTime.UtcNow;
+        performance.CreatedAt = now;
+        performance.UpdatedAt = now;
+        performance.CreatedBy = User.Identity?.Name;
         var created = await _performanceRepository.AddPerformanceAsync(performance);
         return CreatedAtAction(nameof(GetPerformanceById), new { id = created.Id }, created);
     }
@@ -49,6 +55,7 @@ public class PerformancesController : ControllerBase
     [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Performance>> UpdatePerformance(int id, [FromBody] Performance performance)
     {
+        performance.UpdatedAt = DateTime.UtcNow;
         var updated = await _performanceRepository.UpdatePerformanceAsync(id, performance);
         if (updated == null)
             return NotFound();

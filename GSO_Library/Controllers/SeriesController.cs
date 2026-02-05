@@ -18,11 +18,13 @@ public class SeriesController : ControllerBase
 
     [HttpGet]
     [Authorize]
-    public async Task<ActionResult<PaginatedResult<Series>>> GetAllSeries([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<ActionResult<PaginatedResult<Series>>> GetAllSeries(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var result = await _seriesRepository.GetAllSeriesAsync(page, pageSize);
+        var result = await _seriesRepository.GetAllSeriesAsync(page, pageSize, sortBy, sortDirection);
         return Ok(result);
     }
 
@@ -41,6 +43,10 @@ public class SeriesController : ControllerBase
     [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Series>> AddSeries([FromBody] Series series)
     {
+        var now = DateTime.UtcNow;
+        series.CreatedAt = now;
+        series.UpdatedAt = now;
+        series.CreatedBy = User.Identity?.Name;
         var createdSeries = await _seriesRepository.AddSeriesAsync(series);
         return CreatedAtAction(nameof(GetSeriesById), new { id = createdSeries.Id }, createdSeries);
     }
@@ -49,6 +55,7 @@ public class SeriesController : ControllerBase
     [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<Series>> UpdateSeries(int id, [FromBody] Series series)
     {
+        series.UpdatedAt = DateTime.UtcNow;
         var updated = await _seriesRepository.UpdateSeriesAsync(id, series);
         if (updated == null)
             return NotFound();
