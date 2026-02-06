@@ -29,9 +29,9 @@ public class SeriesRepository
         var seriesList = (await connection.QueryAsync<Series>("SELECT id, name, description, created_at, updated_at, created_by FROM series")).ToList();
         if (seriesList.Count == 0) return seriesList;
 
-        var seriesIds = seriesList.Select(s => s.Id).ToList();
-        var games = await connection.QueryAsync<Game>(
-            "SELECT id, name, description, series_id, created_at, updated_at, created_by FROM games WHERE series_id IN @Ids",
+        var seriesIds = seriesList.Select(s => s.Id).ToArray();
+        var games = await connection.QueryInListAsync<Game>(
+            "SELECT id, name, description, series_id, created_at, updated_at, created_by FROM games WHERE series_id = ANY(@Ids)",
             new { Ids = seriesIds });
 
         var gameLookup = games.GroupBy(g => g.SeriesId).ToDictionary(g => g.Key, g => g.ToList());
@@ -67,9 +67,9 @@ public class SeriesRepository
 
         if (seriesList.Count > 0)
         {
-            var seriesIds = seriesList.Select(s => s.Id).ToList();
-            var games = await connection.QueryAsync<Game>(
-                "SELECT id, name, description, series_id, created_at, updated_at, created_by FROM games WHERE series_id IN @Ids",
+            var seriesIds = seriesList.Select(s => s.Id).ToArray();
+            var games = await connection.QueryInListAsync<Game>(
+                "SELECT id, name, description, series_id, created_at, updated_at, created_by FROM games WHERE series_id = ANY(@Ids)",
                 new { Ids = seriesIds });
             var gameLookup = games.GroupBy(g => g.SeriesId).ToDictionary(g => g.Key, g => g.ToList());
             foreach (var s in seriesList)
