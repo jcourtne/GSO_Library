@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { performancesApi } from '../../api/performances';
 import { ensemblesApi } from '../../api/ensembles';
+import SearchableSelect from '../../components/common/SearchableSelect';
 
 export default function PerformanceForm() {
   const { id } = useParams<{ id: string }>();
@@ -83,15 +84,12 @@ export default function PerformanceForm() {
             </Row>
             <Form.Group className="mb-3">
               <Form.Label>Ensemble</Form.Label>
-              <Form.Select
-                value={ensembleId ?? ''}
-                onChange={(e) => setEnsembleId(e.target.value ? Number(e.target.value) : null)}
-              >
-                <option value="">No Ensemble</option>
-                {ensembles?.map((ens) => (
-                  <option key={ens.id} value={ens.id}>{ens.name}</option>
-                ))}
-              </Form.Select>
+              <SearchableSelect
+                placeholder="No Ensemble"
+                options={ensembles?.map((ens) => ({ value: ens.id, label: ens.name })) ?? []}
+                value={ensembleId}
+                onChange={(v) => setEnsembleId(v)}
+              />
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Notes</Form.Label>

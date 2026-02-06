@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { gamesApi } from '../../api/games';
 import { seriesApi } from '../../api/series';
+import SearchableSelect from '../../components/common/SearchableSelect';
 
 export default function GameForm() {
   const { id } = useParams<{ id: string }>();
@@ -62,12 +63,13 @@ export default function GameForm() {
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Series *</Form.Label>
-              <Form.Select value={seriesId} onChange={(e) => setSeriesId(Number(e.target.value))} required>
-                <option value="">Select a series</option>
-                {allSeries.data?.items.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </Form.Select>
+              <SearchableSelect
+                placeholder="Select a series"
+                options={allSeries.data?.items.map((s) => ({ value: s.id, label: s.name })) ?? []}
+                value={seriesId || null}
+                onChange={(v) => setSeriesId(v ?? '')}
+                required
+              />
             </Form.Group>
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? <Spinner size="sm" animation="border" /> : (isEdit ? 'Save' : 'Create')}

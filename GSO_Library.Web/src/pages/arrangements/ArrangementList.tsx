@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Col, Form, Row } from 'react-bootstrap';
+import { Col, Row } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
@@ -8,6 +8,7 @@ import { seriesApi } from '../../api/series';
 import { instrumentsApi } from '../../api/instruments';
 import DataTable from '../../components/common/DataTable';
 import Pagination from '../../components/common/Pagination';
+import SearchableSelect from '../../components/common/SearchableSelect';
 import { useAuth } from '../../hooks/useAuth';
 import type { Arrangement } from '../../types';
 
@@ -70,40 +71,31 @@ export default function ArrangementList() {
 
       <Row className="g-2 mb-3">
         <Col md={3}>
-          <Form.Select
+          <SearchableSelect
             size="sm"
-            value={gameId ?? ''}
-            onChange={(e) => { setGameId(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
-          >
-            <option value="">All Games</option>
-            {allGames.data?.items.map((g) => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </Form.Select>
+            placeholder="All Games"
+            options={allGames.data?.items.map((g) => ({ value: g.id, label: g.name })) ?? []}
+            value={gameId ?? null}
+            onChange={(v) => { setGameId(v ?? undefined); setPage(1); }}
+          />
         </Col>
         <Col md={3}>
-          <Form.Select
+          <SearchableSelect
             size="sm"
-            value={seriesId ?? ''}
-            onChange={(e) => { setSeriesId(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
-          >
-            <option value="">All Series</option>
-            {allSeries.data?.items.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </Form.Select>
+            placeholder="All Series"
+            options={allSeries.data?.items.map((s) => ({ value: s.id, label: s.name })) ?? []}
+            value={seriesId ?? null}
+            onChange={(v) => { setSeriesId(v ?? undefined); setPage(1); }}
+          />
         </Col>
         <Col md={3}>
-          <Form.Select
+          <SearchableSelect
             size="sm"
-            value={instrumentId ?? ''}
-            onChange={(e) => { setInstrumentId(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
-          >
-            <option value="">All Instruments</option>
-            {allInstruments.data?.items.map((i) => (
-              <option key={i.id} value={i.id}>{i.name}</option>
-            ))}
-          </Form.Select>
+            placeholder="All Instruments"
+            options={allInstruments.data?.items.map((i) => ({ value: i.id, label: i.name })) ?? []}
+            value={instrumentId ?? null}
+            onChange={(v) => { setInstrumentId(v ?? undefined); setPage(1); }}
+          />
         </Col>
       </Row>
 
