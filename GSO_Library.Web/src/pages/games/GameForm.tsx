@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { gamesApi } from '../../api/games';
 import { seriesApi } from '../../api/series';
+import QuickCreateSeriesModal from '../../components/common/QuickCreateSeriesModal';
 import SearchableSelect from '../../components/common/SearchableSelect';
 
 export default function GameForm() {
@@ -15,6 +16,7 @@ export default function GameForm() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [seriesId, setSeriesId] = useState<number | ''>('');
+  const [showCreateSeries, setShowCreateSeries] = useState(false);
 
   const { data: existing, isLoading } = useQuery({
     queryKey: ['game', id],
@@ -63,13 +65,20 @@ export default function GameForm() {
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Series *</Form.Label>
-              <SearchableSelect
-                placeholder="Select a series"
-                options={allSeries.data?.items.map((s) => ({ value: s.id, label: s.name })) ?? []}
-                value={seriesId || null}
-                onChange={(v) => setSeriesId(v ?? '')}
-                required
-              />
+              <div className="d-flex gap-2">
+                <div className="flex-grow-1">
+                  <SearchableSelect
+                    placeholder="Select a series"
+                    options={allSeries.data?.items.map((s) => ({ value: s.id, label: s.name })) ?? []}
+                    value={seriesId || null}
+                    onChange={(v) => setSeriesId(v ?? '')}
+                    required
+                  />
+                </div>
+                <Button variant="outline-secondary" onClick={() => setShowCreateSeries(true)} title="Create New Series">
+                  +
+                </Button>
+              </div>
             </Form.Group>
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? <Spinner size="sm" animation="border" /> : (isEdit ? 'Save' : 'Create')}
@@ -78,6 +87,11 @@ export default function GameForm() {
           </Form>
         </Card.Body>
       </Card>
+      <QuickCreateSeriesModal
+        show={showCreateSeries}
+        onHide={() => setShowCreateSeries(false)}
+        onCreated={(series) => setSeriesId(series.id)}
+      />
     </>
   );
 }

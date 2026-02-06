@@ -7,6 +7,9 @@ import { gamesApi } from '../../api/games';
 import { instrumentsApi } from '../../api/instruments';
 import { performancesApi } from '../../api/performances';
 import FileSection from '../../components/arrangements/FileSection';
+import QuickCreateGameModal from '../../components/common/QuickCreateGameModal';
+import QuickCreateInstrumentModal from '../../components/common/QuickCreateInstrumentModal';
+import QuickCreatePerformanceModal from '../../components/common/QuickCreatePerformanceModal';
 import { categorizeFiles, ARRANGEMENT_ACCEPT, PDF_ACCEPT, PLAYBACK_ACCEPT } from '../../utils/fileCategories';
 import type { ArrangementRequest } from '../../types';
 
@@ -58,6 +61,11 @@ export default function ArrangementForm() {
   const [instrumentSearch, setInstrumentSearch] = useState('');
   const [showPerformancePicker, setShowPerformancePicker] = useState(false);
   const [performanceSearch, setPerformanceSearch] = useState('');
+
+  // Quick-create modal state
+  const [showCreateGame, setShowCreateGame] = useState(false);
+  const [showCreateInstrument, setShowCreateInstrument] = useState(false);
+  const [showCreatePerformance, setShowCreatePerformance] = useState(false);
 
   useEffect(() => {
     if (existing) {
@@ -281,6 +289,9 @@ export default function ArrangementForm() {
                 </ListGroup>
               </Modal.Body>
               <Modal.Footer>
+                <Button variant="outline-success" onClick={() => setShowCreateGame(true)}>
+                  Create New
+                </Button>
                 <Button variant="secondary" onClick={() => setShowGamePicker(false)}>
                   Done
                 </Button>
@@ -351,6 +362,9 @@ export default function ArrangementForm() {
                 </ListGroup>
               </Modal.Body>
               <Modal.Footer>
+                <Button variant="outline-success" onClick={() => setShowCreateInstrument(true)}>
+                  Create New
+                </Button>
                 <Button variant="secondary" onClick={() => setShowInstrumentPicker(false)}>
                   Done
                 </Button>
@@ -421,6 +435,9 @@ export default function ArrangementForm() {
                 </ListGroup>
               </Modal.Body>
               <Modal.Footer>
+                <Button variant="outline-success" onClick={() => setShowCreatePerformance(true)}>
+                  Create New
+                </Button>
                 <Button variant="secondary" onClick={() => setShowPerformancePicker(false)}>
                   Done
                 </Button>
@@ -436,6 +453,34 @@ export default function ArrangementForm() {
           <Button variant="secondary" className="ms-2" onClick={() => navigate(-1)}>Cancel</Button>
         </div>
       </Form>
+
+      <QuickCreateGameModal
+        show={showCreateGame}
+        onHide={() => setShowCreateGame(false)}
+        onCreated={(game) => {
+          const next = new Set(linkedGameIds);
+          next.add(game.id);
+          setLinkedGameIds(next);
+        }}
+      />
+      <QuickCreateInstrumentModal
+        show={showCreateInstrument}
+        onHide={() => setShowCreateInstrument(false)}
+        onCreated={(instrument) => {
+          const next = new Set(linkedInstrumentIds);
+          next.add(instrument.id);
+          setLinkedInstrumentIds(next);
+        }}
+      />
+      <QuickCreatePerformanceModal
+        show={showCreatePerformance}
+        onHide={() => setShowCreatePerformance(false)}
+        onCreated={(performance) => {
+          const next = new Set(linkedPerformanceIds);
+          next.add(performance.id);
+          setLinkedPerformanceIds(next);
+        }}
+      />
 
       {isEdit && files && (() => {
         const categorized = categorizeFiles(files);
