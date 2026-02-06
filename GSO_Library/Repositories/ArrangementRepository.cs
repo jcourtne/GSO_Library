@@ -130,10 +130,13 @@ public class ArrangementRepository
 
     public async Task<PaginatedResult<Arrangement>> GetArrangementsAsync(
         int page, int pageSize, int? gameId = null, int? seriesId = null, int? instrumentId = null, int? performanceId = null,
-        string? sortBy = null, string? sortDirection = null)
+        string? sortBy = null, string? sortDirection = null, string? search = null)
     {
         var arrangements = await GetCachedArrangementsAsync();
         IEnumerable<Arrangement> filtered = arrangements;
+
+        if (!string.IsNullOrWhiteSpace(search))
+            filtered = filtered.Where(a => a.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
 
         if (gameId.HasValue)
             filtered = filtered.Where(a => a.Games.Any(g => g.Id == gameId.Value));

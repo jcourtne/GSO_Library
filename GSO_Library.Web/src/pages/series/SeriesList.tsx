@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button } from 'react-bootstrap';
+import { Alert, Button, Form } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { seriesApi } from '../../api/series';
@@ -19,10 +19,11 @@ export default function SeriesList() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [deleteTarget, setDeleteTarget] = useState<Series | null>(null);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['series', { page, pageSize, sortBy, sortDirection }],
-    queryFn: () => seriesApi.list({ page, pageSize, sortBy, sortDirection }),
+    queryKey: ['series', { page, pageSize, sortBy, sortDirection, search }],
+    queryFn: () => seriesApi.list({ page, pageSize, sortBy, sortDirection, search: search || undefined }),
   });
 
   const deleteMutation = useMutation({
@@ -62,6 +63,14 @@ export default function SeriesList() {
         {canEdit() && <Link to="/series/new" className="btn btn-primary">New Series</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
+      <Form.Control
+        size="sm"
+        placeholder="Search by name..."
+        value={search}
+        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+        className="mb-3"
+        style={{ maxWidth: '300px' }}
+      />
       <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} onRowClick={(s) => navigate(`/series/${s.id}/edit`)} />
       {data && data.totalPages > 0 && (
         <Pagination page={data.page} totalPages={data.totalPages} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} />

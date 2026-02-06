@@ -62,10 +62,12 @@ public class GameRepository
         return game;
     }
 
-    public async Task<PaginatedResult<Game>> GetAllGamesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null)
+    public async Task<PaginatedResult<Game>> GetAllGamesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null, string? search = null)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var totalCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM games");
+        var whereClause = string.IsNullOrWhiteSpace(search) ? "" : " WHERE g.name LIKE @Search";
+        var searchParam = string.IsNullOrWhiteSpace(search) ? null : $"%{search}%";
+        var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM games g{whereClause}", new { Search = searchParam });
         var orderColumn = _sortColumns.GetValueOrDefault(sortBy ?? "", "g.id");
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
         var games = (await connection.QueryAsync<Game, Series, Game>(
@@ -73,9 +75,10 @@ public class GameRepository
                       s.id, s.name, s.description
                FROM games g
                LEFT JOIN series s ON g.series_id = s.id
+               {whereClause}
                ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
             (game, series) => { game.Series = series; return game; },
-            new { Limit = pageSize, Offset = (page - 1) * pageSize },
+            new { Limit = pageSize, Offset = (page - 1) * pageSize, Search = searchParam },
             splitOn: "id")).ToList();
 
         return new PaginatedResult<Game> { Items = games, Page = page, PageSize = pageSize, TotalCount = totalCount };

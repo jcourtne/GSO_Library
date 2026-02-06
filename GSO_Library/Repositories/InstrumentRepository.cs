@@ -29,15 +29,17 @@ public class InstrumentRepository
         return await connection.QueryAsync<Instrument>("SELECT id, name, created_at, updated_at, created_by FROM instruments");
     }
 
-    public async Task<PaginatedResult<Instrument>> GetAllInstrumentsAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null)
+    public async Task<PaginatedResult<Instrument>> GetAllInstrumentsAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null, string? search = null)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var totalCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM instruments");
+        var whereClause = string.IsNullOrWhiteSpace(search) ? "" : " WHERE name LIKE @Search";
+        var searchParam = string.IsNullOrWhiteSpace(search) ? null : $"%{search}%";
+        var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM instruments{whereClause}", new { Search = searchParam });
         var orderColumn = _sortColumns.GetValueOrDefault(sortBy ?? "", "id");
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
         var items = await connection.QueryAsync<Instrument>(
-            $"SELECT id, name, created_at, updated_at, created_by FROM instruments ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
-            new { Limit = pageSize, Offset = (page - 1) * pageSize });
+            $"SELECT id, name, created_at, updated_at, created_by FROM instruments{whereClause} ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
+            new { Limit = pageSize, Offset = (page - 1) * pageSize, Search = searchParam });
         return new PaginatedResult<Instrument> { Items = items.ToList(), Page = page, PageSize = pageSize, TotalCount = totalCount };
     }
 

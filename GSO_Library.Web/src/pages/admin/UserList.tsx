@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Alert, Badge, Button, Table, Spinner } from 'react-bootstrap';
+import { useMemo, useState } from 'react';
+import { Alert, Badge, Button, Form, Table, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../../api/auth';
@@ -9,6 +9,7 @@ import type { UserResponse } from '../../types';
 export default function UserList() {
   const queryClient = useQueryClient();
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
   const [toggleTarget, setToggleTarget] = useState<UserResponse | null>(null);
 
   const { data: users, isLoading } = useQuery({
@@ -26,6 +27,12 @@ export default function UserList() {
     onError: () => setError('Failed to update user status'),
   });
 
+  const filteredUsers = useMemo(() => {
+    if (!users || !search) return users;
+    const lower = search.toLowerCase();
+    return users.filter((u) => u.userName.toLowerCase().includes(lower));
+  }, [users, search]);
+
   if (isLoading) return <Spinner animation="border" />;
 
   return (
@@ -35,6 +42,14 @@ export default function UserList() {
         <Link to="/admin/users/new" className="btn btn-primary">Register User</Link>
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
+      <Form.Control
+        size="sm"
+        placeholder="Search by username..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="mb-3"
+        style={{ maxWidth: '300px' }}
+      />
 
       <Table striped hover responsive>
         <thead>
@@ -48,7 +63,7 @@ export default function UserList() {
           </tr>
         </thead>
         <tbody>
-          {users?.map((u) => (
+          {filteredUsers?.map((u) => (
             <tr key={u.id}>
               <td>{u.userName}</td>
               <td>{u.email}</td>

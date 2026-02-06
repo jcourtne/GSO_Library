@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Col, Row } from 'react-bootstrap';
+import { Col, Form, Row } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
@@ -22,10 +22,11 @@ export default function ArrangementList() {
   const [gameId, setGameId] = useState<number | undefined>();
   const [seriesId, setSeriesId] = useState<number | undefined>();
   const [instrumentId, setInstrumentId] = useState<number | undefined>();
+  const [search, setSearch] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['arrangements', { page, pageSize, sortBy, sortDirection, gameId, seriesId, instrumentId }],
-    queryFn: () => arrangementsApi.list({ page, pageSize, sortBy, sortDirection, gameId, seriesId, instrumentId }),
+    queryKey: ['arrangements', { page, pageSize, sortBy, sortDirection, gameId, seriesId, instrumentId, search }],
+    queryFn: () => arrangementsApi.list({ page, pageSize, sortBy, sortDirection, gameId, seriesId, instrumentId, search: search || undefined }),
   });
 
   const allGames = useQuery({ queryKey: ['games-all'], queryFn: () => gamesApi.list({ page: 1, pageSize: 100 }) });
@@ -70,6 +71,14 @@ export default function ArrangementList() {
       </div>
 
       <Row className="g-2 mb-3">
+        <Col md={3}>
+          <Form.Control
+            size="sm"
+            placeholder="Search by name..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          />
+        </Col>
         <Col md={3}>
           <SearchableSelect
             size="sm"

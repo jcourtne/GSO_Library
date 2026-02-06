@@ -31,15 +31,17 @@ public class PerformanceRepository
             "SELECT id, name, link, performance_date, notes, ensemble_id, created_at, updated_at, created_by FROM performances");
     }
 
-    public async Task<PaginatedResult<Performance>> GetAllPerformancesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null)
+    public async Task<PaginatedResult<Performance>> GetAllPerformancesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null, string? search = null)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var totalCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM performances");
+        var whereClause = string.IsNullOrWhiteSpace(search) ? "" : " WHERE name LIKE @Search";
+        var searchParam = string.IsNullOrWhiteSpace(search) ? null : $"%{search}%";
+        var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM performances{whereClause}", new { Search = searchParam });
         var orderColumn = _sortColumns.GetValueOrDefault(sortBy ?? "", "id");
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
         var items = (await connection.QueryAsync<Performance>(
-            $"SELECT id, name, link, performance_date, notes, ensemble_id, created_at, updated_at, created_by FROM performances ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
-            new { Limit = pageSize, Offset = (page - 1) * pageSize })).ToList();
+            $"SELECT id, name, link, performance_date, notes, ensemble_id, created_at, updated_at, created_by FROM performances{whereClause} ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
+            new { Limit = pageSize, Offset = (page - 1) * pageSize, Search = searchParam })).ToList();
 
         if (items.Count > 0)
         {

@@ -30,15 +30,17 @@ public class EnsembleRepository
             "SELECT id, name, description, website, contact_info, created_at, updated_at, created_by FROM ensembles");
     }
 
-    public async Task<PaginatedResult<Ensemble>> GetAllEnsemblesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null)
+    public async Task<PaginatedResult<Ensemble>> GetAllEnsemblesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null, string? search = null)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var totalCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ensembles");
+        var whereClause = string.IsNullOrWhiteSpace(search) ? "" : " WHERE name LIKE @Search";
+        var searchParam = string.IsNullOrWhiteSpace(search) ? null : $"%{search}%";
+        var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM ensembles{whereClause}", new { Search = searchParam });
         var orderColumn = _sortColumns.GetValueOrDefault(sortBy ?? "", "id");
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
         var items = (await connection.QueryAsync<Ensemble>(
-            $"SELECT id, name, description, website, contact_info, created_at, updated_at, created_by FROM ensembles ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
-            new { Limit = pageSize, Offset = (page - 1) * pageSize })).ToList();
+            $"SELECT id, name, description, website, contact_info, created_at, updated_at, created_by FROM ensembles{whereClause} ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
+            new { Limit = pageSize, Offset = (page - 1) * pageSize, Search = searchParam })).ToList();
 
         if (items.Count > 0)
         {

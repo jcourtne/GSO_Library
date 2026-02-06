@@ -57,12 +57,13 @@ public class ArrangementsController : ControllerBase
     public async Task<ActionResult<PaginatedResult<Arrangement>>> GetAllArrangements(
         [FromQuery] int? gameId, [FromQuery] int? seriesId, [FromQuery] int? instrumentId, [FromQuery] int? performanceId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
-        [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null)
+        [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null,
+        [FromQuery] string? search = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameId, seriesId, instrumentId, performanceId, sortBy, sortDirection);
+        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameId, seriesId, instrumentId, performanceId, sortBy, sortDirection, search);
         return Ok(result);
     }
 

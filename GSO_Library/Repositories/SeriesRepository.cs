@@ -55,15 +55,17 @@ public class SeriesRepository
         return series;
     }
 
-    public async Task<PaginatedResult<Series>> GetAllSeriesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null)
+    public async Task<PaginatedResult<Series>> GetAllSeriesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null, string? search = null)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var totalCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM series");
+        var whereClause = string.IsNullOrWhiteSpace(search) ? "" : " WHERE name LIKE @Search";
+        var searchParam = string.IsNullOrWhiteSpace(search) ? null : $"%{search}%";
+        var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM series{whereClause}", new { Search = searchParam });
         var orderColumn = _sortColumns.GetValueOrDefault(sortBy ?? "", "id");
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
         var seriesList = (await connection.QueryAsync<Series>(
-            $"SELECT id, name, description, created_at, updated_at, created_by FROM series ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
-            new { Limit = pageSize, Offset = (page - 1) * pageSize })).ToList();
+            $"SELECT id, name, description, created_at, updated_at, created_by FROM series{whereClause} ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
+            new { Limit = pageSize, Offset = (page - 1) * pageSize, Search = searchParam })).ToList();
 
         if (seriesList.Count > 0)
         {

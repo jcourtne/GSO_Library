@@ -20,11 +20,12 @@ public class SeriesController : ControllerBase
     [Authorize]
     public async Task<ActionResult<PaginatedResult<Series>>> GetAllSeries(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
-        [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null)
+        [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null,
+        [FromQuery] string? search = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var result = await _seriesRepository.GetAllSeriesAsync(page, pageSize, sortBy, sortDirection);
+        var result = await _seriesRepository.GetAllSeriesAsync(page, pageSize, sortBy, sortDirection, search);
         return Ok(result);
     }
 
