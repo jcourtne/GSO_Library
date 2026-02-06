@@ -27,6 +27,20 @@ builder.Services.Configure<FormOptions>(options =>
     options.MultipartBodyLengthLimit = fileUploadSettings.MaxFileSizeBytes;
 });
 
+// Add CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+            ?? ["http://localhost:5173"];
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 // Add services to the container.
 
 builder.Services.AddControllers()
@@ -113,6 +127,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseCors("Frontend");
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -132,6 +148,9 @@ using (var scope = app.Services.CreateScope())
         }
     }
 }
+
+// Seed users from seed_users.json (file is gitignored)
+await UserSeeder.SeedUsersAsync(app);
 
 app.Run();
 
