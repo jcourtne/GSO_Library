@@ -97,12 +97,24 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 created_by TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS ensembles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                website TEXT,
+                contact_info TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS performances (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 link TEXT NOT NULL,
                 performance_date TEXT,
                 notes TEXT,
+                ensemble_id INTEGER REFERENCES ensembles(id) ON DELETE SET NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now')),
                 created_by TEXT

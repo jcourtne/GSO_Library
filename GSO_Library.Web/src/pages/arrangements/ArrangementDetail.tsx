@@ -172,7 +172,7 @@ export default function ArrangementDetail() {
                 <ListGroup variant="flush">
                   {arrangement.performances.map((p) => (
                     <ListGroup.Item key={p.id}>
-                      <a href={p.link} target="_blank" rel="noopener noreferrer">{p.name}</a>
+                      <Link to={`/performances/${p.id}`}>{p.name}</Link>
                       {p.performanceDate && (
                         <small className="text-muted d-block">
                           {new Date(p.performanceDate).toLocaleDateString()}

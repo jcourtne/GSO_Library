@@ -10,7 +10,9 @@ public class Performance
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public string? CreatedBy { get; set; }
+    public int? EnsembleId { get; set; }
 
     // Navigation properties
+    public virtual Ensemble? Ensemble { get; set; }
     public virtual ICollection<Arrangement> Arrangements { get; set; } = [];
 }

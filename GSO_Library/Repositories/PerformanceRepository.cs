@@ -28,7 +28,7 @@ public class PerformanceRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QueryAsync<Performance>(
-            "SELECT id, name, link, performance_date, notes, created_at, updated_at, created_by FROM performances");
+            "SELECT id, name, link, performance_date, notes, ensemble_id, created_at, updated_at, created_by FROM performances");
     }
 
     public async Task<PaginatedResult<Performance>> GetAllPerformancesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null)
@@ -37,18 +37,42 @@ public class PerformanceRepository
         var totalCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM performances");
         var orderColumn = _sortColumns.GetValueOrDefault(sortBy ?? "", "id");
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
-        var items = await connection.QueryAsync<Performance>(
-            $"SELECT id, name, link, performance_date, notes, created_at, updated_at, created_by FROM performances ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
-            new { Limit = pageSize, Offset = (page - 1) * pageSize });
-        return new PaginatedResult<Performance> { Items = items.ToList(), Page = page, PageSize = pageSize, TotalCount = totalCount };
+        var items = (await connection.QueryAsync<Performance>(
+            $"SELECT id, name, link, performance_date, notes, ensemble_id, created_at, updated_at, created_by FROM performances ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
+            new { Limit = pageSize, Offset = (page - 1) * pageSize })).ToList();
+
+        if (items.Count > 0)
+        {
+            var ensembleIds = items.Where(p => p.EnsembleId.HasValue).Select(p => p.EnsembleId!.Value).Distinct().ToArray();
+            if (ensembleIds.Length > 0)
+            {
+                var ensembles = await connection.QueryInListAsync<Ensemble>(
+                    "SELECT id, name, description, website, contact_info, created_at, updated_at, created_by FROM ensembles WHERE id = ANY(@Ids)",
+                    new { Ids = ensembleIds });
+                var ensembleLookup = ensembles.ToDictionary(e => e.Id);
+                foreach (var p in items)
+                    if (p.EnsembleId.HasValue && ensembleLookup.TryGetValue(p.EnsembleId.Value, out var ens))
+                        p.Ensemble = ens;
+            }
+        }
+
+        return new PaginatedResult<Performance> { Items = items, Page = page, PageSize = pageSize, TotalCount = totalCount };
     }
 
     public async Task<Performance?> GetPerformanceByIdAsync(int id)
     {
         using var connection = _connectionFactory.CreateConnection();
         var performance = await connection.QuerySingleOrDefaultAsync<Performance>(
-            "SELECT id, name, link, performance_date, notes, created_at, updated_at, created_by FROM performances WHERE id = @Id", new { Id = id });
+            "SELECT id, name, link, performance_date, notes, ensemble_id, created_at, updated_at, created_by FROM performances WHERE id = @Id", new { Id = id });
         if (performance == null) return null;
+
+        // Load linked ensemble
+        if (performance.EnsembleId.HasValue)
+        {
+            performance.Ensemble = await connection.QuerySingleOrDefaultAsync<Ensemble>(
+                "SELECT id, name, description, website, contact_info, created_at, updated_at, created_by FROM ensembles WHERE id = @Id",
+                new { Id = performance.EnsembleId.Value });
+        }
 
         // Load linked arrangements via junction table
         var arrangements = await connection.QueryAsync<Arrangement>(
@@ -65,8 +89,8 @@ public class PerformanceRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var id = await connection.InsertReturningIdAsync(
-            "INSERT INTO performances (name, link, performance_date, notes, created_at, updated_at, created_by) VALUES (@Name, @Link, @PerformanceDate, @Notes, @CreatedAt, @UpdatedAt, @CreatedBy)",
-            new { performance.Name, performance.Link, performance.PerformanceDate, performance.Notes, performance.CreatedAt, performance.UpdatedAt, performance.CreatedBy });
+            "INSERT INTO performances (name, link, performance_date, notes, ensemble_id, created_at, updated_at, created_by) VALUES (@Name, @Link, @PerformanceDate, @Notes, @EnsembleId, @CreatedAt, @UpdatedAt, @CreatedBy)",
+            new { performance.Name, performance.Link, performance.PerformanceDate, performance.Notes, performance.EnsembleId, performance.CreatedAt, performance.UpdatedAt, performance.CreatedBy });
         performance.Id = id;
         InvalidateArrangementCache();
         return performance;
@@ -76,8 +100,8 @@ public class PerformanceRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var rows = await connection.ExecuteAsync(
-            "UPDATE performances SET name = @Name, link = @Link, performance_date = @PerformanceDate, notes = @Notes, updated_at = @UpdatedAt WHERE id = @Id",
-            new { performance.Name, performance.Link, performance.PerformanceDate, performance.Notes, performance.UpdatedAt, Id = id });
+            "UPDATE performances SET name = @Name, link = @Link, performance_date = @PerformanceDate, notes = @Notes, ensemble_id = @EnsembleId, updated_at = @UpdatedAt WHERE id = @Id",
+            new { performance.Name, performance.Link, performance.PerformanceDate, performance.Notes, performance.EnsembleId, performance.UpdatedAt, Id = id });
         if (rows == 0) return null;
         performance.Id = id;
         InvalidateArrangementCache();

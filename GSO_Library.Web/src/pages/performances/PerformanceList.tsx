@@ -9,6 +9,11 @@ import ConfirmModal from '../../components/common/ConfirmModal';
 import { useAuth } from '../../hooks/useAuth';
 import type { Performance } from '../../types';
 
+// Extended type for list items that include eagerly-loaded ensemble
+interface PerformanceWithEnsemble extends Performance {
+  ensemble?: { id: number; name: string };
+}
+
 export default function PerformanceList() {
   const navigate = useNavigate();
   const { canEdit } = useAuth();
@@ -54,6 +59,15 @@ export default function PerformanceList() {
       sortable: true,
       render: (p: Performance) => p.performanceDate ? new Date(p.performanceDate).toLocaleDateString() : '-',
     },
+    {
+      key: 'ensemble',
+      label: 'Ensemble',
+      render: (p: PerformanceWithEnsemble) => p.ensemble ? (
+        <Link to={`/ensembles/${p.ensemble.id}`} onClick={(e) => e.stopPropagation()}>
+          {p.ensemble.name}
+        </Link>
+      ) : '-',
+    },
     { key: 'notes', label: 'Notes', render: (p: Performance) => p.notes || '-' },
     ...(canEdit() ? [{
       key: 'actions',
@@ -74,7 +88,7 @@ export default function PerformanceList() {
         {canEdit() && <Link to="/performances/new" className="btn btn-primary">New Performance</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
-      <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} onRowClick={(p) => navigate(`/performances/${p.id}/edit`)} />
+      <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} onRowClick={(p) => navigate(`/performances/${p.id}`)} />
       {data && data.totalPages > 0 && (
         <Pagination page={data.page} totalPages={data.totalPages} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} />
       )}

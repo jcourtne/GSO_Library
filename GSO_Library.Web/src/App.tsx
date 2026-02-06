@@ -16,7 +16,11 @@ import GameForm from './pages/games/GameForm';
 import InstrumentList from './pages/instruments/InstrumentList';
 import InstrumentForm from './pages/instruments/InstrumentForm';
 import PerformanceList from './pages/performances/PerformanceList';
+import PerformanceDetail from './pages/performances/PerformanceDetail';
 import PerformanceForm from './pages/performances/PerformanceForm';
+import EnsembleList from './pages/ensembles/EnsembleList';
+import EnsembleDetail from './pages/ensembles/EnsembleDetail';
+import EnsembleForm from './pages/ensembles/EnsembleForm';
 import UserList from './pages/admin/UserList';
 import UserDetail from './pages/admin/UserDetail';
 import RegisterUser from './pages/admin/RegisterUser';
@@ -68,8 +72,15 @@ export default function App() {
 
               {/* Performances */}
               <Route path="performances" element={<PerformanceList />} />
+              <Route path="performances/:id" element={<PerformanceDetail />} />
               <Route path="performances/new" element={<ProtectedRoute requiredRoles={editorRoles}><PerformanceForm /></ProtectedRoute>} />
               <Route path="performances/:id/edit" element={<ProtectedRoute requiredRoles={editorRoles}><PerformanceForm /></ProtectedRoute>} />
+
+              {/* Ensembles */}
+              <Route path="ensembles" element={<EnsembleList />} />
+              <Route path="ensembles/:id" element={<EnsembleDetail />} />
+              <Route path="ensembles/new" element={<ProtectedRoute requiredRoles={editorRoles}><EnsembleForm /></ProtectedRoute>} />
+              <Route path="ensembles/:id/edit" element={<ProtectedRoute requiredRoles={editorRoles}><EnsembleForm /></ProtectedRoute>} />
 
               {/* Admin */}
               <Route path="admin/users" element={<ProtectedRoute requiredRoles={adminRoles}><UserList /></ProtectedRoute>} />

@@ -3,6 +3,7 @@ import { Alert, Button, Card, Col, Form, Row, Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { performancesApi } from '../../api/performances';
+import { ensemblesApi } from '../../api/ensembles';
 
 export default function PerformanceForm() {
   const { id } = useParams<{ id: string }>();
@@ -14,11 +15,17 @@ export default function PerformanceForm() {
   const [link, setLink] = useState('');
   const [performanceDate, setPerformanceDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [ensembleId, setEnsembleId] = useState<number | null>(null);
 
   const { data: existing, isLoading } = useQuery({
     queryKey: ['performance', id],
     queryFn: () => performancesApi.get(Number(id)),
     enabled: isEdit,
+  });
+
+  const { data: ensembles } = useQuery({
+    queryKey: ['ensembles-all'],
+    queryFn: () => ensemblesApi.getAll(),
   });
 
   useEffect(() => {
@@ -27,6 +34,7 @@ export default function PerformanceForm() {
       setLink(existing.link);
       setPerformanceDate(existing.performanceDate ? existing.performanceDate.split('T')[0] : '');
       setNotes(existing.notes || '');
+      setEnsembleId(existing.ensembleId ?? null);
     }
   }, [existing]);
 
@@ -37,6 +45,7 @@ export default function PerformanceForm() {
         link,
         performanceDate: performanceDate || undefined,
         notes: notes || undefined,
+        ensembleId: ensembleId ?? undefined,
       };
       return isEdit ? performancesApi.update(Number(id), payload) : performancesApi.create(payload);
     },
@@ -72,6 +81,18 @@ export default function PerformanceForm() {
                 </Form.Group>
               </Col>
             </Row>
+            <Form.Group className="mb-3">
+              <Form.Label>Ensemble</Form.Label>
+              <Form.Select
+                value={ensembleId ?? ''}
+                onChange={(e) => setEnsembleId(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value="">No Ensemble</option>
+                {ensembles?.map((ens) => (
+                  <option key={ens.id} value={ens.id}>{ens.name}</option>
+                ))}
+              </Form.Select>
+            </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Notes</Form.Label>
               <Form.Control as="textarea" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
