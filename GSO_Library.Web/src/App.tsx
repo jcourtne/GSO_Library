@@ -8,7 +8,6 @@ import Dashboard from './pages/Dashboard';
 import ArrangementList from './pages/arrangements/ArrangementList';
 import ArrangementDetail from './pages/arrangements/ArrangementDetail';
 import ArrangementForm from './pages/arrangements/ArrangementForm';
-import ArrangementFiles from './pages/arrangements/ArrangementFiles';
 import SeriesList from './pages/series/SeriesList';
 import SeriesForm from './pages/series/SeriesForm';
 import GameList from './pages/games/GameList';
@@ -53,7 +52,6 @@ export default function App() {
               <Route path="arrangements/:id" element={<ArrangementDetail />} />
               <Route path="arrangements/new" element={<ProtectedRoute requiredRoles={editorRoles}><ArrangementForm /></ProtectedRoute>} />
               <Route path="arrangements/:id/edit" element={<ProtectedRoute requiredRoles={editorRoles}><ArrangementForm /></ProtectedRoute>} />
-              <Route path="arrangements/:id/files" element={<ProtectedRoute requiredRoles={editorRoles}><ArrangementFiles /></ProtectedRoute>} />
 
               {/* Series */}
               <Route path="series" element={<SeriesList />} />

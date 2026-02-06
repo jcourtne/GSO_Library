@@ -9,8 +9,8 @@ import ConfirmModal from '../../components/common/ConfirmModal';
 import { useAuth } from '../../hooks/useAuth';
 import type { Performance } from '../../types';
 
-// Extended type for list items that include eagerly-loaded ensemble
-interface PerformanceWithEnsemble extends Performance {
+// Extended type for list items that include eagerly-loaded ensemble (subset)
+interface PerformanceWithEnsemble extends Omit<Performance, 'ensemble'> {
   ensemble?: { id: number; name: string };
 }
 

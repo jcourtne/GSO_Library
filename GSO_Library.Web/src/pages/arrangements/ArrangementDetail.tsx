@@ -4,20 +4,15 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
 import ConfirmModal from '../../components/common/ConfirmModal';
+import FileSection from '../../components/arrangements/FileSection';
+import { categorizeFiles } from '../../utils/fileCategories';
 import { useAuth } from '../../hooks/useAuth';
-import type { ArrangementFile } from '../../types';
 
 function formatDuration(seconds?: number) {
   if (!seconds) return '-';
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function ArrangementDetail() {
@@ -43,20 +38,6 @@ export default function ArrangementDetail() {
     onError: () => setError('Failed to delete arrangement'),
   });
 
-  const handleDownload = async (file: ArrangementFile) => {
-    try {
-      const response = await arrangementsApi.downloadFile(Number(id), file.id);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = file.fileName;
-      link.click();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      setError('Failed to download file');
-    }
-  };
-
   if (isLoading) return <Spinner animation="border" />;
   if (!arrangement) return <Alert variant="danger">Arrangement not found</Alert>;
 
@@ -74,9 +55,6 @@ export default function ArrangementDetail() {
           <div>
             <Link to={`/arrangements/${id}/edit`} className="btn btn-outline-primary me-2">
               Edit
-            </Link>
-            <Link to={`/arrangements/${id}/files`} className="btn btn-outline-secondary me-2">
-              Manage Files
             </Link>
             <Button variant="outline-danger" onClick={() => setShowDelete(true)}>Delete</Button>
           </div>
@@ -110,26 +88,22 @@ export default function ArrangementDetail() {
             </Card.Body>
           </Card>
 
-          {arrangement.files?.length > 0 && (
-            <Card className="mb-3">
-              <Card.Body>
-                <Card.Title>Files</Card.Title>
-                <ListGroup variant="flush">
-                  {arrangement.files.map((f) => (
-                    <ListGroup.Item key={f.id} className="d-flex justify-content-between align-items-center">
-                      <div>
-                        <span>{f.fileName}</span>
-                        <small className="text-muted ms-2">({formatFileSize(f.fileSize)})</small>
-                      </div>
-                      <Button size="sm" variant="outline-primary" onClick={() => handleDownload(f)}>
-                        Download
-                      </Button>
-                    </ListGroup.Item>
-                  ))}
-                </ListGroup>
-              </Card.Body>
-            </Card>
-          )}
+          {arrangement.files?.length > 0 && (() => {
+            const categorized = categorizeFiles(arrangement.files);
+            return (
+              <>
+                {categorized.arrangementFiles.length > 0 && (
+                  <FileSection title="Arrangement Files" files={categorized.arrangementFiles} arrangementId={arrangement.id} editable={false} />
+                )}
+                {categorized.pdfFiles.length > 0 && (
+                  <FileSection title="PDF Files" files={categorized.pdfFiles} arrangementId={arrangement.id} editable={false} />
+                )}
+                {categorized.playbackFiles.length > 0 && (
+                  <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={arrangement.id} editable={false} />
+                )}
+              </>
+            );
+          })()}
         </Col>
 
         <Col md={4}>

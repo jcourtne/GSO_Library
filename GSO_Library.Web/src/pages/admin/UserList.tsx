@@ -30,7 +30,7 @@ export default function UserList() {
   const filteredUsers = useMemo(() => {
     if (!users || !search) return users;
     const lower = search.toLowerCase();
-    return users.filter((u) => u.userName.toLowerCase().includes(lower));
+    return users.filter((u) => u.userName?.toLowerCase().includes(lower));
   }, [users, search]);
 
   if (isLoading) return <Spinner animation="border" />;

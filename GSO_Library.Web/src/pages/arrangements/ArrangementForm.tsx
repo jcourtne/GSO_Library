@@ -6,6 +6,8 @@ import { arrangementsApi } from '../../api/arrangements';
 import { gamesApi } from '../../api/games';
 import { instrumentsApi } from '../../api/instruments';
 import { performancesApi } from '../../api/performances';
+import FileSection from '../../components/arrangements/FileSection';
+import { categorizeFiles, ARRANGEMENT_ACCEPT, PDF_ACCEPT, PLAYBACK_ACCEPT } from '../../utils/fileCategories';
 import type { ArrangementRequest } from '../../types';
 
 export default function ArrangementForm() {
@@ -29,6 +31,13 @@ export default function ArrangementForm() {
   const { data: existing, isLoading: loadingExisting } = useQuery({
     queryKey: ['arrangement', id],
     queryFn: () => arrangementsApi.get(Number(id)),
+    enabled: isEdit,
+  });
+
+  // Load files for edit mode
+  const { data: files } = useQuery({
+    queryKey: ['arrangement-files', id],
+    queryFn: () => arrangementsApi.listFiles(Number(id)),
     enabled: isEdit,
   });
 
@@ -427,6 +436,18 @@ export default function ArrangementForm() {
           <Button variant="secondary" className="ms-2" onClick={() => navigate(-1)}>Cancel</Button>
         </div>
       </Form>
+
+      {isEdit && files && (() => {
+        const categorized = categorizeFiles(files);
+        return (
+          <div className="mt-4">
+            <h4>Files</h4>
+            <FileSection title="Arrangement Files" files={categorized.arrangementFiles} arrangementId={Number(id)} editable accept={ARRANGEMENT_ACCEPT} />
+            <FileSection title="PDF Files" files={categorized.pdfFiles} arrangementId={Number(id)} editable accept={PDF_ACCEPT} />
+            <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={Number(id)} editable accept={PLAYBACK_ACCEPT} />
+          </div>
+        );
+      })()}
     </>
   );
 }
