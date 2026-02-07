@@ -12,6 +12,8 @@ export default function UserDetail() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [selectedRole, setSelectedRole] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const { data: user, isLoading } = useQuery({
     queryKey: ['user', id],
@@ -38,6 +40,16 @@ export default function UserDetail() {
       setSuccess(resp.message);
     },
     onError: () => setError('Failed to remove role'),
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: () => authApi.resetPassword(id!, { newPassword }),
+    onSuccess: (resp) => {
+      setSuccess(resp.message);
+      setNewPassword('');
+      setConfirmPassword('');
+    },
+    onError: () => setError('Failed to reset password'),
   });
 
   const toggleMutation = useMutation({
@@ -87,6 +99,48 @@ export default function UserDetail() {
         </Col>
 
         <Col md={6}>
+          <Card className="mb-4">
+            <Card.Body>
+              <Card.Title>Reset Password</Card.Title>
+              <Form onSubmit={(e) => {
+                e.preventDefault();
+                if (newPassword && newPassword === confirmPassword) {
+                  resetPasswordMutation.mutate();
+                }
+              }}>
+                <Form.Group className="mb-2">
+                  <Form.Label>New Password</Form.Label>
+                  <Form.Control
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                  />
+                </Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Label>Confirm Password</Form.Label>
+                  <Form.Control
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    isInvalid={!!confirmPassword && confirmPassword !== newPassword}
+                    required
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    Passwords do not match
+                  </Form.Control.Feedback>
+                </Form.Group>
+                <Button
+                  type="submit"
+                  variant="warning"
+                  disabled={!newPassword || newPassword !== confirmPassword || resetPasswordMutation.isPending}
+                >
+                  Reset Password
+                </Button>
+              </Form>
+            </Card.Body>
+          </Card>
+
           <Card>
             <Card.Body>
               <Card.Title>Roles</Card.Title>

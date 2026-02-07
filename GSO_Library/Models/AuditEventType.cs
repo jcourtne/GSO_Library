@@ -10,4 +10,5 @@ public static class AuditEventType
     public const string AccountEnable = "AccountEnable";
     public const string RoleGrant = "RoleGrant";
     public const string RoleRemove = "RoleRemove";
+    public const string PasswordReset = "PasswordReset";
 }

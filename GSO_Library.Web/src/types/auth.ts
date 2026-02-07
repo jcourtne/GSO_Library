@@ -21,6 +21,10 @@ export interface UpdateCredentialsRequest {
   newPassword?: string;
 }
 
+export interface ResetPasswordRequest {
+  newPassword: string;
+}
+
 export interface RoleManagementRequest {
   userId: string;
   role: string;

@@ -3,7 +3,8 @@ import { Alert, Button, Card, ListGroup, ProgressBar, Spinner } from 'react-boot
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
 import ConfirmModal from '../common/ConfirmModal';
-import { formatFileSize } from '../../utils/fileCategories';
+import AudioPlayer from './AudioPlayer';
+import { formatFileSize, isBrowserPlayable } from '../../utils/fileCategories';
 import type { ArrangementFile } from '../../types';
 
 interface FileSectionProps {
@@ -120,25 +121,30 @@ export default function FileSection({ title, files, arrangementId, editable, acc
           ) : (
             <ListGroup variant="flush">
               {files.map((f) => (
-                <ListGroup.Item key={f.id} className="d-flex justify-content-between align-items-center">
-                  <div>
-                    <span className="fw-medium">{f.fileName}</span>
-                    <small className="text-muted ms-2">
-                      ({formatFileSize(f.fileSize)}) &middot; {new Date(f.uploadedAt).toLocaleDateString()}
-                    </small>
+                <ListGroup.Item key={f.id}>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div>
+                      <span className="fw-medium">{f.fileName}</span>
+                      <small className="text-muted ms-2">
+                        ({formatFileSize(f.fileSize)}) &middot; {new Date(f.uploadedAt).toLocaleDateString()}
+                      </small>
+                    </div>
+                    <div>
+                      {canDownload && (
+                        <Button size="sm" variant="outline-primary" className="me-2" onClick={() => handleDownload(f)}>
+                          Download
+                        </Button>
+                      )}
+                      {editable && (
+                        <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(f)}>
+                          Delete
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    {canDownload && (
-                      <Button size="sm" variant="outline-primary" className="me-2" onClick={() => handleDownload(f)}>
-                        Download
-                      </Button>
-                    )}
-                    {editable && (
-                      <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(f)}>
-                        Delete
-                      </Button>
-                    )}
-                  </div>
+                  {canDownload && isBrowserPlayable(f.fileName) && (
+                    <AudioPlayer arrangementId={arrangementId} file={f} />
+                  )}
                 </ListGroup.Item>
               ))}
             </ListGroup>

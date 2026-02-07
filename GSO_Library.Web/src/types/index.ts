@@ -1,4 +1,4 @@
-export type { LoginRequest, RegisterRequest, RefreshRequest, UpdateCredentialsRequest, RoleManagementRequest, AuthResponse, RoleManagementResponse, UserResponse } from './auth';
+export type { LoginRequest, RegisterRequest, RefreshRequest, UpdateCredentialsRequest, ResetPasswordRequest, RoleManagementRequest, AuthResponse, RoleManagementResponse, UserResponse } from './auth';
 export type { PaginatedResult, PaginationParams } from './common';
 export type { Arrangement, ArrangementRequest, ArrangementFile, ArrangementFilterParams } from './arrangement';
 export type { Game } from './game';

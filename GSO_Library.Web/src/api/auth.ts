@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { AuthResponse, LoginRequest, RegisterRequest, RefreshRequest, UpdateCredentialsRequest, RoleManagementRequest, RoleManagementResponse, UserResponse } from '../types';
+import type { AuthResponse, LoginRequest, RegisterRequest, RefreshRequest, UpdateCredentialsRequest, ResetPasswordRequest, RoleManagementRequest, RoleManagementResponse, UserResponse } from '../types';
 
 export const authApi = {
   login: (data: LoginRequest) =>
@@ -23,6 +23,9 @@ export const authApi = {
 
   getUser: (id: string) =>
     apiClient.get<UserResponse>(`/auth/users/${id}`).then((r) => r.data),
+
+  resetPassword: (userId: string, data: ResetPasswordRequest) =>
+    apiClient.post<AuthResponse>(`/auth/reset-password/${userId}`, data).then((r) => r.data),
 
   disableUser: (userId: string) =>
     apiClient.post<AuthResponse>(`/auth/disable/${userId}`).then((r) => r.data),

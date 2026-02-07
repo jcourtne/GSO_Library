@@ -43,6 +43,12 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const BROWSER_AUDIO_EXTENSIONS = ['.mp3', '.wav', '.flac', '.ogg'];
+
+export function isBrowserPlayable(fileName: string): boolean {
+  return BROWSER_AUDIO_EXTENSIONS.includes(getExtension(fileName));
+}
+
 export const ARRANGEMENT_ACCEPT = ARRANGEMENT_EXTENSIONS.join(',');
 export const PDF_ACCEPT = PDF_EXTENSIONS.join(',');
 export const PLAYBACK_ACCEPT = PLAYBACK_EXTENSIONS.join(',');

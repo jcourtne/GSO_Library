@@ -463,6 +463,52 @@ public class AuthController : ControllerBase
         });
     }
 
+    [HttpPost("reset-password/{userId}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<AuthResponse>> ResetPassword(string userId, [FromBody] ResetPasswordRequest request)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            return NotFound(new AuthResponse
+            {
+                Success = false,
+                Message = "User not found"
+            });
+        }
+
+        var removeResult = await _userManager.RemovePasswordAsync(user);
+        if (!removeResult.Succeeded)
+        {
+            return BadRequest(new AuthResponse
+            {
+                Success = false,
+                Message = string.Join(", ", removeResult.Errors.Select(e => e.Description))
+            });
+        }
+
+        var addResult = await _userManager.AddPasswordAsync(user, request.NewPassword);
+        if (!addResult.Succeeded)
+        {
+            return BadRequest(new AuthResponse
+            {
+                Success = false,
+                Message = string.Join(", ", addResult.Errors.Select(e => e.Description))
+            });
+        }
+
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        await _auditService.LogAsync(AuditEventType.PasswordReset, User.Identity?.Name, user.UserName, ip, null);
+
+        return Ok(new AuthResponse
+        {
+            Success = true,
+            Message = "Password reset successfully",
+            UserId = user.Id,
+            Username = user.UserName
+        });
+    }
+
     [HttpPost("grant-role")]
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<RoleManagementResponse>> GrantRole([FromBody] RoleManagementRequest request)
