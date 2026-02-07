@@ -12,6 +12,11 @@ namespace GSO_Library.Controllers;
 [Route("api/[controller]")]
 public class ArrangementsController : ControllerBase
 {
+    private static readonly HashSet<string> PlaybackExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mid", ".midi", ".mp3", ".wav", ".flac", ".ogg"
+    };
+
     private readonly ArrangementRepository _arrangementRepository;
     private readonly ArrangementFileRepository _fileRepository;
     private readonly IFileStorageService _fileStorageService;
@@ -58,12 +63,12 @@ public class ArrangementsController : ControllerBase
         [FromQuery] int? gameId, [FromQuery] int? seriesId, [FromQuery] int? instrumentId, [FromQuery] int? performanceId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null,
-        [FromQuery] string? search = null)
+        [FromQuery] string? search = null, [FromQuery] string? composer = null, [FromQuery] string? arranger = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameId, seriesId, instrumentId, performanceId, sortBy, sortDirection, search);
+        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameId, seriesId, instrumentId, performanceId, sortBy, sortDirection, search, composer, arranger);
         return Ok(result);
     }
 
@@ -234,6 +239,13 @@ public class ArrangementsController : ControllerBase
         var arrangementFile = await _fileRepository.GetFileAsync(id, fileId);
         if (arrangementFile == null)
             return NotFound();
+
+        if (!User.IsInRole("Admin") && !User.IsInRole("Editor"))
+        {
+            var ext = Path.GetExtension(arrangementFile.FileName);
+            if (!PlaybackExtensions.Contains(ext ?? ""))
+                return Forbid();
+        }
 
         try
         {

@@ -46,4 +46,6 @@ export interface ArrangementFilterParams {
   seriesId?: number;
   instrumentId?: number;
   performanceId?: number;
+  composer?: string;
+  arranger?: string;
 }

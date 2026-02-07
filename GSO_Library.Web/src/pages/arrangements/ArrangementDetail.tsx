@@ -93,10 +93,10 @@ export default function ArrangementDetail() {
             return (
               <>
                 {categorized.arrangementFiles.length > 0 && (
-                  <FileSection title="Arrangement Files" files={categorized.arrangementFiles} arrangementId={arrangement.id} editable={false} />
+                  <FileSection title="Arrangement Files" files={categorized.arrangementFiles} arrangementId={arrangement.id} editable={false} canDownload={canEdit()} />
                 )}
                 {categorized.pdfFiles.length > 0 && (
-                  <FileSection title="PDF Files" files={categorized.pdfFiles} arrangementId={arrangement.id} editable={false} />
+                  <FileSection title="PDF Files" files={categorized.pdfFiles} arrangementId={arrangement.id} editable={false} canDownload={canEdit()} />
                 )}
                 {categorized.playbackFiles.length > 0 && (
                   <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={arrangement.id} editable={false} />

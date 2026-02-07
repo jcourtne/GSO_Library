@@ -12,9 +12,10 @@ interface FileSectionProps {
   arrangementId: number;
   editable: boolean;
   accept?: string;
+  canDownload?: boolean;
 }
 
-export default function FileSection({ title, files, arrangementId, editable, accept }: FileSectionProps) {
+export default function FileSection({ title, files, arrangementId, editable, accept, canDownload = true }: FileSectionProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
@@ -127,9 +128,11 @@ export default function FileSection({ title, files, arrangementId, editable, acc
                     </small>
                   </div>
                   <div>
-                    <Button size="sm" variant="outline-primary" className="me-2" onClick={() => handleDownload(f)}>
-                      Download
-                    </Button>
+                    {canDownload && (
+                      <Button size="sm" variant="outline-primary" className="me-2" onClick={() => handleDownload(f)}>
+                        Download
+                      </Button>
+                    )}
                     {editable && (
                       <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(f)}>
                         Delete

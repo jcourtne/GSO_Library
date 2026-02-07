@@ -512,4 +512,85 @@ public class ArrangementsControllerTests : IntegrationTestBase
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    // ───── File download authorization ─────
+
+    [Fact]
+    public async Task DownloadFile_UserRole_PlaybackFile_Returns200()
+    {
+        var editor = await GetEditorClientAsync();
+        var arrangement = await CreateArrangementAsync(editor, "PlaybackDL");
+
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("audio data"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/mpeg");
+        content.Add(fileContent, "file", "track.mp3");
+
+        var uploadResponse = await editor.PostAsync($"/api/arrangements/{arrangement.Id}/files", content);
+        uploadResponse.EnsureSuccessStatusCode();
+        var file = await uploadResponse.Content.ReadFromJsonAsync<ArrangementFile>(JsonOpts);
+
+        var user = await GetUserClientAsync();
+        var downloadResponse = await user.GetAsync($"/api/arrangements/{arrangement.Id}/files/{file!.Id}");
+        Assert.Equal(HttpStatusCode.OK, downloadResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task DownloadFile_UserRole_PdfFile_Returns403()
+    {
+        var editor = await GetEditorClientAsync();
+        var arrangement = await CreateArrangementAsync(editor, "PdfDL");
+
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("pdf data"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(fileContent, "file", "score.pdf");
+
+        var uploadResponse = await editor.PostAsync($"/api/arrangements/{arrangement.Id}/files", content);
+        uploadResponse.EnsureSuccessStatusCode();
+        var file = await uploadResponse.Content.ReadFromJsonAsync<ArrangementFile>(JsonOpts);
+
+        var user = await GetUserClientAsync();
+        var downloadResponse = await user.GetAsync($"/api/arrangements/{arrangement.Id}/files/{file!.Id}");
+        Assert.Equal(HttpStatusCode.Forbidden, downloadResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task DownloadFile_UserRole_ArrangementFile_Returns403()
+    {
+        var editor = await GetEditorClientAsync();
+        var arrangement = await CreateArrangementAsync(editor, "ArrFileDL");
+
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("xml data"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/xml");
+        content.Add(fileContent, "file", "score.mxl");
+
+        var uploadResponse = await editor.PostAsync($"/api/arrangements/{arrangement.Id}/files", content);
+        uploadResponse.EnsureSuccessStatusCode();
+        var file = await uploadResponse.Content.ReadFromJsonAsync<ArrangementFile>(JsonOpts);
+
+        var user = await GetUserClientAsync();
+        var downloadResponse = await user.GetAsync($"/api/arrangements/{arrangement.Id}/files/{file!.Id}");
+        Assert.Equal(HttpStatusCode.Forbidden, downloadResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task DownloadFile_EditorRole_PdfFile_Returns200()
+    {
+        var editor = await GetEditorClientAsync();
+        var arrangement = await CreateArrangementAsync(editor, "EditorPdfDL");
+
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("pdf data"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(fileContent, "file", "score.pdf");
+
+        var uploadResponse = await editor.PostAsync($"/api/arrangements/{arrangement.Id}/files", content);
+        uploadResponse.EnsureSuccessStatusCode();
+        var file = await uploadResponse.Content.ReadFromJsonAsync<ArrangementFile>(JsonOpts);
+
+        var downloadResponse = await editor.GetAsync($"/api/arrangements/{arrangement.Id}/files/{file!.Id}");
+        Assert.Equal(HttpStatusCode.OK, downloadResponse.StatusCode);
+    }
 }

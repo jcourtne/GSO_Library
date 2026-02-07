@@ -23,10 +23,12 @@ export default function ArrangementList() {
   const [seriesId, setSeriesId] = useState<number | undefined>();
   const [instrumentId, setInstrumentId] = useState<number | undefined>();
   const [search, setSearch] = useState('');
+  const [composer, setComposer] = useState('');
+  const [arranger, setArranger] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['arrangements', { page, pageSize, sortBy, sortDirection, gameId, seriesId, instrumentId, search }],
-    queryFn: () => arrangementsApi.list({ page, pageSize, sortBy, sortDirection, gameId, seriesId, instrumentId, search: search || undefined }),
+    queryKey: ['arrangements', { page, pageSize, sortBy, sortDirection, gameId, seriesId, instrumentId, search, composer, arranger }],
+    queryFn: () => arrangementsApi.list({ page, pageSize, sortBy, sortDirection, gameId, seriesId, instrumentId, search: search || undefined, composer: composer || undefined, arranger: arranger || undefined }),
   });
 
   const allGames = useQuery({ queryKey: ['games-all'], queryFn: () => gamesApi.list({ page: 1, pageSize: 100 }) });
@@ -104,6 +106,24 @@ export default function ArrangementList() {
             options={allInstruments.data?.items.map((i) => ({ value: i.id, label: i.name })) ?? []}
             value={instrumentId ?? null}
             onChange={(v) => { setInstrumentId(v ?? undefined); setPage(1); }}
+          />
+        </Col>
+      </Row>
+      <Row className="g-2 mb-3">
+        <Col md={3}>
+          <Form.Control
+            size="sm"
+            placeholder="Filter by composer..."
+            value={composer}
+            onChange={(e) => { setComposer(e.target.value); setPage(1); }}
+          />
+        </Col>
+        <Col md={3}>
+          <Form.Control
+            size="sm"
+            placeholder="Filter by arranger..."
+            value={arranger}
+            onChange={(e) => { setArranger(e.target.value); setPage(1); }}
           />
         </Col>
       </Row>
