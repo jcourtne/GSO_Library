@@ -12,4 +12,5 @@ export interface PaginationParams {
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
   search?: string;
+  ensembleId?: number;
 }

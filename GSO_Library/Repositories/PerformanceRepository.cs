@@ -31,17 +31,20 @@ public class PerformanceRepository
             "SELECT id, name, link, performance_date, notes, ensemble_id, created_at, updated_at, created_by FROM performances");
     }
 
-    public async Task<PaginatedResult<Performance>> GetAllPerformancesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null, string? search = null)
+    public async Task<PaginatedResult<Performance>> GetAllPerformancesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null, string? search = null, int? ensembleId = null)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var whereClause = string.IsNullOrWhiteSpace(search) ? "" : " WHERE name LIKE @Search";
+        var conditions = new List<string>();
+        if (!string.IsNullOrWhiteSpace(search)) conditions.Add("name LIKE @Search");
+        if (ensembleId.HasValue) conditions.Add("ensemble_id = @EnsembleId");
+        var whereClause = conditions.Count > 0 ? " WHERE " + string.Join(" AND ", conditions) : "";
         var searchParam = string.IsNullOrWhiteSpace(search) ? null : $"%{search}%";
-        var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM performances{whereClause}", new { Search = searchParam });
+        var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM performances{whereClause}", new { Search = searchParam, EnsembleId = ensembleId });
         var orderColumn = _sortColumns.GetValueOrDefault(sortBy ?? "", "id");
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
         var items = (await connection.QueryAsync<Performance>(
             $"SELECT id, name, link, performance_date, notes, ensemble_id, created_at, updated_at, created_by FROM performances{whereClause} ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
-            new { Limit = pageSize, Offset = (page - 1) * pageSize, Search = searchParam })).ToList();
+            new { Limit = pageSize, Offset = (page - 1) * pageSize, Search = searchParam, EnsembleId = ensembleId })).ToList();
 
         if (items.Count > 0)
         {

@@ -3,6 +3,7 @@ import { Alert, Button, Form } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { performancesApi } from '../../api/performances';
+import { ensemblesApi } from '../../api/ensembles';
 import DataTable from '../../components/common/DataTable';
 import Pagination from '../../components/common/Pagination';
 import ConfirmModal from '../../components/common/ConfirmModal';
@@ -25,10 +26,16 @@ export default function PerformanceList() {
   const [deleteTarget, setDeleteTarget] = useState<Performance | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [ensembleId, setEnsembleId] = useState<number | undefined>(undefined);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['performances', { page, pageSize, sortBy, sortDirection, search }],
-    queryFn: () => performancesApi.list({ page, pageSize, sortBy, sortDirection, search: search || undefined }),
+    queryKey: ['performances', { page, pageSize, sortBy, sortDirection, search, ensembleId }],
+    queryFn: () => performancesApi.list({ page, pageSize, sortBy, sortDirection, search: search || undefined, ensembleId }),
+  });
+
+  const { data: ensembles } = useQuery({
+    queryKey: ['ensembles', 'all'],
+    queryFn: () => ensemblesApi.getAll(),
   });
 
   const deleteMutation = useMutation({
@@ -89,14 +96,26 @@ export default function PerformanceList() {
         {canEdit() && <Link to="/performances/new" className="btn btn-primary">New Performance</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
-      <Form.Control
-        size="sm"
-        placeholder="Search by name..."
-        value={search}
-        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-        className="mb-3"
-        style={{ maxWidth: '300px' }}
-      />
+      <div className="d-flex gap-2 mb-3">
+        <Form.Control
+          size="sm"
+          placeholder="Search by name..."
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          style={{ maxWidth: '300px' }}
+        />
+        <Form.Select
+          size="sm"
+          value={ensembleId ?? ''}
+          onChange={(e) => { setEnsembleId(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
+          style={{ maxWidth: '220px' }}
+        >
+          <option value="">All Ensembles</option>
+          {ensembles?.map((e) => (
+            <option key={e.id} value={e.id}>{e.name}</option>
+          ))}
+        </Form.Select>
+      </div>
       <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} onRowClick={(p) => navigate(`/performances/${p.id}`)} />
       {data && data.totalPages > 0 && (
         <Pagination page={data.page} totalPages={data.totalPages} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} />
