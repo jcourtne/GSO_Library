@@ -17,8 +17,8 @@ export interface Arrangement {
   id: number;
   name: string;
   description?: string;
-  arranger?: string;
-  composer?: string;
+  arrangers: string[];
+  composers: string[];
   key?: string;
   durationSeconds?: number;
   year?: number;
@@ -34,8 +34,8 @@ export interface Arrangement {
 export interface ArrangementRequest {
   name: string;
   description?: string;
-  arranger?: string;
-  composer?: string;
+  arrangers?: string[];
+  composers?: string[];
   key?: string;
   durationSeconds?: number;
   year?: number;

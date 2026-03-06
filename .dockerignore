@@ -1,0 +1,12 @@
+**/.git
+**/.github
+**/node_modules
+**/dist
+**/.vs
+**/*.user
+**/bin
+**/obj
+GSO_Library.Tests/
+GSO_Library/uploads/
+GSO_Library/seed_users.json
+nul

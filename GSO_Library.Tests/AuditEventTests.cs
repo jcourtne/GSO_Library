@@ -231,7 +231,7 @@ public class AuditEventTests : IntegrationTestBase
         var arrResponse = await client.PostAsJsonAsync("/api/arrangements", new ArrangementRequest
         {
             Name = "Audit Download Test",
-            Composer = "Test Composer"
+            Composers = ["Test Composer"]
         });
         var arrangement = await arrResponse.Content.ReadFromJsonAsync<Arrangement>(JsonOpts);
 

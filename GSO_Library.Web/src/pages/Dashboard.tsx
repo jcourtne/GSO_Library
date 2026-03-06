@@ -58,8 +58,8 @@ export default function Dashboard() {
                   <Card.Title>
                     <Link to={`/arrangements/${a.id}`}>{a.name}</Link>
                   </Card.Title>
-                  {a.composer && <Card.Subtitle className="mb-2 text-muted">{a.composer}</Card.Subtitle>}
-                  {a.arranger && <Card.Text className="mb-1"><small>Arr. {a.arranger}</small></Card.Text>}
+                  {a.composers?.length > 0 && <Card.Subtitle className="mb-2 text-muted">{a.composers.join(', ')}</Card.Subtitle>}
+                  {a.arrangers?.length > 0 && <Card.Text className="mb-1"><small>Arr. {a.arrangers.join(', ')}</small></Card.Text>}
                   {a.games?.length > 0 && (
                     <Card.Text className="mb-0">
                       <small className="text-muted">{a.games.map((g) => g.name).join(', ')}</small>

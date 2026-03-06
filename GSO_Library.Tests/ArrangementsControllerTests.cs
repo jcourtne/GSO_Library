@@ -19,8 +19,8 @@ public class ArrangementsControllerTests : IntegrationTestBase
         {
             Name = name,
             Description = "Test description",
-            Arranger = "Test Arranger",
-            Composer = "Test Composer",
+            Arrangers = ["Test Arranger"],
+            Composers = ["Test Composer"],
             Key = "C Major",
             DurationSeconds = 300,
             Year = 2024
@@ -75,7 +75,7 @@ public class ArrangementsControllerTests : IntegrationTestBase
         var response = await client.PostAsJsonAsync("/api/arrangements", new ArrangementRequest
         {
             Name = "One Winged Angel",
-            Composer = "Nobuo Uematsu",
+            Composers = ["Nobuo Uematsu"],
             Key = "E Minor"
         });
 
@@ -125,14 +125,14 @@ public class ArrangementsControllerTests : IntegrationTestBase
         var response = await client.PutAsJsonAsync($"/api/arrangements/{created.Id}/details", new ArrangementRequest
         {
             Name = "Updated Name",
-            Composer = "Updated Composer",
+            Composers = ["Updated Composer"],
             Key = "D Minor"
         });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var updated = await response.Content.ReadFromJsonAsync<Arrangement>(JsonOpts);
         Assert.Equal("Updated Name", updated!.Name);
-        Assert.Equal("Updated Composer", updated.Composer);
+        Assert.Contains("Updated Composer", updated.Composers);
     }
 
     [Fact]

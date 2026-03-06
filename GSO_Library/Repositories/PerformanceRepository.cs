@@ -77,12 +77,29 @@ public class PerformanceRepository
         }
 
         // Load linked arrangements via junction table
-        var arrangements = await connection.QueryAsync<Arrangement>(
-            @"SELECT a.id, a.name, a.description, a.arranger, a.composer, a.key, a.duration_seconds, a.year, a.created_at, a.updated_at, a.created_by
+        var arrangements = (await connection.QueryAsync<Arrangement>(
+            @"SELECT a.id, a.name, a.description, a.key, a.duration_seconds, a.year, a.created_at, a.updated_at, a.created_by
               FROM arrangements a
               INNER JOIN arrangement_performances ap ON a.id = ap.arrangement_id
-              WHERE ap.performance_id = @Id", new { Id = id });
-        performance.Arrangements = arrangements.ToList();
+              WHERE ap.performance_id = @Id", new { Id = id })).ToList();
+
+        // Load composers/arrangers for linked arrangements
+        var arrIds = arrangements.Select(a => a.Id).ToArray();
+        if (arrIds.Length > 0)
+        {
+            var composers = await connection.QueryInListAsync<(int ArrangementId, string Name)>(
+                "SELECT arrangement_id, name FROM arrangement_composers WHERE arrangement_id = ANY(@Ids) ORDER BY sort_order", new { Ids = arrIds });
+            var arrangers = await connection.QueryInListAsync<(int ArrangementId, string Name)>(
+                "SELECT arrangement_id, name FROM arrangement_arrangers WHERE arrangement_id = ANY(@Ids) ORDER BY sort_order", new { Ids = arrIds });
+            var composersByArr = composers.GroupBy(c => c.ArrangementId).ToDictionary(g => g.Key, g => g.Select(c => c.Name).ToList());
+            var arrangersByArr = arrangers.GroupBy(a => a.ArrangementId).ToDictionary(g => g.Key, g => g.Select(a => a.Name).ToList());
+            foreach (var a in arrangements)
+            {
+                a.Composers = composersByArr.GetValueOrDefault(a.Id, []);
+                a.Arrangers = arrangersByArr.GetValueOrDefault(a.Id, []);
+            }
+        }
+        performance.Arrangements = arrangements;
 
         return performance;
     }

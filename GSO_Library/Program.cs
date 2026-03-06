@@ -106,8 +106,11 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 // Add Audit Service
 builder.Services.AddScoped<IAuditService, AuditService>();
 
-// Add File Storage Service
-builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+// Add File Storage Service (GCS in production when GCS:BucketName is set, local disk otherwise)
+if (!string.IsNullOrEmpty(builder.Configuration["GCS:BucketName"]))
+    builder.Services.AddScoped<IFileStorageService, GcsFileStorageService>();
+else
+    builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
 // Add Memory Cache
 builder.Services.AddMemoryCache();
@@ -129,7 +132,13 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.UseCors("Frontend");
 
@@ -137,6 +146,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapFallbackToFile("index.html");
 
 // Seed roles
 using (var scope = app.Services.CreateScope())

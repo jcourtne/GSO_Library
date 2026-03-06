@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using GSO_Library.Data;
 using GSO_Library.Dtos;
@@ -44,7 +45,7 @@ public class ArrangementRepository
 
             // Query all tables in separate queries, then assemble in memory
             var allArrangements = (await connection.QueryAsync<Arrangement>(
-                "SELECT id, name, description, arranger, composer, key, duration_seconds, year, created_at, updated_at, created_by FROM arrangements")).ToList();
+                "SELECT id, name, description, key, duration_seconds, year, created_at, updated_at, created_by FROM arrangements")).ToList();
 
             var allFiles = (await connection.QueryAsync<ArrangementFile>(
                 "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by FROM arrangement_files")).ToList();
@@ -70,6 +71,12 @@ public class ArrangementRepository
             var arrangementPerformances = (await connection.QueryAsync<(int ArrangementId, int PerformanceId)>(
                 "SELECT arrangement_id, performance_id FROM arrangement_performances")).ToList();
 
+            var allComposers = (await connection.QueryAsync<(int ArrangementId, string Name)>(
+                "SELECT arrangement_id, name FROM arrangement_composers ORDER BY sort_order")).ToList();
+
+            var allArrangers = (await connection.QueryAsync<(int ArrangementId, string Name)>(
+                "SELECT arrangement_id, name FROM arrangement_arrangers ORDER BY sort_order")).ToList();
+
             // Build lookups
             var seriesLookup = allSeries.ToDictionary(s => s.Id);
             var gameLookup = allGames.ToDictionary(g => g.Id);
@@ -93,6 +100,12 @@ public class ArrangementRepository
             var filesByArrangement = allFiles.GroupBy(f => f.ArrangementId)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
+            var composersByArrangement = allComposers.GroupBy(c => c.ArrangementId)
+                .ToDictionary(g => g.Key, g => g.Select(c => c.Name).ToList());
+
+            var arrangersByArrangement = allArrangers.GroupBy(a => a.ArrangementId)
+                .ToDictionary(g => g.Key, g => g.Select(a => a.Name).ToList());
+
             // Assemble navigation properties
             foreach (var a in allArrangements)
             {
@@ -100,6 +113,8 @@ public class ArrangementRepository
                 a.Instruments = instrumentsByArrangement.GetValueOrDefault(a.Id, [])!;
                 a.Performances = performancesByArrangement.GetValueOrDefault(a.Id, [])!;
                 a.Files = filesByArrangement.GetValueOrDefault(a.Id, []);
+                a.Composers = composersByArrangement.GetValueOrDefault(a.Id, []);
+                a.Arrangers = arrangersByArrangement.GetValueOrDefault(a.Id, []);
             }
 
             arrangements = allArrangements;
@@ -139,10 +154,10 @@ public class ArrangementRepository
             filtered = filtered.Where(a => a.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
 
         if (!string.IsNullOrWhiteSpace(composer))
-            filtered = filtered.Where(a => a.Composer != null && a.Composer.Contains(composer, StringComparison.OrdinalIgnoreCase));
+            filtered = filtered.Where(a => a.Composers.Any(c => c.Contains(composer, StringComparison.OrdinalIgnoreCase)));
 
         if (!string.IsNullOrWhiteSpace(arranger))
-            filtered = filtered.Where(a => a.Arranger != null && a.Arranger.Contains(arranger, StringComparison.OrdinalIgnoreCase));
+            filtered = filtered.Where(a => a.Arrangers.Any(r => r.Contains(arranger, StringComparison.OrdinalIgnoreCase)));
 
         if (gameId.HasValue)
             filtered = filtered.Where(a => a.Games.Any(g => g.Id == gameId.Value));
@@ -160,8 +175,8 @@ public class ArrangementRepository
         filtered = (sortBy?.ToLowerInvariant()) switch
         {
             "name" => desc ? filtered.OrderByDescending(a => a.Name) : filtered.OrderBy(a => a.Name),
-            "arranger" => desc ? filtered.OrderByDescending(a => a.Arranger) : filtered.OrderBy(a => a.Arranger),
-            "composer" => desc ? filtered.OrderByDescending(a => a.Composer) : filtered.OrderBy(a => a.Composer),
+            "arranger" => desc ? filtered.OrderByDescending(a => a.Arrangers.FirstOrDefault() ?? "") : filtered.OrderBy(a => a.Arrangers.FirstOrDefault() ?? ""),
+            "composer" => desc ? filtered.OrderByDescending(a => a.Composers.FirstOrDefault() ?? "") : filtered.OrderBy(a => a.Composers.FirstOrDefault() ?? ""),
             "key" => desc ? filtered.OrderByDescending(a => a.Key) : filtered.OrderBy(a => a.Key),
             "year" => desc ? filtered.OrderByDescending(a => a.Year) : filtered.OrderBy(a => a.Year),
             "durationseconds" => desc ? filtered.OrderByDescending(a => a.DurationSeconds) : filtered.OrderBy(a => a.DurationSeconds),
@@ -179,17 +194,19 @@ public class ArrangementRepository
         var now = DateTime.UtcNow;
         using var connection = _connectionFactory.CreateConnection();
         var id = await connection.InsertReturningIdAsync(
-            @"INSERT INTO arrangements (name, description, arranger, composer, key, duration_seconds, year, created_at, updated_at, created_by)
-              VALUES (@Name, @Description, @Arranger, @Composer, @Key, @DurationSeconds, @Year, @CreatedAt, @UpdatedAt, @CreatedBy)",
-            new { request.Name, request.Description, request.Arranger, request.Composer, request.Key, request.DurationSeconds, request.Year, CreatedAt = now, UpdatedAt = now, CreatedBy = createdBy });
+            @"INSERT INTO arrangements (name, description, key, duration_seconds, year, created_at, updated_at, created_by)
+              VALUES (@Name, @Description, @Key, @DurationSeconds, @Year, @CreatedAt, @UpdatedAt, @CreatedBy)",
+            new { request.Name, request.Description, request.Key, request.DurationSeconds, request.Year, CreatedAt = now, UpdatedAt = now, CreatedBy = createdBy });
+
+        await InsertComposersAndArrangersAsync(connection, id, request.Composers, request.Arrangers);
 
         var arrangement = new Arrangement
         {
             Id = id,
             Name = request.Name,
             Description = request.Description,
-            Arranger = request.Arranger,
-            Composer = request.Composer,
+            Composers = CleanNames(request.Composers),
+            Arrangers = CleanNames(request.Arrangers),
             Key = request.Key,
             DurationSeconds = request.DurationSeconds,
             Year = request.Year,
@@ -207,13 +224,18 @@ public class ArrangementRepository
         var now = DateTime.UtcNow;
         using var connection = _connectionFactory.CreateConnection();
         var rows = await connection.ExecuteAsync(
-            @"UPDATE arrangements SET name = @Name, description = @Description, arranger = @Arranger,
-              composer = @Composer, key = @Key, duration_seconds = @DurationSeconds, year = @Year,
+            @"UPDATE arrangements SET name = @Name, description = @Description,
+              key = @Key, duration_seconds = @DurationSeconds, year = @Year,
               updated_at = @UpdatedAt
               WHERE id = @Id",
-            new { request.Name, request.Description, request.Arranger, request.Composer, request.Key, request.DurationSeconds, request.Year, UpdatedAt = now, Id = id });
+            new { request.Name, request.Description, request.Key, request.DurationSeconds, request.Year, UpdatedAt = now, Id = id });
 
         if (rows == 0) return null;
+
+        // Replace composers and arrangers
+        await connection.ExecuteAsync("DELETE FROM arrangement_composers WHERE arrangement_id = @Id", new { Id = id });
+        await connection.ExecuteAsync("DELETE FROM arrangement_arrangers WHERE arrangement_id = @Id", new { Id = id });
+        await InsertComposersAndArrangersAsync(connection, id, request.Composers, request.Arrangers);
 
         InvalidateCache();
         return new Arrangement
@@ -221,8 +243,8 @@ public class ArrangementRepository
             Id = id,
             Name = request.Name,
             Description = request.Description,
-            Arranger = request.Arranger,
-            Composer = request.Composer,
+            Composers = CleanNames(request.Composers),
+            Arrangers = CleanNames(request.Arrangers),
             Key = request.Key,
             DurationSeconds = request.DurationSeconds,
             Year = request.Year,
@@ -367,5 +389,35 @@ public class ArrangementRepository
 
         InvalidateCache();
         return true;
+    }
+
+    private static List<string> CleanNames(List<string>? names)
+    {
+        if (names == null) return [];
+        return names
+            .Select(n => n.Trim())
+            .Where(n => n.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static async Task InsertComposersAndArrangersAsync(
+        IDbConnection connection, int arrangementId, List<string>? composers, List<string>? arrangers)
+    {
+        var cleanedComposers = CleanNames(composers);
+        for (var i = 0; i < cleanedComposers.Count; i++)
+        {
+            await connection.ExecuteAsync(
+                "INSERT INTO arrangement_composers (arrangement_id, name, sort_order) VALUES (@ArrangementId, @Name, @SortOrder)",
+                new { ArrangementId = arrangementId, Name = cleanedComposers[i], SortOrder = i });
+        }
+
+        var cleanedArrangers = CleanNames(arrangers);
+        for (var i = 0; i < cleanedArrangers.Count; i++)
+        {
+            await connection.ExecuteAsync(
+                "INSERT INTO arrangement_arrangers (arrangement_id, name, sort_order) VALUES (@ArrangementId, @Name, @SortOrder)",
+                new { ArrangementId = arrangementId, Name = cleanedArrangers[i], SortOrder = i });
+        }
     }
 }

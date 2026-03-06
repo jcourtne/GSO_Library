@@ -93,8 +93,8 @@ export default function PerformanceDetail() {
                         </Link>
                         <div className="text-muted small">
                           {[
-                            a.composer && `Composed by ${a.composer}`,
-                            a.arranger && `Arranged by ${a.arranger}`,
+                            a.composers?.length > 0 && `Composed by ${a.composers.join(', ')}`,
+                            a.arrangers?.length > 0 && `Arranged by ${a.arrangers.join(', ')}`,
                           ].filter(Boolean).join(' · ')}
                         </div>
                         {a.games?.length > 0 && (

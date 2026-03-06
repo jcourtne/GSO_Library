@@ -48,8 +48,8 @@ export default function ArrangementDetail() {
       <div className="d-flex justify-content-between align-items-start mb-3">
         <div>
           <h2>{arrangement.name}</h2>
-          {arrangement.composer && <p className="text-muted mb-0">Composed by {arrangement.composer}</p>}
-          {arrangement.arranger && <p className="text-muted mb-0">Arranged by {arrangement.arranger}</p>}
+          {arrangement.composers?.length > 0 && <p className="text-muted mb-0">Composed by {arrangement.composers.join(', ')}</p>}
+          {arrangement.arrangers?.length > 0 && <p className="text-muted mb-0">Arranged by {arrangement.arrangers.join(', ')}</p>}
         </div>
         {canEdit() && (
           <div>

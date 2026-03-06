@@ -1,0 +1,41 @@
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build
+    args:
+      - build
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/gso-library/app:$SHORT_SHA
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/gso-library/app:latest
+      - -f
+      - GSO_Library/Dockerfile
+      - .
+
+  # Push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: push
+    args:
+      - push
+      - --all-tags
+      - us-central1-docker.pkg.dev/$PROJECT_ID/gso-library/app
+    waitFor: [build]
+
+  # Deploy to Cloud Run (update image only; all other config already set on the service)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: deploy
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - gso-library
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/gso-library/app:$SHORT_SHA
+      - --region=us-central1
+      - --quiet
+    waitFor: [push]
+
+images:
+  - us-central1-docker.pkg.dev/$PROJECT_ID/gso-library/app:$SHORT_SHA
+  - us-central1-docker.pkg.dev/$PROJECT_ID/gso-library/app:latest
+
+timeout: 1800s

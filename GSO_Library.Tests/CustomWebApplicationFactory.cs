@@ -68,8 +68,6 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 description TEXT,
-                arranger TEXT,
-                composer TEXT,
                 key TEXT,
                 duration_seconds INTEGER,
                 year INTEGER,
@@ -136,6 +134,20 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
                 performance_id INTEGER NOT NULL REFERENCES performances(id) ON DELETE CASCADE,
                 PRIMARY KEY (arrangement_id, performance_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS arrangement_composers (
+                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (arrangement_id, name)
+            );
+
+            CREATE TABLE IF NOT EXISTS arrangement_arrangers (
+                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (arrangement_id, name)
             );
 
             CREATE TABLE IF NOT EXISTS audit_events (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Col, Form, ListGroup, Modal, Row, Spinner } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Col, Form, ListGroup, Modal, Row, Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
@@ -23,12 +23,14 @@ export default function ArrangementForm() {
   const [form, setForm] = useState<ArrangementRequest>({
     name: '',
     description: '',
-    arranger: '',
-    composer: '',
+    arrangers: [],
+    composers: [],
     key: '',
     durationSeconds: undefined,
     year: undefined,
   });
+  const [composerInput, setComposerInput] = useState('');
+  const [arrangerInput, setArrangerInput] = useState('');
 
   // Load existing arrangement for edit mode
   const { data: existing, isLoading: loadingExisting } = useQuery({
@@ -72,8 +74,8 @@ export default function ArrangementForm() {
       setForm({
         name: existing.name,
         description: existing.description || '',
-        arranger: existing.arranger || '',
-        composer: existing.composer || '',
+        arrangers: existing.arrangers || [],
+        composers: existing.composers || [],
         key: existing.key || '',
         durationSeconds: existing.durationSeconds,
         year: existing.year,
@@ -171,19 +173,63 @@ export default function ArrangementForm() {
                 <Row>
                   <Col md={6}>
                     <Form.Group className="mb-3">
-                      <Form.Label>Composer</Form.Label>
+                      <Form.Label>Composers</Form.Label>
+                      <div className="d-flex flex-wrap gap-1 mb-1">
+                        {form.composers?.map((c, i) => (
+                          <Badge key={i} bg="secondary" className="d-flex align-items-center gap-1">
+                            {c}
+                            <span
+                              role="button"
+                              style={{ cursor: 'pointer', fontSize: '1.1em', lineHeight: 1 }}
+                              onClick={() => setForm({ ...form, composers: form.composers?.filter((_, j) => j !== i) })}
+                            >
+                              &times;
+                            </span>
+                          </Badge>
+                        ))}
+                      </div>
                       <Form.Control
-                        value={form.composer || ''}
-                        onChange={(e) => setForm({ ...form, composer: e.target.value || undefined })}
+                        value={composerInput}
+                        onChange={(e) => setComposerInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && composerInput.trim()) {
+                            e.preventDefault();
+                            setForm({ ...form, composers: [...(form.composers || []), composerInput.trim()] });
+                            setComposerInput('');
+                          }
+                        }}
+                        placeholder="Type a name and press Enter"
                       />
                     </Form.Group>
                   </Col>
                   <Col md={6}>
                     <Form.Group className="mb-3">
-                      <Form.Label>Arranger</Form.Label>
+                      <Form.Label>Arrangers</Form.Label>
+                      <div className="d-flex flex-wrap gap-1 mb-1">
+                        {form.arrangers?.map((a, i) => (
+                          <Badge key={i} bg="secondary" className="d-flex align-items-center gap-1">
+                            {a}
+                            <span
+                              role="button"
+                              style={{ cursor: 'pointer', fontSize: '1.1em', lineHeight: 1 }}
+                              onClick={() => setForm({ ...form, arrangers: form.arrangers?.filter((_, j) => j !== i) })}
+                            >
+                              &times;
+                            </span>
+                          </Badge>
+                        ))}
+                      </div>
                       <Form.Control
-                        value={form.arranger || ''}
-                        onChange={(e) => setForm({ ...form, arranger: e.target.value || undefined })}
+                        value={arrangerInput}
+                        onChange={(e) => setArrangerInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && arrangerInput.trim()) {
+                            e.preventDefault();
+                            setForm({ ...form, arrangers: [...(form.arrangers || []), arrangerInput.trim()] });
+                            setArrangerInput('');
+                          }
+                        }}
+                        placeholder="Type a name and press Enter"
                       />
                     </Form.Group>
                   </Col>
