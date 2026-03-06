@@ -7,6 +7,7 @@
 **/bin
 **/obj
 GSO_Library.Tests/
+CreateAdminUser/
 GSO_Library/uploads/
 GSO_Library/seed_users.json
 nul
