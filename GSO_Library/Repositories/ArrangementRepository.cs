@@ -148,7 +148,23 @@ public class ArrangementRepository
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(a => a)
             .ToList();
-        return new { Composers = composers, Arrangers = arrangers };
+        var games = arrangements.SelectMany(a => a.Games)
+            .GroupBy(g => g.Id)
+            .Select(g => new { Id = g.Key, Name = g.First().Name })
+            .OrderBy(g => g.Name)
+            .ToList();
+        var series = arrangements.SelectMany(a => a.Games)
+            .Where(g => g.Series != null)
+            .GroupBy(g => g.SeriesId)
+            .Select(g => new { Id = g.Key, Name = g.First().Series!.Name })
+            .OrderBy(s => s.Name)
+            .ToList();
+        var instruments = arrangements.SelectMany(a => a.Instruments)
+            .GroupBy(i => i.Id)
+            .Select(i => new { Id = i.Key, Name = i.First().Name })
+            .OrderBy(i => i.Name)
+            .ToList();
+        return new { Composers = composers, Arrangers = arrangers, Games = games, Series = series, Instruments = instruments };
     }
 
     public async Task<Arrangement?> GetArrangementByIdAsync(int id)

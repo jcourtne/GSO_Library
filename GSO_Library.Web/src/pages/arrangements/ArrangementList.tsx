@@ -3,9 +3,6 @@ import { Button, Col, Form, Row } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
-import { gamesApi } from '../../api/games';
-import { seriesApi } from '../../api/series';
-import { instrumentsApi } from '../../api/instruments';
 import DataTable from '../../components/common/DataTable';
 import Pagination from '../../components/common/Pagination';
 import FilterPanelSection from '../../components/common/FilterPanel';
@@ -39,9 +36,6 @@ export default function ArrangementList() {
     }),
   });
 
-  const allGames = useQuery({ queryKey: ['games-all'], queryFn: () => gamesApi.list({ page: 1, pageSize: 100 }) });
-  const allSeries = useQuery({ queryKey: ['series-all'], queryFn: () => seriesApi.list({ page: 1, pageSize: 100 }) });
-  const allInstruments = useQuery({ queryKey: ['instruments-all'], queryFn: () => instrumentsApi.list({ page: 1, pageSize: 100 }) });
   const filterOptions = useQuery({ queryKey: ['arrangement-filter-options'], queryFn: () => arrangementsApi.filterOptions() });
 
   const handleSort = (key: string) => {
@@ -66,14 +60,20 @@ export default function ArrangementList() {
 
   const hasFilters = search || gameIds.length || seriesIds.length || instrumentIds.length || composers.length || arrangers.length;
 
+  const joinWithOverflow = (items: string[], limit = 2) => {
+    if (!items?.length) return '-';
+    if (items.length <= limit) return items.join(', ');
+    return `${items.slice(0, limit).join(', ')} +${items.length - limit} more`;
+  };
+
   const columns = [
     { key: 'name', label: 'Name', sortable: true },
-    { key: 'composer', label: 'Composer', sortable: true, render: (a: Arrangement) => a.composers?.join(', ') || '-' },
-    { key: 'arranger', label: 'Arranger', sortable: true, render: (a: Arrangement) => a.arrangers?.join(', ') || '-' },
+    { key: 'composer', label: 'Composer', sortable: true, render: (a: Arrangement) => joinWithOverflow(a.composers ?? []) },
+    { key: 'arranger', label: 'Arranger', sortable: true, render: (a: Arrangement) => joinWithOverflow(a.arrangers ?? []) },
     {
       key: 'games',
       label: 'Games',
-      render: (a: Arrangement) => a.games?.map((g) => g.name).join(', ') || '-',
+      render: (a: Arrangement) => joinWithOverflow(a.games?.map((g) => g.name) ?? []),
     },
     {
       key: 'year',
@@ -105,19 +105,19 @@ export default function ArrangementList() {
 
             <FilterPanelSection
               label="Games"
-              options={allGames.data?.items.map((g) => ({ value: g.id, label: g.name })) ?? []}
+              options={filterOptions.data?.games.map((g) => ({ value: g.id, label: g.name })) ?? []}
               selected={gameIds}
               onChange={(v) => { setGameIds(v as number[]); setPage(1); }}
             />
             <FilterPanelSection
               label="Series"
-              options={allSeries.data?.items.map((s) => ({ value: s.id, label: s.name })) ?? []}
+              options={filterOptions.data?.series.map((s) => ({ value: s.id, label: s.name })) ?? []}
               selected={seriesIds}
               onChange={(v) => { setSeriesIds(v as number[]); setPage(1); }}
             />
             <FilterPanelSection
               label="Instruments"
-              options={allInstruments.data?.items.map((i) => ({ value: i.id, label: i.name })) ?? []}
+              options={filterOptions.data?.instruments.map((i) => ({ value: i.id, label: i.name })) ?? []}
               selected={instrumentIds}
               onChange={(v) => { setInstrumentIds(v as number[]); setPage(1); }}
             />

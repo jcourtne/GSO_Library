@@ -48,7 +48,15 @@ export interface ArrangementFilterParams {
   arrangers?: string[];
 }
 
+export interface FilterOption {
+  id: number;
+  name: string;
+}
+
 export interface ArrangementFilterOptions {
   composers: string[];
   arrangers: string[];
+  games: FilterOption[];
+  series: FilterOption[];
+  instruments: FilterOption[];
 }

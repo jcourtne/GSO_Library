@@ -11,9 +11,13 @@ interface FilterPanelSectionProps {
 export default function FilterPanelSection({ label, options, selected, onChange }: FilterPanelSectionProps) {
   const [search, setSearch] = useState('');
 
+  const sorted = [
+    ...options.filter((o) => selected.includes(o.value)),
+    ...options.filter((o) => !selected.includes(o.value)),
+  ];
   const visible = search
-    ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase())).slice(0, 8)
-    : options.slice(0, 8);
+    ? sorted.filter((o) => o.label.toLowerCase().includes(search.toLowerCase())).slice(0, 8)
+    : sorted.slice(0, 8);
 
   const toggle = (value: string | number) => {
     if (selected.includes(value)) {
