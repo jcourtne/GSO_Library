@@ -134,7 +134,7 @@ export default function ArrangementForm() {
     onSuccess: (arrangementId) => {
       queryClient.invalidateQueries({ queryKey: ['arrangements'] });
       queryClient.invalidateQueries({ queryKey: ['arrangement', id] });
-      navigate(`/arrangements/${arrangementId}`);
+      navigate(isEdit ? `/arrangements/${arrangementId}` : `/arrangements/${arrangementId}/edit`);
     },
     onError: () => setError('Failed to save arrangement'),
   });
@@ -484,7 +484,7 @@ export default function ArrangementForm() {
           <Button type="submit" disabled={saveMutation.isPending}>
             {saveMutation.isPending ? <Spinner size="sm" animation="border" /> : (isEdit ? 'Save Changes' : 'Create Arrangement')}
           </Button>
-          <Button variant="secondary" className="ms-2" onClick={() => navigate(-1)}>Cancel</Button>
+          <Button variant="secondary" className="ms-2" onClick={() => navigate(isEdit ? `/arrangements/${id}` : '/arrangements')}>Cancel</Button>
         </div>
       </Form>
 
