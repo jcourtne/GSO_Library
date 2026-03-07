@@ -409,7 +409,7 @@ export default function ArrangementForm() {
               <Card.Body>
                 <Card.Title>Performances</Card.Title>
                 {linkedPerformanceIds.size > 0 ? (
-                  <ListGroup variant="flush" className="mb-2">
+                  <ListGroup variant="flush" className="mb-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                     {allPerformances.data?.items
                       .filter((p) => linkedPerformanceIds.has(p.id))
                       .map((p) => (
