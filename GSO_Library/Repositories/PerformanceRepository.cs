@@ -81,7 +81,7 @@ public class PerformanceRepository
 
         // Load linked arrangements via junction table
         var arrangements = (await connection.QueryAsync<Arrangement>(
-            @"SELECT a.id, a.name, a.description, a.key, a.duration_seconds, a.year, a.created_at, a.updated_at, a.created_by
+            @"SELECT a.id, a.name, a.description, a.duration_seconds, a.year, a.created_at, a.updated_at, a.created_by
               FROM arrangements a
               INNER JOIN arrangement_performances ap ON a.id = ap.arrangement_id
               WHERE ap.performance_id = @Id", new { Id = id })).ToList();

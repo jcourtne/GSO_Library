@@ -53,7 +53,7 @@ public class GameRepository
 
         // Load linked arrangements via junction table
         var arrangements = (await connection.QueryAsync<Arrangement>(
-            @"SELECT a.id, a.name, a.description, a.key, a.duration_seconds, a.year, a.created_at, a.updated_at, a.created_by
+            @"SELECT a.id, a.name, a.description, a.duration_seconds, a.year, a.created_at, a.updated_at, a.created_by
               FROM arrangements a
               INNER JOIN arrangement_games ag ON a.id = ag.arrangement_id
               WHERE ag.game_id = @Id", new { Id = id })).ToList();
