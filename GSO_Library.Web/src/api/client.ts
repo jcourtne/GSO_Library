@@ -68,7 +68,8 @@ apiClient.interceptors.response.use(
     }
 
     try {
-      const { data } = await axios.post('/api/auth/refresh', { refreshToken });
+      const refreshClient = axios.create({ baseURL: '/api' });
+      const { data } = await refreshClient.post('/auth/refresh', { refreshToken });
       const newToken = data.token;
       localStorage.setItem('token', newToken);
       localStorage.setItem('refreshToken', data.refreshToken);

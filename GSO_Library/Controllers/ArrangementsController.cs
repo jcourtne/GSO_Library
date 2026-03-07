@@ -17,6 +17,22 @@ public class ArrangementsController : ControllerBase
         ".mid", ".midi", ".mp3", ".wav", ".flac", ".ogg"
     };
 
+    private static readonly Dictionary<string, string> ContentTypeByExtension = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".pdf"]    = "application/pdf",
+        [".xml"]    = "application/xml",
+        [".mxl"]    = "application/vnd.recordare.musicxml",
+        [".mid"]    = "audio/midi",
+        [".midi"]   = "audio/midi",
+        [".mp3"]    = "audio/mpeg",
+        [".wav"]    = "audio/wav",
+        [".flac"]   = "audio/flac",
+        [".ogg"]    = "audio/ogg",
+        [".mscz"]   = "application/octet-stream",
+        [".dorico"] = "application/octet-stream",
+        [".sib"]    = "application/octet-stream",
+    };
+
     private readonly ArrangementRepository _arrangementRepository;
     private readonly ArrangementFileRepository _fileRepository;
     private readonly IFileStorageService _fileStorageService;
@@ -212,11 +228,15 @@ public class ArrangementsController : ControllerBase
         using var stream = file.OpenReadStream();
         await _fileStorageService.SaveFileAsync(id, storedFileName, stream);
 
+        var contentType = ContentTypeByExtension.TryGetValue(extension ?? "", out var mapped)
+            ? mapped
+            : "application/octet-stream";
+
         var arrangementFile = new ArrangementFile
         {
             FileName = file.FileName,
             StoredFileName = storedFileName,
-            ContentType = file.ContentType,
+            ContentType = contentType,
             FileSize = file.Length,
             UploadedAt = DateTime.UtcNow,
             ArrangementId = id,

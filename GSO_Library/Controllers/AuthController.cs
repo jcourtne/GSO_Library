@@ -21,6 +21,7 @@ public class AuthController : ControllerBase
     private readonly ITokenService _tokenService;
     private readonly GSOLibraryContext _context;
     private readonly IAuditService _auditService;
+    private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
@@ -28,7 +29,8 @@ public class AuthController : ControllerBase
         RoleManager<IdentityRole> roleManager,
         ITokenService tokenService,
         GSOLibraryContext context,
-        IAuditService auditService)
+        IAuditService auditService,
+        ILogger<AuthController> logger)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -36,6 +38,7 @@ public class AuthController : ControllerBase
         _tokenService = tokenService;
         _context = context;
         _auditService = auditService;
+        _logger = logger;
     }
 
     [HttpGet("users")]
@@ -99,10 +102,12 @@ public class AuthController : ControllerBase
         var result = await _userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
         {
+            _logger.LogWarning("User registration failed for username '{Username}': {Errors}",
+                request.Username, string.Join(", ", result.Errors.Select(e => e.Description)));
             return BadRequest(new AuthResponse
             {
                 Success = false,
-                Message = string.Join(", ", result.Errors.Select(e => e.Description))
+                Message = "Registration failed"
             });
         }
 
@@ -143,7 +148,16 @@ public class AuthController : ControllerBase
             });
         }
 
-        var result = await _signInManager.PasswordSignInAsync(user, request.Password, false, false);
+        var result = await _signInManager.PasswordSignInAsync(user, request.Password, false, lockoutOnFailure: true);
+        if (result.IsLockedOut)
+        {
+            await _auditService.LogAsync(AuditEventType.LoginFailure, request.Username, null, ip, "reason: locked_out");
+            return Unauthorized(new AuthResponse
+            {
+                Success = false,
+                Message = "Account is locked due to multiple failed login attempts. Please try again later."
+            });
+        }
         if (!result.Succeeded)
         {
             await _auditService.LogAsync(AuditEventType.LoginFailure, request.Username, null, ip, "reason: wrong_password");

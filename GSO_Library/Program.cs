@@ -39,7 +39,7 @@ builder.Services.AddCors(options =>
             ?? ["http://localhost:5173"];
         policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
-              .AllowAnyMethod()
+              .WithMethods("GET", "POST", "PUT", "DELETE")
               .AllowCredentials();
     });
 });
@@ -72,6 +72,9 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.Password.RequiredLength = 8;
     options.Password.RequireDigit = true;
     options.Password.RequireUppercase = true;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.AllowedForNewUsers = true;
 })
 .AddEntityFrameworkStores<GSOLibraryContext>()
 .AddDefaultTokenProviders();
@@ -79,6 +82,12 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 // Add JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JWT secret key not configured");
+if (builder.Environment.EnvironmentName is not ("Development" or "Testing"))
+{
+    const string JwtPlaceholderKey = "your-super-secret-key-min-32-characters-long-change-this!";
+    if (secretKey == JwtPlaceholderKey || Encoding.UTF8.GetByteCount(secretKey) < 32)
+        throw new InvalidOperationException("JWT secret key is insecure: replace the placeholder value with a strong secret before starting the application.");
+}
 
 builder.Services.AddAuthentication(options =>
 {
@@ -139,6 +148,14 @@ if (app.Environment.IsDevelopment())
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    await next();
+});
 
 app.UseCors("Frontend");
 
