@@ -276,7 +276,7 @@ public class ArrangementsControllerTests : IntegrationTestBase
         await client.PostAsync($"/api/arrangements/{arrangement.Id}/games/{gameId}", null);
 
         // Filter
-        var response = await client.GetAsync($"/api/arrangements?gameId={gameId}");
+        var response = await client.GetAsync($"/api/arrangements?gameIds={gameId}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Arrangement>>(JsonOpts);
         Assert.True(result!.TotalCount >= 1);

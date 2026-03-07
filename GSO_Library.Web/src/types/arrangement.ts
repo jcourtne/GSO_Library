@@ -42,10 +42,15 @@ export interface ArrangementRequest {
 }
 
 export interface ArrangementFilterParams {
-  gameId?: number;
-  seriesId?: number;
-  instrumentId?: number;
+  gameIds?: number[];
+  seriesIds?: number[];
+  instrumentIds?: number[];
   performanceId?: number;
-  composer?: string;
-  arranger?: string;
+  composers?: string[];
+  arrangers?: string[];
+}
+
+export interface ArrangementFilterOptions {
+  composers: string[];
+  arrangers: string[];
 }

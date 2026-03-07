@@ -137,6 +137,20 @@ public class ArrangementRepository
         _cache.Remove(ArrangementsCacheKey);
     }
 
+    public async Task<object> GetFilterOptionsAsync()
+    {
+        var arrangements = await GetCachedArrangementsAsync();
+        var composers = arrangements.SelectMany(a => a.Composers)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(c => c)
+            .ToList();
+        var arrangers = arrangements.SelectMany(a => a.Arrangers)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(a => a)
+            .ToList();
+        return new { Composers = composers, Arrangers = arrangers };
+    }
+
     public async Task<Arrangement?> GetArrangementByIdAsync(int id)
     {
         var arrangements = await GetCachedArrangementsAsync();
@@ -144,8 +158,8 @@ public class ArrangementRepository
     }
 
     public async Task<PaginatedResult<Arrangement>> GetArrangementsAsync(
-        int page, int pageSize, int? gameId = null, int? seriesId = null, int? instrumentId = null, int? performanceId = null,
-        string? sortBy = null, string? sortDirection = null, string? search = null, string? composer = null, string? arranger = null)
+        int page, int pageSize, int[]? gameIds = null, int[]? seriesIds = null, int[]? instrumentIds = null, int? performanceId = null,
+        string? sortBy = null, string? sortDirection = null, string? search = null, string[]? composers = null, string[]? arrangers = null)
     {
         var arrangements = await GetCachedArrangementsAsync();
         IEnumerable<Arrangement> filtered = arrangements;
@@ -153,20 +167,20 @@ public class ArrangementRepository
         if (!string.IsNullOrWhiteSpace(search))
             filtered = filtered.Where(a => a.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
 
-        if (!string.IsNullOrWhiteSpace(composer))
-            filtered = filtered.Where(a => a.Composers.Any(c => c.Contains(composer, StringComparison.OrdinalIgnoreCase)));
+        if (composers?.Length > 0)
+            filtered = filtered.Where(a => a.Composers.Any(c => composers.Contains(c, StringComparer.OrdinalIgnoreCase)));
 
-        if (!string.IsNullOrWhiteSpace(arranger))
-            filtered = filtered.Where(a => a.Arrangers.Any(r => r.Contains(arranger, StringComparison.OrdinalIgnoreCase)));
+        if (arrangers?.Length > 0)
+            filtered = filtered.Where(a => a.Arrangers.Any(r => arrangers.Contains(r, StringComparer.OrdinalIgnoreCase)));
 
-        if (gameId.HasValue)
-            filtered = filtered.Where(a => a.Games.Any(g => g.Id == gameId.Value));
+        if (gameIds?.Length > 0)
+            filtered = filtered.Where(a => a.Games.Any(g => gameIds.Contains(g.Id)));
 
-        if (seriesId.HasValue)
-            filtered = filtered.Where(a => a.Games.Any(g => g.SeriesId == seriesId.Value));
+        if (seriesIds?.Length > 0)
+            filtered = filtered.Where(a => a.Games.Any(g => seriesIds.Contains(g.SeriesId)));
 
-        if (instrumentId.HasValue)
-            filtered = filtered.Where(a => a.Instruments.Any(i => i.Id == instrumentId.Value));
+        if (instrumentIds?.Length > 0)
+            filtered = filtered.Where(a => a.Instruments.Any(i => instrumentIds.Contains(i.Id)));
 
         if (performanceId.HasValue)
             filtered = filtered.Where(a => a.Performances.Any(p => p.Id == performanceId.Value));

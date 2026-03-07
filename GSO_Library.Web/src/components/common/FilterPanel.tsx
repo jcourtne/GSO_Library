@@ -1,0 +1,70 @@
+import { useState } from 'react';
+import { Form } from 'react-bootstrap';
+
+interface FilterPanelSectionProps {
+  label: string;
+  options: { value: string | number; label: string }[];
+  selected: (string | number)[];
+  onChange: (selected: (string | number)[]) => void;
+}
+
+export default function FilterPanelSection({ label, options, selected, onChange }: FilterPanelSectionProps) {
+  const [search, setSearch] = useState('');
+
+  const visible = search
+    ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase())).slice(0, 8)
+    : options.slice(0, 8);
+
+  const toggle = (value: string | number) => {
+    if (selected.includes(value)) {
+      onChange(selected.filter((v) => v !== value));
+    } else {
+      onChange([...selected, value]);
+    }
+  };
+
+  if (options.length === 0) return null;
+
+  return (
+    <div className="mb-3">
+      <div className="d-flex justify-content-between align-items-center mb-1">
+        <strong className="small text-uppercase text-muted" style={{ fontSize: '0.7rem', letterSpacing: '0.05em' }}>
+          {label}
+          {selected.length > 0 && (
+            <span className="badge bg-primary ms-1" style={{ fontSize: '0.65rem' }}>{selected.length}</span>
+          )}
+        </strong>
+        {selected.length > 0 && (
+          <button
+            type="button"
+            className="btn btn-link btn-sm p-0 text-decoration-none"
+            style={{ fontSize: '0.75rem' }}
+            onClick={() => onChange([])}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      {options.length > 8 && (
+        <Form.Control
+          size="sm"
+          placeholder={`Search…`}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="mb-1"
+        />
+      )}
+      {visible.map((opt) => (
+        <Form.Check
+          key={opt.value}
+          type="checkbox"
+          id={`filter-${label}-${opt.value}`}
+          label={opt.label}
+          checked={selected.includes(opt.value)}
+          onChange={() => toggle(opt.value)}
+          className="small"
+        />
+      ))}
+    </div>
+  );
+}

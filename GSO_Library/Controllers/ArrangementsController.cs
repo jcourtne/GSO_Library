@@ -60,16 +60,24 @@ public class ArrangementsController : ControllerBase
     [HttpGet]
     [Authorize]
     public async Task<ActionResult<PaginatedResult<Arrangement>>> GetAllArrangements(
-        [FromQuery] int? gameId, [FromQuery] int? seriesId, [FromQuery] int? instrumentId, [FromQuery] int? performanceId,
+        [FromQuery] int[]? gameIds, [FromQuery] int[]? seriesIds, [FromQuery] int[]? instrumentIds, [FromQuery] int? performanceId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null,
-        [FromQuery] string? search = null, [FromQuery] string? composer = null, [FromQuery] string? arranger = null)
+        [FromQuery] string? search = null, [FromQuery] string[]? composers = null, [FromQuery] string[]? arrangers = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameId, seriesId, instrumentId, performanceId, sortBy, sortDirection, search, composer, arranger);
+        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameIds, seriesIds, instrumentIds, performanceId, sortBy, sortDirection, search, composers, arrangers);
         return Ok(result);
+    }
+
+    [HttpGet("filter-options")]
+    [Authorize]
+    public async Task<ActionResult> GetFilterOptions()
+    {
+        var options = await _arrangementRepository.GetFilterOptionsAsync();
+        return Ok(options);
     }
 
     [HttpPut("{id}/details")]

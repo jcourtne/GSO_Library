@@ -1,9 +1,15 @@
 import apiClient from './client';
-import type { Arrangement, ArrangementRequest, ArrangementFile, ArrangementFilterParams, PaginatedResult, PaginationParams } from '../types';
+import type { Arrangement, ArrangementRequest, ArrangementFile, ArrangementFilterParams, ArrangementFilterOptions, PaginatedResult, PaginationParams } from '../types';
 
 export const arrangementsApi = {
   list: (params?: PaginationParams & ArrangementFilterParams) =>
-    apiClient.get<PaginatedResult<Arrangement>>('/arrangements', { params }).then((r) => r.data),
+    apiClient.get<PaginatedResult<Arrangement>>('/arrangements', {
+      params,
+      paramsSerializer: { indexes: null },
+    }).then((r) => r.data),
+
+  filterOptions: () =>
+    apiClient.get<ArrangementFilterOptions>('/arrangements/filter-options').then((r) => r.data),
 
   get: (id: number) =>
     apiClient.get<Arrangement>(`/arrangements/${id}`).then((r) => r.data),
