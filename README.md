@@ -54,6 +54,8 @@ GSO_Library/Sql/001_create_application_tables.sql
 GSO_Library/Sql/002_add_audit_fields.sql
 GSO_Library/Sql/003_create_audit_events.sql
 GSO_Library/Sql/004_create_ensembles.sql
+GSO_Library/Sql/005_composers_arrangers_tables.sql
+GSO_Library/Sql/006_remove_key_from_arrangements.sql
 ```
 
 ### 4. Configure Seed Users (Optional)
@@ -102,9 +104,11 @@ Key settings in `GSO_Library/appsettings.json`:
 | `ConnectionStrings:DefaultConnection` | PostgreSQL connection string |
 | `Jwt:SecretKey` | Signing key for JWT tokens (min 32 characters) |
 | `Jwt:Issuer` / `Jwt:Audience` | JWT token issuer and audience |
-| `FileStorage:BasePath` | Directory for uploaded arrangement files (default: `./uploads`) |
+| `FileStorage:BasePath` | Directory for uploaded arrangement files when using local storage (default: `./uploads`) |
+| `GCS:BucketName` | Google Cloud Storage bucket name; if set, GCS is used for file storage instead of local disk |
 | `FileUpload:AllowedExtensions` | Permitted file types (.pdf, .xml, .mxl, .mid, .midi, .mp3, .wav, .flac, .ogg, .mscz, .dorico, .sib) |
 | `FileUpload:MaxFileSizeBytes` | Max upload size (default: 50 MB) |
+| `Cors:AllowedOrigins` | Array of allowed CORS origins (default: `["http://localhost:5173"]`) |
 | `SeedUsersFile` | Path to the seed users JSON file |
 
 ## Running Tests
