@@ -348,7 +348,7 @@ export default function ArrangementForm() {
               <Card.Body>
                 <Card.Title>Instruments</Card.Title>
                 {linkedInstrumentIds.size > 0 ? (
-                  <ListGroup variant="flush" className="mb-2">
+                  <ListGroup variant="flush" className="mb-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                     {allInstruments.data?.items
                       .filter((i) => linkedInstrumentIds.has(i.id))
                       .map((i) => (
