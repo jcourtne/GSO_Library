@@ -32,8 +32,8 @@ public class InstrumentRepository
     public async Task<PaginatedResult<Instrument>> GetAllInstrumentsAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null, string? search = null)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var whereClause = string.IsNullOrWhiteSpace(search) ? "" : " WHERE name LIKE @Search";
-        var searchParam = string.IsNullOrWhiteSpace(search) ? null : $"%{search}%";
+        var whereClause = string.IsNullOrWhiteSpace(search) ? "" : " WHERE LOWER(name) LIKE @Search";
+        var searchParam = string.IsNullOrWhiteSpace(search) ? null : $"%{search.ToLower()}%";
         var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM instruments{whereClause}", new { Search = searchParam });
         var orderColumn = _sortColumns.GetValueOrDefault(sortBy ?? "", "id");
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";

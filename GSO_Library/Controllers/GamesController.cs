@@ -21,11 +21,11 @@ public class GamesController : ControllerBase
     public async Task<ActionResult<PaginatedResult<Game>>> GetAllGames(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null,
-        [FromQuery] string? search = null)
+        [FromQuery] string? search = null, [FromQuery] int[]? seriesIds = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var result = await _gameRepository.GetAllGamesAsync(page, pageSize, sortBy, sortDirection, search);
+        var result = await _gameRepository.GetAllGamesAsync(page, pageSize, sortBy, sortDirection, search, seriesIds);
         return Ok(result);
     }
 

@@ -3,7 +3,7 @@ import type { Performance, PaginatedResult, PaginationParams } from '../types';
 
 export const performancesApi = {
   list: (params?: PaginationParams) =>
-    apiClient.get<PaginatedResult<Performance>>('/performances', { params }).then((r) => r.data),
+    apiClient.get<PaginatedResult<Performance>>('/performances', { params, paramsSerializer: { indexes: null } }).then((r) => r.data),
 
   get: (id: number) =>
     apiClient.get<Performance>(`/performances/${id}`).then((r) => r.data),

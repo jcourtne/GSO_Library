@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Form } from 'react-bootstrap';
+import { Alert, Button, Col, Form, Row } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { performancesApi } from '../../api/performances';
@@ -7,6 +7,7 @@ import { ensemblesApi } from '../../api/ensembles';
 import DataTable from '../../components/common/DataTable';
 import Pagination from '../../components/common/Pagination';
 import ConfirmModal from '../../components/common/ConfirmModal';
+import FilterPanelSection from '../../components/common/FilterPanel';
 import { useAuth } from '../../hooks/useAuth';
 import type { Performance } from '../../types';
 
@@ -26,11 +27,19 @@ export default function PerformanceList() {
   const [deleteTarget, setDeleteTarget] = useState<Performance | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [ensembleId, setEnsembleId] = useState<number | undefined>(undefined);
+  const [ensembleIds, setEnsembleIds] = useState<number[]>([]);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['performances', { page, pageSize, sortBy, sortDirection, search, ensembleId }],
-    queryFn: () => performancesApi.list({ page, pageSize, sortBy, sortDirection, search: search || undefined, ensembleId }),
+    queryKey: ['performances', { page, pageSize, sortBy, sortDirection, search, ensembleIds, dateFrom, dateTo }],
+    queryFn: () => performancesApi.list({
+      page, pageSize, sortBy, sortDirection,
+      search: search || undefined,
+      ensembleIds: ensembleIds.length ? ensembleIds : undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+    }),
   });
 
   const { data: ensembles } = useQuery({
@@ -49,6 +58,16 @@ export default function PerformanceList() {
     else { setSortBy(key); setSortDirection('asc'); }
     setPage(1);
   };
+
+  const clearAllFilters = () => {
+    setSearch('');
+    setEnsembleIds([]);
+    setDateFrom('');
+    setDateTo('');
+    setPage(1);
+  };
+
+  const hasFilters = search || ensembleIds.length || dateFrom || dateTo;
 
   const columns = [
     { key: 'name', label: 'Name', sortable: true },
@@ -96,30 +115,60 @@ export default function PerformanceList() {
         {canEdit() && <Link to="/performances/new" className="btn btn-primary">New Performance</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
-      <div className="d-flex gap-2 mb-3">
-        <Form.Control
-          size="sm"
-          placeholder="Search by name..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          style={{ maxWidth: '300px' }}
-        />
-        <Form.Select
-          size="sm"
-          value={ensembleId ?? ''}
-          onChange={(e) => { setEnsembleId(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
-          style={{ maxWidth: '220px' }}
-        >
-          <option value="">All Ensembles</option>
-          {ensembles?.map((e) => (
-            <option key={e.id} value={e.id}>{e.name}</option>
-          ))}
-        </Form.Select>
-      </div>
-      <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} onRowClick={(p) => navigate(`/performances/${p.id}`)} />
-      {data && data.totalPages > 0 && (
-        <Pagination page={data.page} totalPages={data.totalPages} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} />
-      )}
+
+      <Row className="g-3">
+        <Col md={3} style={{ borderRight: '1px solid var(--bs-border-color)' }}>
+          <div className="pe-2">
+            <Form.Control
+              size="sm"
+              placeholder="Search by name..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="mb-3"
+            />
+
+            <FilterPanelSection
+              label="Ensemble"
+              options={ensembles?.map((e) => ({ value: e.id, label: e.name })) ?? []}
+              selected={ensembleIds}
+              onChange={(v) => { setEnsembleIds(v as number[]); setPage(1); }}
+            />
+
+            <div className="mb-3">
+              <strong className="small text-uppercase text-muted d-block mb-1" style={{ fontSize: '0.7rem', letterSpacing: '0.05em' }}>
+                Date Range
+              </strong>
+              <Form.Control
+                type="date"
+                size="sm"
+                value={dateFrom}
+                onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                className="mb-1"
+              />
+              <Form.Control
+                type="date"
+                size="sm"
+                value={dateTo}
+                onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+              />
+            </div>
+
+            {hasFilters ? (
+              <Button variant="outline-secondary" size="sm" className="w-100 mt-1" onClick={clearAllFilters}>
+                Clear all filters
+              </Button>
+            ) : null}
+          </div>
+        </Col>
+
+        <Col md={9}>
+          <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} onRowClick={(p) => navigate(`/performances/${p.id}`)} />
+          {data && data.totalPages > 0 && (
+            <Pagination page={data.page} totalPages={data.totalPages} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} />
+          )}
+        </Col>
+      </Row>
+
       <ConfirmModal show={!!deleteTarget} title="Delete Performance" message={`Delete "${deleteTarget?.name}"?`} onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)} onCancel={() => setDeleteTarget(null)} />
     </>
   );

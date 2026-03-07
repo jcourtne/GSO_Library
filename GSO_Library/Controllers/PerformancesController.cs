@@ -21,11 +21,12 @@ public class PerformancesController : ControllerBase
     public async Task<ActionResult<PaginatedResult<Performance>>> GetAllPerformances(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null,
-        [FromQuery] string? search = null, [FromQuery] int? ensembleId = null)
+        [FromQuery] string? search = null, [FromQuery] int[]? ensembleIds = null,
+        [FromQuery] DateTime? dateFrom = null, [FromQuery] DateTime? dateTo = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var result = await _performanceRepository.GetAllPerformancesAsync(page, pageSize, sortBy, sortDirection, search, ensembleId);
+        var result = await _performanceRepository.GetAllPerformancesAsync(page, pageSize, sortBy, sortDirection, search, ensembleIds, dateFrom, dateTo);
         return Ok(result);
     }
 

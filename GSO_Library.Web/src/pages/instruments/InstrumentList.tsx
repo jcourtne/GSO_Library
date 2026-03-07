@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Form } from 'react-bootstrap';
+import { Alert, Button, Col, Form, Row } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { instrumentsApi } from '../../api/instruments';
@@ -59,18 +59,27 @@ export default function InstrumentList() {
         {canEdit() && <Link to="/instruments/new" className="btn btn-primary">New Instrument</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
-      <Form.Control
-        size="sm"
-        placeholder="Search by name..."
-        value={search}
-        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-        className="mb-3"
-        style={{ maxWidth: '300px' }}
-      />
-      <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} onRowClick={(i) => navigate(`/instruments/${i.id}/edit`)} />
-      {data && data.totalPages > 0 && (
-        <Pagination page={data.page} totalPages={data.totalPages} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} />
-      )}
+
+      <Row className="g-3">
+        <Col md={3} style={{ borderRight: '1px solid var(--bs-border-color)' }}>
+          <div className="pe-2">
+            <Form.Control
+              size="sm"
+              placeholder="Search by name..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            />
+          </div>
+        </Col>
+
+        <Col md={9}>
+          <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} onRowClick={(i) => navigate(`/instruments/${i.id}/edit`)} />
+          {data && data.totalPages > 0 && (
+            <Pagination page={data.page} totalPages={data.totalPages} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} />
+          )}
+        </Col>
+      </Row>
+
       <ConfirmModal show={!!deleteTarget} title="Delete Instrument" message={`Delete "${deleteTarget?.name}"?`} onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)} onCancel={() => setDeleteTarget(null)} />
     </>
   );

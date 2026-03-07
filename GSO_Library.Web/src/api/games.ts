@@ -3,7 +3,7 @@ import type { Game, PaginatedResult, PaginationParams } from '../types';
 
 export const gamesApi = {
   list: (params?: PaginationParams) =>
-    apiClient.get<PaginatedResult<Game>>('/games', { params }).then((r) => r.data),
+    apiClient.get<PaginatedResult<Game>>('/games', { params, paramsSerializer: { indexes: null } }).then((r) => r.data),
 
   get: (id: number) =>
     apiClient.get<Game>(`/games/${id}`).then((r) => r.data),

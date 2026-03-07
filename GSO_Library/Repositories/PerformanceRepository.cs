@@ -31,29 +31,31 @@ public class PerformanceRepository
             "SELECT id, name, link, performance_date, notes, ensemble_id, created_at, updated_at, created_by FROM performances");
     }
 
-    public async Task<PaginatedResult<Performance>> GetAllPerformancesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null, string? search = null, int? ensembleId = null)
+    public async Task<PaginatedResult<Performance>> GetAllPerformancesAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null, string? search = null, int[]? ensembleIds = null, DateTime? dateFrom = null, DateTime? dateTo = null)
     {
         using var connection = _connectionFactory.CreateConnection();
         var conditions = new List<string>();
-        if (!string.IsNullOrWhiteSpace(search)) conditions.Add("name LIKE @Search");
-        if (ensembleId.HasValue) conditions.Add("ensemble_id = @EnsembleId");
+        if (!string.IsNullOrWhiteSpace(search)) conditions.Add("LOWER(name) LIKE @Search");
+        if (ensembleIds?.Length > 0) conditions.Add("ensemble_id = ANY(@EnsembleIds)");
+        if (dateFrom.HasValue) conditions.Add("performance_date >= @DateFrom");
+        if (dateTo.HasValue) conditions.Add("performance_date <= @DateTo");
         var whereClause = conditions.Count > 0 ? " WHERE " + string.Join(" AND ", conditions) : "";
-        var searchParam = string.IsNullOrWhiteSpace(search) ? null : $"%{search}%";
-        var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM performances{whereClause}", new { Search = searchParam, EnsembleId = ensembleId });
+        var searchParam = string.IsNullOrWhiteSpace(search) ? null : $"%{search.ToLower()}%";
+        var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM performances{whereClause}", new { Search = searchParam, EnsembleIds = ensembleIds, DateFrom = dateFrom, DateTo = dateTo });
         var orderColumn = _sortColumns.GetValueOrDefault(sortBy ?? "", "id");
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
         var items = (await connection.QueryAsync<Performance>(
             $"SELECT id, name, link, performance_date, notes, ensemble_id, created_at, updated_at, created_by FROM performances{whereClause} ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
-            new { Limit = pageSize, Offset = (page - 1) * pageSize, Search = searchParam, EnsembleId = ensembleId })).ToList();
+            new { Limit = pageSize, Offset = (page - 1) * pageSize, Search = searchParam, EnsembleIds = ensembleIds, DateFrom = dateFrom, DateTo = dateTo })).ToList();
 
         if (items.Count > 0)
         {
-            var ensembleIds = items.Where(p => p.EnsembleId.HasValue).Select(p => p.EnsembleId!.Value).Distinct().ToArray();
-            if (ensembleIds.Length > 0)
+            var fetchedEnsembleIds = items.Where(p => p.EnsembleId.HasValue).Select(p => p.EnsembleId!.Value).Distinct().ToArray();
+            if (fetchedEnsembleIds.Length > 0)
             {
                 var ensembles = await connection.QueryInListAsync<Ensemble>(
                     "SELECT id, name, description, website, contact_info, created_at, updated_at, created_by FROM ensembles WHERE id = ANY(@Ids)",
-                    new { Ids = ensembleIds });
+                    new { Ids = fetchedEnsembleIds });
                 var ensembleLookup = ensembles.ToDictionary(e => e.Id);
                 foreach (var p in items)
                     if (p.EnsembleId.HasValue && ensembleLookup.TryGetValue(p.EnsembleId.Value, out var ens))

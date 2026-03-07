@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Alert, Button, Form } from 'react-bootstrap';
+import { Alert, Button, Col, Form, Row } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { gamesApi } from '../../api/games';
+import { seriesApi } from '../../api/series';
 import DataTable from '../../components/common/DataTable';
 import Pagination from '../../components/common/Pagination';
 import ConfirmModal from '../../components/common/ConfirmModal';
+import FilterPanelSection from '../../components/common/FilterPanel';
 import { useAuth } from '../../hooks/useAuth';
 import type { Game } from '../../types';
 
@@ -20,11 +22,14 @@ export default function GameList() {
   const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [seriesIds, setSeriesIds] = useState<number[]>([]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['games', { page, pageSize, sortBy, sortDirection, search }],
-    queryFn: () => gamesApi.list({ page, pageSize, sortBy, sortDirection, search: search || undefined }),
+    queryKey: ['games', { page, pageSize, sortBy, sortDirection, search, seriesIds }],
+    queryFn: () => gamesApi.list({ page, pageSize, sortBy, sortDirection, search: search || undefined, seriesIds: seriesIds.length ? seriesIds : undefined }),
   });
+
+  const allSeries = useQuery({ queryKey: ['series-all'], queryFn: () => seriesApi.list({ page: 1, pageSize: 100 }) });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => gamesApi.delete(id),
@@ -37,6 +42,14 @@ export default function GameList() {
     else { setSortBy(key); setSortDirection('asc'); }
     setPage(1);
   };
+
+  const clearAllFilters = () => {
+    setSearch('');
+    setSeriesIds([]);
+    setPage(1);
+  };
+
+  const hasFilters = search || seriesIds.length;
 
   const columns = [
     { key: 'name', label: 'Name', sortable: true },
@@ -61,18 +74,41 @@ export default function GameList() {
         {canEdit() && <Link to="/games/new" className="btn btn-primary">New Game</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
-      <Form.Control
-        size="sm"
-        placeholder="Search by name..."
-        value={search}
-        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-        className="mb-3"
-        style={{ maxWidth: '300px' }}
-      />
-      <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} onRowClick={(g) => navigate(`/games/${g.id}/edit`)} />
-      {data && data.totalPages > 0 && (
-        <Pagination page={data.page} totalPages={data.totalPages} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} />
-      )}
+
+      <Row className="g-3">
+        <Col md={3} style={{ borderRight: '1px solid var(--bs-border-color)' }}>
+          <div className="pe-2">
+            <Form.Control
+              size="sm"
+              placeholder="Search by name..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="mb-3"
+            />
+
+            <FilterPanelSection
+              label="Series"
+              options={allSeries.data?.items.map((s) => ({ value: s.id, label: s.name })) ?? []}
+              selected={seriesIds}
+              onChange={(v) => { setSeriesIds(v as number[]); setPage(1); }}
+            />
+
+            {hasFilters ? (
+              <Button variant="outline-secondary" size="sm" className="w-100 mt-1" onClick={clearAllFilters}>
+                Clear all filters
+              </Button>
+            ) : null}
+          </div>
+        </Col>
+
+        <Col md={9}>
+          <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} onRowClick={(g) => navigate(`/games/${g.id}/edit`)} />
+          {data && data.totalPages > 0 && (
+            <Pagination page={data.page} totalPages={data.totalPages} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} />
+          )}
+        </Col>
+      </Row>
+
       <ConfirmModal show={!!deleteTarget} title="Delete Game" message={`Delete "${deleteTarget?.name}"?`} onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)} onCancel={() => setDeleteTarget(null)} />
     </>
   );
