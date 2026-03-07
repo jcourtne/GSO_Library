@@ -23,6 +23,7 @@ import EnsembleForm from './pages/ensembles/EnsembleForm';
 import UserList from './pages/admin/UserList';
 import UserDetail from './pages/admin/UserDetail';
 import RegisterUser from './pages/admin/RegisterUser';
+import ChangePassword from './pages/ChangePassword';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,6 +80,9 @@ export default function App() {
               <Route path="ensembles/:id" element={<EnsembleDetail />} />
               <Route path="ensembles/new" element={<ProtectedRoute requiredRoles={editorRoles}><EnsembleForm /></ProtectedRoute>} />
               <Route path="ensembles/:id/edit" element={<ProtectedRoute requiredRoles={editorRoles}><EnsembleForm /></ProtectedRoute>} />
+
+              {/* Account */}
+              <Route path="change-password" element={<ChangePassword />} />
 
               {/* Admin */}
               <Route path="admin/users" element={<ProtectedRoute requiredRoles={adminRoles}><UserList /></ProtectedRoute>} />

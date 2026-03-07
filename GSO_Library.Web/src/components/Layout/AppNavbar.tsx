@@ -40,6 +40,8 @@ export default function AppNavbar() {
                       <NavDropdown.Divider />
                     </>
                   )}
+                  <NavDropdown.Item as={Link} to="/change-password">Change Password</NavDropdown.Item>
+                  <NavDropdown.Divider />
                   <NavDropdown.Item onClick={handleLogout}>Logout</NavDropdown.Item>
                 </NavDropdown>
               </Nav>
