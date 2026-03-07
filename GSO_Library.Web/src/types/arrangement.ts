@@ -19,7 +19,6 @@ export interface Arrangement {
   description?: string;
   arrangers: string[];
   composers: string[];
-  key?: string;
   durationSeconds?: number;
   year?: number;
   createdAt: string;
@@ -36,7 +35,6 @@ export interface ArrangementRequest {
   description?: string;
   arrangers?: string[];
   composers?: string[];
-  key?: string;
   durationSeconds?: number;
   year?: number;
 }

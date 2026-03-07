@@ -25,7 +25,6 @@ export default function ArrangementForm() {
     description: '',
     arrangers: [],
     composers: [],
-    key: '',
     durationSeconds: undefined,
     year: undefined,
   });
@@ -76,7 +75,6 @@ export default function ArrangementForm() {
         description: existing.description || '',
         arrangers: existing.arrangers || [],
         composers: existing.composers || [],
-        key: existing.key || '',
         durationSeconds: existing.durationSeconds,
         year: existing.year,
       });
@@ -235,17 +233,7 @@ export default function ArrangementForm() {
                   </Col>
                 </Row>
                 <Row>
-                  <Col md={4}>
-                    <Form.Group className="mb-3">
-                      <Form.Label>Key</Form.Label>
-                      <Form.Control
-                        value={form.key || ''}
-                        onChange={(e) => setForm({ ...form, key: e.target.value || undefined })}
-                        placeholder="e.g. C Major"
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col md={4}>
+                  <Col md={6}>
                     <Form.Group className="mb-3">
                       <Form.Label>Duration (seconds)</Form.Label>
                       <Form.Control
@@ -255,7 +243,7 @@ export default function ArrangementForm() {
                       />
                     </Form.Group>
                   </Col>
-                  <Col md={4}>
+                  <Col md={6}>
                     <Form.Group className="mb-3">
                       <Form.Label>Year</Form.Label>
                       <Form.Control

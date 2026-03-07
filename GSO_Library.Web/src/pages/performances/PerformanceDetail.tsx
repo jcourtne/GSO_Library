@@ -106,7 +106,6 @@ export default function PerformanceDetail() {
                         )}
                       </div>
                       <div className="text-end text-muted small text-nowrap ms-3">
-                        {a.key && <div>{a.key}</div>}
                         <div>{formatDuration(a.durationSeconds)}</div>
                       </div>
                     </ListGroup.Item>

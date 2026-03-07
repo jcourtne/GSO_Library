@@ -70,7 +70,6 @@ export default function ArrangementList() {
     { key: 'name', label: 'Name', sortable: true },
     { key: 'composer', label: 'Composer', sortable: true, render: (a: Arrangement) => a.composers?.join(', ') || '-' },
     { key: 'arranger', label: 'Arranger', sortable: true, render: (a: Arrangement) => a.arrangers?.join(', ') || '-' },
-    { key: 'key', label: 'Key', sortable: true },
     {
       key: 'games',
       label: 'Games',

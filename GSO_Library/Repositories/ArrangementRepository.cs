@@ -45,7 +45,7 @@ public class ArrangementRepository
 
             // Query all tables in separate queries, then assemble in memory
             var allArrangements = (await connection.QueryAsync<Arrangement>(
-                "SELECT id, name, description, key, duration_seconds, year, created_at, updated_at, created_by FROM arrangements")).ToList();
+                "SELECT id, name, description, duration_seconds, year, created_at, updated_at, created_by FROM arrangements")).ToList();
 
             var allFiles = (await connection.QueryAsync<ArrangementFile>(
                 "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by FROM arrangement_files")).ToList();
@@ -191,7 +191,6 @@ public class ArrangementRepository
             "name" => desc ? filtered.OrderByDescending(a => a.Name) : filtered.OrderBy(a => a.Name),
             "arranger" => desc ? filtered.OrderByDescending(a => a.Arrangers.FirstOrDefault() ?? "") : filtered.OrderBy(a => a.Arrangers.FirstOrDefault() ?? ""),
             "composer" => desc ? filtered.OrderByDescending(a => a.Composers.FirstOrDefault() ?? "") : filtered.OrderBy(a => a.Composers.FirstOrDefault() ?? ""),
-            "key" => desc ? filtered.OrderByDescending(a => a.Key) : filtered.OrderBy(a => a.Key),
             "year" => desc ? filtered.OrderByDescending(a => a.Year) : filtered.OrderBy(a => a.Year),
             "durationseconds" => desc ? filtered.OrderByDescending(a => a.DurationSeconds) : filtered.OrderBy(a => a.DurationSeconds),
             "createdat" => desc ? filtered.OrderByDescending(a => a.CreatedAt) : filtered.OrderBy(a => a.CreatedAt),
@@ -208,9 +207,9 @@ public class ArrangementRepository
         var now = DateTime.UtcNow;
         using var connection = _connectionFactory.CreateConnection();
         var id = await connection.InsertReturningIdAsync(
-            @"INSERT INTO arrangements (name, description, key, duration_seconds, year, created_at, updated_at, created_by)
-              VALUES (@Name, @Description, @Key, @DurationSeconds, @Year, @CreatedAt, @UpdatedAt, @CreatedBy)",
-            new { request.Name, request.Description, request.Key, request.DurationSeconds, request.Year, CreatedAt = now, UpdatedAt = now, CreatedBy = createdBy });
+            @"INSERT INTO arrangements (name, description, duration_seconds, year, created_at, updated_at, created_by)
+              VALUES (@Name, @Description, @DurationSeconds, @Year, @CreatedAt, @UpdatedAt, @CreatedBy)",
+            new { request.Name, request.Description, request.DurationSeconds, request.Year, CreatedAt = now, UpdatedAt = now, CreatedBy = createdBy });
 
         await InsertComposersAndArrangersAsync(connection, id, request.Composers, request.Arrangers);
 
@@ -221,7 +220,6 @@ public class ArrangementRepository
             Description = request.Description,
             Composers = CleanNames(request.Composers),
             Arrangers = CleanNames(request.Arrangers),
-            Key = request.Key,
             DurationSeconds = request.DurationSeconds,
             Year = request.Year,
             CreatedAt = now,
@@ -239,10 +237,10 @@ public class ArrangementRepository
         using var connection = _connectionFactory.CreateConnection();
         var rows = await connection.ExecuteAsync(
             @"UPDATE arrangements SET name = @Name, description = @Description,
-              key = @Key, duration_seconds = @DurationSeconds, year = @Year,
+              duration_seconds = @DurationSeconds, year = @Year,
               updated_at = @UpdatedAt
               WHERE id = @Id",
-            new { request.Name, request.Description, request.Key, request.DurationSeconds, request.Year, UpdatedAt = now, Id = id });
+            new { request.Name, request.Description, request.DurationSeconds, request.Year, UpdatedAt = now, Id = id });
 
         if (rows == 0) return null;
 
@@ -259,7 +257,6 @@ public class ArrangementRepository
             Description = request.Description,
             Composers = CleanNames(request.Composers),
             Arrangers = CleanNames(request.Arrangers),
-            Key = request.Key,
             DurationSeconds = request.DurationSeconds,
             Year = request.Year,
             UpdatedAt = now

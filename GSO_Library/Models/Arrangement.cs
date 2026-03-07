@@ -7,7 +7,6 @@ public class Arrangement
     public string? Description { get; set; }
     public List<string> Arrangers { get; set; } = [];
     public List<string> Composers { get; set; } = [];
-    public string? Key { get; set; }
     public int? DurationSeconds { get; set; }
     public int? Year { get; set; }
     public DateTime CreatedAt { get; set; }

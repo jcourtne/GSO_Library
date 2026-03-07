@@ -68,7 +68,6 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 description TEXT,
-                key TEXT,
                 duration_seconds INTEGER,
                 year INTEGER,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),

@@ -77,7 +77,6 @@ export default function ArrangementDetail() {
               <Card.Title>Details</Card.Title>
               <Row>
                 <Col sm={6}>
-                  <p><strong>Key:</strong> {arrangement.key || '-'}</p>
                   <p><strong>Duration:</strong> {formatDuration(arrangement.durationSeconds)}</p>
                 </Col>
                 <Col sm={6}>
