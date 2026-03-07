@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Form } from 'react-bootstrap';
 
 interface FilterPanelSectionProps {
@@ -10,6 +10,10 @@ interface FilterPanelSectionProps {
 
 export default function FilterPanelSection({ label, options, selected, onChange }: FilterPanelSectionProps) {
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    if (selected.length === 0) setSearch('');
+  }, [selected.length]);
 
   const sorted = [
     ...options.filter((o) => selected.includes(o.value)),
@@ -43,7 +47,7 @@ export default function FilterPanelSection({ label, options, selected, onChange 
             type="button"
             className="btn btn-link btn-sm p-0 text-decoration-none"
             style={{ fontSize: '0.75rem' }}
-            onClick={() => onChange([])}
+            onClick={() => { onChange([]); setSearch(''); }}
           >
             Clear
           </button>
