@@ -4,7 +4,17 @@ import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../../api/auth';
 
-const ALL_ROLES = ['Admin', 'Editor', 'User'];
+const ALL_ROLES = ['Admin', 'Librarian', 'Submitter', 'Downloader', 'User'];
+
+function roleBadgeColor(role: string): string {
+  switch (role) {
+    case 'Admin': return 'danger';
+    case 'Librarian': return 'warning';
+    case 'Submitter': return 'info';
+    case 'Downloader': return 'primary';
+    default: return 'secondary';
+  }
+}
 
 export default function UserDetail() {
   const { id } = useParams<{ id: string }>();
@@ -146,7 +156,7 @@ export default function UserDetail() {
               <Card.Title>Roles</Card.Title>
               <div className="d-flex flex-wrap gap-2 mb-3">
                 {user.roles.map((r) => (
-                  <Badge key={r} bg={r === 'Admin' ? 'danger' : r === 'Editor' ? 'warning' : 'secondary'} className="d-flex align-items-center gap-1 fs-6">
+                  <Badge key={r} bg={roleBadgeColor(r)} className="d-flex align-items-center gap-1 fs-6">
                     {r}
                     <Button
                       size="sm"

@@ -41,7 +41,7 @@ public class InstrumentsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian")]
     public async Task<ActionResult<Instrument>> AddInstrument([FromBody] Instrument instrument)
     {
         var now = DateTime.UtcNow;
@@ -53,7 +53,7 @@ public class InstrumentsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian")]
     public async Task<ActionResult<Instrument>> UpdateInstrument(int id, [FromBody] Instrument instrument)
     {
         instrument.UpdatedAt = DateTime.UtcNow;
@@ -65,7 +65,7 @@ public class InstrumentsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian")]
     public async Task<IActionResult> DeleteInstrument(int id)
     {
         var success = await _instrumentRepository.DeleteInstrumentAsync(id);

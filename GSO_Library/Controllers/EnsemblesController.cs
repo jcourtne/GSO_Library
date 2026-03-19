@@ -41,7 +41,7 @@ public class EnsemblesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian")]
     public async Task<ActionResult<Ensemble>> AddEnsemble([FromBody] Ensemble ensemble)
     {
         var now = DateTime.UtcNow;
@@ -53,7 +53,7 @@ public class EnsemblesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian")]
     public async Task<ActionResult<Ensemble>> UpdateEnsemble(int id, [FromBody] Ensemble ensemble)
     {
         ensemble.UpdatedAt = DateTime.UtcNow;
@@ -65,7 +65,7 @@ public class EnsemblesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian")]
     public async Task<IActionResult> DeleteEnsemble(int id)
     {
         var success = await _ensembleRepository.DeleteEnsembleAsync(id);

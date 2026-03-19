@@ -169,7 +169,7 @@ app.MapFallbackToFile("index.html");
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    var roles = new[] { "Admin", "Editor", "User" };
+    var roles = new[] { "Admin", "Librarian", "Submitter", "Downloader", "User" };
 
     foreach (var role in roles)
     {

@@ -15,8 +15,11 @@ interface AuthContextValue extends AuthState {
   login: (data: LoginRequest) => Promise<void>;
   logout: () => void;
   isAdmin: () => boolean;
-  isEditor: () => boolean;
+  isLibrarian: () => boolean;
+  isSubmitter: () => boolean;
+  isDownloader: () => boolean;
   canEdit: () => boolean;
+  canDownloadAll: () => boolean;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -87,8 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     isAdmin: () => state.roles.includes('Admin'),
-    isEditor: () => state.roles.includes('Editor'),
-    canEdit: () => state.roles.includes('Admin') || state.roles.includes('Editor'),
+    isLibrarian: () => state.roles.includes('Librarian'),
+    isSubmitter: () => state.roles.includes('Submitter'),
+    isDownloader: () => state.roles.includes('Downloader'),
+    canEdit: () => state.roles.includes('Admin') || state.roles.includes('Librarian'),
+    canDownloadAll: () => state.roles.includes('Admin') || state.roles.includes('Librarian') || state.roles.includes('Downloader') || state.roles.includes('Submitter'),
   }), [state, login, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

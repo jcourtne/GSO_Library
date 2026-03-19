@@ -173,7 +173,7 @@ public class AuditEventTests : IntegrationTestBase
         var response = await adminClient.PostAsJsonAsync("/api/auth/grant-role", new RoleManagementRequest
         {
             UserId = target.Id,
-            Role = "Editor"
+            Role = "Librarian"
         });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -181,13 +181,13 @@ public class AuditEventTests : IntegrationTestBase
         var evt = Assert.Single(events);
         Assert.Equal("testadmin", evt.Username);
         Assert.Equal("testuser", evt.TargetUsername);
-        Assert.Contains("Editor", evt.Detail);
+        Assert.Contains("Librarian", evt.Detail);
 
         // Remove the role for other tests
         await adminClient.PostAsJsonAsync("/api/auth/remove-role", new RoleManagementRequest
         {
             UserId = target.Id,
-            Role = "Editor"
+            Role = "Librarian"
         });
     }
 
@@ -203,7 +203,7 @@ public class AuditEventTests : IntegrationTestBase
         await adminClient.PostAsJsonAsync("/api/auth/grant-role", new RoleManagementRequest
         {
             UserId = target.Id,
-            Role = "Editor"
+            Role = "Librarian"
         });
 
         var sinceId = await GetMaxAuditEventIdAsync();
@@ -211,7 +211,7 @@ public class AuditEventTests : IntegrationTestBase
         var response = await adminClient.PostAsJsonAsync("/api/auth/remove-role", new RoleManagementRequest
         {
             UserId = target.Id,
-            Role = "Editor"
+            Role = "Librarian"
         });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -219,7 +219,7 @@ public class AuditEventTests : IntegrationTestBase
         var evt = Assert.Single(events);
         Assert.Equal("testadmin", evt.Username);
         Assert.Equal("testuser", evt.TargetUsername);
-        Assert.Contains("Editor", evt.Detail);
+        Assert.Contains("Librarian", evt.Detail);
     }
 
     [Fact]

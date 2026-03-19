@@ -42,7 +42,7 @@ public class PerformancesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian")]
     public async Task<ActionResult<Performance>> AddPerformance([FromBody] Performance performance)
     {
         var now = DateTime.UtcNow;
@@ -54,7 +54,7 @@ public class PerformancesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian")]
     public async Task<ActionResult<Performance>> UpdatePerformance(int id, [FromBody] Performance performance)
     {
         performance.UpdatedAt = DateTime.UtcNow;
@@ -66,7 +66,7 @@ public class PerformancesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian")]
     public async Task<IActionResult> DeletePerformance(int id)
     {
         var success = await _performanceRepository.DeletePerformanceAsync(id);

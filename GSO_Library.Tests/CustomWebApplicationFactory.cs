@@ -215,14 +215,16 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         RoleManager<IdentityRole> roleManager)
     {
         // Ensure roles (in case Program.cs seeding somehow didn't run)
-        foreach (var role in new[] { "Admin", "Editor", "User" })
+        foreach (var role in new[] { "Admin", "Librarian", "Submitter", "Downloader", "User" })
         {
             if (!await roleManager.RoleExistsAsync(role))
                 await roleManager.CreateAsync(new IdentityRole(role));
         }
 
         await CreateUserIfMissing(userManager, "testadmin", "admin@test.com", "Admin123!", "Test", "Admin", "Admin");
-        await CreateUserIfMissing(userManager, "testeditor", "editor@test.com", "Editor123!", "Test", "Editor", "Editor");
+        await CreateUserIfMissing(userManager, "testeditor", "editor@test.com", "Editor123!", "Test", "Editor", "Librarian");
+        await CreateUserIfMissing(userManager, "testsubmitter", "submitter@test.com", "Submit123!", "Test", "Submitter", "Submitter");
+        await CreateUserIfMissing(userManager, "testdownloader", "downloader@test.com", "Download1!", "Test", "Downloader", "Downloader");
         await CreateUserIfMissing(userManager, "testuser", "user@test.com", "User1234!", "Test", "User", "User");
     }
 

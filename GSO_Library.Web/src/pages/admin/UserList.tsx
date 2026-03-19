@@ -71,7 +71,7 @@ export default function UserList() {
               <td>
                 <div className="d-flex gap-1 flex-wrap">
                   {u.roles.map((r) => (
-                    <Badge key={r} bg={r === 'Admin' ? 'danger' : r === 'Editor' ? 'warning' : 'secondary'}>
+                    <Badge key={r} bg={r === 'Admin' ? 'danger' : r === 'Librarian' ? 'warning' : r === 'Submitter' ? 'info' : r === 'Downloader' ? 'primary' : 'secondary'}>
                       {r}
                     </Badge>
                   ))}

@@ -47,6 +47,15 @@ public abstract class IntegrationTestBase : IClassFixture<CustomWebApplicationFa
     protected Task<HttpClient> GetEditorClientAsync() =>
         GetAuthenticatedClientAsync("testeditor", "Editor123!");
 
+    protected Task<HttpClient> GetLibrarianClientAsync() =>
+        GetAuthenticatedClientAsync("testeditor", "Editor123!");
+
+    protected Task<HttpClient> GetSubmitterClientAsync() =>
+        GetAuthenticatedClientAsync("testsubmitter", "Submit123!");
+
+    protected Task<HttpClient> GetDownloaderClientAsync() =>
+        GetAuthenticatedClientAsync("testdownloader", "Download1!");
+
     protected Task<HttpClient> GetUserClientAsync() =>
         GetAuthenticatedClientAsync("testuser", "User1234!");
 

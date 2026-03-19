@@ -198,17 +198,17 @@ public class AuthControllerTests : IntegrationTestBase
         var grantResponse = await client.PostAsJsonAsync("/api/auth/grant-role", new RoleManagementRequest
         {
             UserId = target.Id,
-            Role = "Editor"
+            Role = "Librarian"
         });
         Assert.Equal(HttpStatusCode.OK, grantResponse.StatusCode);
         var grantBody = await grantResponse.Content.ReadFromJsonAsync<RoleManagementResponse>(JsonOpts);
-        Assert.Contains("Editor", grantBody!.Roles!);
+        Assert.Contains("Librarian", grantBody!.Roles!);
 
         // Remove Editor role
         var removeResponse = await client.PostAsJsonAsync("/api/auth/remove-role", new RoleManagementRequest
         {
             UserId = target.Id,
-            Role = "Editor"
+            Role = "Librarian"
         });
         Assert.Equal(HttpStatusCode.OK, removeResponse.StatusCode);
     }

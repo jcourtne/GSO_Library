@@ -18,7 +18,7 @@ function formatDuration(seconds?: number) {
 export default function ArrangementDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { canEdit, canDownloadAll, isSubmitter, username } = useAuth();
   const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [error, setError] = useState('');
@@ -51,7 +51,7 @@ export default function ArrangementDetail() {
           {arrangement.composers?.length > 0 && <p className="text-muted mb-0">Composed by {arrangement.composers.join(', ')}</p>}
           {arrangement.arrangers?.length > 0 && <p className="text-muted mb-0">Arranged by {arrangement.arrangers.join(', ')}</p>}
         </div>
-        {canEdit() && (
+        {(canEdit() || (isSubmitter() && arrangement.createdBy === username)) && (
           <div>
             <Link to={`/arrangements/${id}/edit`} className="btn btn-outline-primary me-2">
               Edit
@@ -92,10 +92,10 @@ export default function ArrangementDetail() {
             return (
               <>
                 {categorized.arrangementFiles.length > 0 && (
-                  <FileSection title="Arrangement Files" files={categorized.arrangementFiles} arrangementId={arrangement.id} editable={false} canDownload={canEdit()} />
+                  <FileSection title="Arrangement Files" files={categorized.arrangementFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownloadAll()} />
                 )}
                 {categorized.pdfFiles.length > 0 && (
-                  <FileSection title="PDF Files" files={categorized.pdfFiles} arrangementId={arrangement.id} editable={false} canDownload={canEdit()} />
+                  <FileSection title="PDF Files" files={categorized.pdfFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownloadAll()} />
                 )}
                 {categorized.playbackFiles.length > 0 && (
                   <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={arrangement.id} editable={false} />

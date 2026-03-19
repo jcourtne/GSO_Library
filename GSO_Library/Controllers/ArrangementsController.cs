@@ -53,8 +53,14 @@ public class ArrangementsController : ControllerBase
         _auditService = auditService;
     }
 
+    private bool IsSubmitterOnly() =>
+        User.IsInRole("Submitter") && !User.IsInRole("Admin") && !User.IsInRole("Librarian");
+
+    private static bool IsOwner(Arrangement arrangement, string? username) =>
+        string.Equals(arrangement.CreatedBy, username, StringComparison.OrdinalIgnoreCase);
+
     [HttpPost]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
     public async Task<ActionResult<Arrangement>> AddArrangement([FromBody] ArrangementRequest request)
     {
         var createdArrangement = await _arrangementRepository.AddArrangementAsync(request, User.Identity?.Name);
@@ -97,9 +103,16 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPut("{id}/details")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
     public async Task<ActionResult<Arrangement>> UpdateArrangementDetails(int id, [FromBody] ArrangementRequest request)
     {
+        if (IsSubmitterOnly())
+        {
+            var existing = await _arrangementRepository.GetArrangementByIdAsync(id);
+            if (existing == null) return NotFound();
+            if (!IsOwner(existing, User.Identity?.Name)) return Forbid();
+        }
+
         var updated = await _arrangementRepository.UpdateArrangementAsync(id, request);
         if (updated == null)
             return NotFound();
@@ -108,13 +121,16 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
     public async Task<IActionResult> DeleteArrangement(int id)
     {
         // Get arrangement with files first (before DB deletion)
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
         if (arrangement == null)
             return NotFound();
+
+        if (IsSubmitterOnly() && !IsOwner(arrangement, User.Identity?.Name))
+            return Forbid();
 
         // Delete files from disk first
         foreach (var file in arrangement.Files)
@@ -131,9 +147,16 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPost("{arrangementId}/games/{gameId}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
     public async Task<IActionResult> AddGame(int arrangementId, int gameId)
     {
+        if (IsSubmitterOnly())
+        {
+            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+            if (arrangement == null) return NotFound();
+            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
+        }
+
         var result = await _arrangementRepository.AddGameAsync(arrangementId, gameId);
         if (result == null)
             return NotFound();
@@ -144,9 +167,16 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpDelete("{arrangementId}/games/{gameId}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
     public async Task<IActionResult> RemoveGame(int arrangementId, int gameId)
     {
+        if (IsSubmitterOnly())
+        {
+            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+            if (arrangement == null) return NotFound();
+            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
+        }
+
         var result = await _arrangementRepository.RemoveGameAsync(arrangementId, gameId);
         if (result == null)
             return NotFound();
@@ -157,9 +187,16 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPost("{arrangementId}/instruments/{instrumentId}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
     public async Task<IActionResult> AddInstrument(int arrangementId, int instrumentId)
     {
+        if (IsSubmitterOnly())
+        {
+            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+            if (arrangement == null) return NotFound();
+            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
+        }
+
         var result = await _arrangementRepository.AddInstrumentAsync(arrangementId, instrumentId);
         if (result == null)
             return NotFound();
@@ -170,9 +207,16 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpDelete("{arrangementId}/instruments/{instrumentId}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
     public async Task<IActionResult> RemoveInstrument(int arrangementId, int instrumentId)
     {
+        if (IsSubmitterOnly())
+        {
+            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+            if (arrangement == null) return NotFound();
+            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
+        }
+
         var result = await _arrangementRepository.RemoveInstrumentAsync(arrangementId, instrumentId);
         if (result == null)
             return NotFound();
@@ -183,9 +227,16 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPost("{arrangementId}/performances/{performanceId}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
     public async Task<IActionResult> AddPerformance(int arrangementId, int performanceId)
     {
+        if (IsSubmitterOnly())
+        {
+            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+            if (arrangement == null) return NotFound();
+            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
+        }
+
         var result = await _arrangementRepository.AddPerformanceAsync(arrangementId, performanceId);
         if (result == null)
             return NotFound();
@@ -196,9 +247,16 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpDelete("{arrangementId}/performances/{performanceId}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
     public async Task<IActionResult> RemovePerformance(int arrangementId, int performanceId)
     {
+        if (IsSubmitterOnly())
+        {
+            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+            if (arrangement == null) return NotFound();
+            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
+        }
+
         var result = await _arrangementRepository.RemovePerformanceAsync(arrangementId, performanceId);
         if (result == null)
             return NotFound();
@@ -209,9 +267,16 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPost("{id}/files")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
     public async Task<ActionResult<ArrangementFile>> UploadFile(int id, IFormFile file)
     {
+        if (IsSubmitterOnly())
+        {
+            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
+            if (arrangement == null) return NotFound();
+            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
+        }
+
         if (!await _fileRepository.ArrangementExistsAsync(id))
             return NotFound();
 
@@ -268,11 +333,22 @@ public class ArrangementsController : ControllerBase
         if (arrangementFile == null)
             return NotFound();
 
-        if (!User.IsInRole("Admin") && !User.IsInRole("Editor"))
+        if (!User.IsInRole("Admin") && !User.IsInRole("Librarian") && !User.IsInRole("Downloader"))
         {
             var ext = Path.GetExtension(arrangementFile.FileName);
             if (!PlaybackExtensions.Contains(ext ?? ""))
-                return Forbid();
+            {
+                if (User.IsInRole("Submitter"))
+                {
+                    var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
+                    if (arrangement == null || !IsOwner(arrangement, User.Identity?.Name))
+                        return Forbid();
+                }
+                else
+                {
+                    return Forbid();
+                }
+            }
         }
 
         try
@@ -290,9 +366,16 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpDelete("{id}/files/{fileId}")]
-    [Authorize(Roles = "Admin,Editor")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
     public async Task<IActionResult> DeleteFile(int id, int fileId)
     {
+        if (IsSubmitterOnly())
+        {
+            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
+            if (arrangement == null) return NotFound();
+            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
+        }
+
         var arrangementFile = await _fileRepository.GetFileAsync(id, fileId);
         if (arrangementFile == null)
             return NotFound();
