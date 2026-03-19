@@ -135,7 +135,7 @@ public class ArrangementsController : ControllerBase
         // Delete files from disk first
         foreach (var file in arrangement.Files)
         {
-            await _fileStorageService.DeleteFileAsync(id, file.StoredFileName);
+            await _fileStorageService.DeleteFileAsync($"arrangements/{id}", file.StoredFileName);
         }
 
         // Then delete from DB
@@ -291,7 +291,7 @@ public class ArrangementsController : ControllerBase
         var storedFileName = $"{Guid.NewGuid()}{extension}";
 
         using var stream = file.OpenReadStream();
-        await _fileStorageService.SaveFileAsync(id, storedFileName, stream);
+        await _fileStorageService.SaveFileAsync($"arrangements/{id}", storedFileName, stream);
 
         var contentType = ContentTypeByExtension.TryGetValue(extension ?? "", out var mapped)
             ? mapped
@@ -353,7 +353,7 @@ public class ArrangementsController : ControllerBase
 
         try
         {
-            var stream = await _fileStorageService.GetFileAsync(id, arrangementFile.StoredFileName);
+            var stream = await _fileStorageService.GetFileAsync($"arrangements/{id}", arrangementFile.StoredFileName);
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
             await _auditService.LogAsync(Models.AuditEventType.FileDownload, User.Identity?.Name, null, ip,
                 $"arrangementId: {id}, fileId: {fileId}, filename: {arrangementFile.FileName}");
@@ -380,7 +380,7 @@ public class ArrangementsController : ControllerBase
         if (arrangementFile == null)
             return NotFound();
 
-        await _fileStorageService.DeleteFileAsync(id, arrangementFile.StoredFileName);
+        await _fileStorageService.DeleteFileAsync($"arrangements/{id}", arrangementFile.StoredFileName);
         await _fileRepository.DeleteFileAsync(id, fileId);
         _arrangementRepository.InvalidateCache();
 

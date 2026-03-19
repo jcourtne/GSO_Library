@@ -131,6 +131,7 @@ builder.Services.AddScoped<GameRepository>();
 builder.Services.AddScoped<SeriesRepository>();
 builder.Services.AddScoped<InstrumentRepository>();
 builder.Services.AddScoped<PerformanceRepository>();
+builder.Services.AddScoped<PerformanceFileRepository>();
 builder.Services.AddScoped<EnsembleRepository>();
 
 var app = builder.Build();

@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { Performance, PaginatedResult, PaginationParams } from '../types';
+import type { Performance, PerformanceFile, PaginatedResult, PaginationParams } from '../types';
 
 export const performancesApi = {
   list: (params?: PaginationParams) =>
@@ -16,4 +16,25 @@ export const performancesApi = {
 
   delete: (id: number) =>
     apiClient.delete(`/performances/${id}`),
+
+  listFiles: (performanceId: number) =>
+    apiClient.get<PerformanceFile[]>(`/performances/${performanceId}/files`).then((r) => r.data),
+
+  uploadFile: (performanceId: number, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.post<PerformanceFile>(
+      `/performances/${performanceId}/files`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    ).then((r) => r.data);
+  },
+
+  downloadFile: (performanceId: number, fileId: number) =>
+    apiClient.get(`/performances/${performanceId}/files/${fileId}`, {
+      responseType: 'blob',
+    }),
+
+  deleteFile: (performanceId: number, fileId: number) =>
+    apiClient.delete(`/performances/${performanceId}/files/${fileId}`),
 };

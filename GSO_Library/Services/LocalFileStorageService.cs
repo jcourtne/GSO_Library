@@ -10,9 +10,9 @@ public class LocalFileStorageService : IFileStorageService
             ?? throw new InvalidOperationException("FileStorage:BasePath is not configured");
     }
 
-    public async Task<string> SaveFileAsync(int arrangementId, string storedFileName, Stream content)
+    public async Task<string> SaveFileAsync(string folderPath, string storedFileName, Stream content)
     {
-        var directory = Path.Combine(_basePath, "arrangements", arrangementId.ToString());
+        var directory = Path.Combine(_basePath, folderPath);
         Directory.CreateDirectory(directory);
 
         var filePath = Path.Combine(directory, storedFileName);
@@ -22,9 +22,9 @@ public class LocalFileStorageService : IFileStorageService
         return filePath;
     }
 
-    public Task<Stream> GetFileAsync(int arrangementId, string storedFileName)
+    public Task<Stream> GetFileAsync(string folderPath, string storedFileName)
     {
-        var filePath = Path.Combine(_basePath, "arrangements", arrangementId.ToString(), storedFileName);
+        var filePath = Path.Combine(_basePath, folderPath, storedFileName);
 
         if (!File.Exists(filePath))
             throw new FileNotFoundException("File not found on disk.", filePath);
@@ -33,9 +33,9 @@ public class LocalFileStorageService : IFileStorageService
         return Task.FromResult(stream);
     }
 
-    public Task DeleteFileAsync(int arrangementId, string storedFileName)
+    public Task DeleteFileAsync(string folderPath, string storedFileName)
     {
-        var filePath = Path.Combine(_basePath, "arrangements", arrangementId.ToString(), storedFileName);
+        var filePath = Path.Combine(_basePath, folderPath, storedFileName);
 
         if (File.Exists(filePath))
             File.Delete(filePath);

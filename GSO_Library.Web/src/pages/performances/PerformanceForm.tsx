@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { performancesApi } from '../../api/performances';
 import { ensemblesApi } from '../../api/ensembles';
 import SearchableSelect from '../../components/common/SearchableSelect';
+import ProgramSection from '../../components/performances/ProgramSection';
 
 export default function PerformanceForm() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +22,12 @@ export default function PerformanceForm() {
   const { data: existing, isLoading } = useQuery({
     queryKey: ['performance', id],
     queryFn: () => performancesApi.get(Number(id)),
+    enabled: isEdit,
+  });
+
+  const { data: programFiles = [] } = useQuery({
+    queryKey: ['performance-files', Number(id)],
+    queryFn: () => performancesApi.listFiles(Number(id)),
     enabled: isEdit,
   });
 
@@ -102,6 +109,16 @@ export default function PerformanceForm() {
           </Form>
         </Card.Body>
       </Card>
+
+      {isEdit && (
+        <div className="mt-4">
+          <ProgramSection
+            files={programFiles}
+            performanceId={Number(id)}
+            editable={true}
+          />
+        </div>
+      )}
     </>
   );
 }

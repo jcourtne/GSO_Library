@@ -158,6 +158,17 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 detail          TEXT,
                 created_at      TEXT NOT NULL DEFAULT (datetime('now'))
             );
+
+            CREATE TABLE IF NOT EXISTS performance_files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                performance_id INTEGER NOT NULL REFERENCES performances(id) ON DELETE CASCADE,
+                file_name TEXT NOT NULL,
+                stored_file_name TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                uploaded_at TEXT NOT NULL,
+                created_by TEXT
+            );
             """);
     }
 
@@ -288,20 +299,20 @@ public class InMemoryFileStorageService : IFileStorageService
 {
     private static readonly Dictionary<string, byte[]> _files = new();
 
-    private static string GetKey(int arrangementId, string storedFileName)
-        => $"{arrangementId}/{storedFileName}";
+    private static string GetKey(string folderPath, string storedFileName)
+        => $"{folderPath}/{storedFileName}";
 
-    public async Task<string> SaveFileAsync(int arrangementId, string storedFileName, Stream content)
+    public async Task<string> SaveFileAsync(string folderPath, string storedFileName, Stream content)
     {
         using var ms = new MemoryStream();
         await content.CopyToAsync(ms);
-        _files[GetKey(arrangementId, storedFileName)] = ms.ToArray();
-        return GetKey(arrangementId, storedFileName);
+        _files[GetKey(folderPath, storedFileName)] = ms.ToArray();
+        return GetKey(folderPath, storedFileName);
     }
 
-    public Task<Stream> GetFileAsync(int arrangementId, string storedFileName)
+    public Task<Stream> GetFileAsync(string folderPath, string storedFileName)
     {
-        var key = GetKey(arrangementId, storedFileName);
+        var key = GetKey(folderPath, storedFileName);
         if (!_files.TryGetValue(key, out var bytes))
             throw new FileNotFoundException("File not found.", key);
 
@@ -309,9 +320,9 @@ public class InMemoryFileStorageService : IFileStorageService
         return Task.FromResult(stream);
     }
 
-    public Task DeleteFileAsync(int arrangementId, string storedFileName)
+    public Task DeleteFileAsync(string folderPath, string storedFileName)
     {
-        _files.Remove(GetKey(arrangementId, storedFileName));
+        _files.Remove(GetKey(folderPath, storedFileName));
         return Task.CompletedTask;
     }
 }

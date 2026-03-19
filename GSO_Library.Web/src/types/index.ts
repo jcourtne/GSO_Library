@@ -4,5 +4,5 @@ export type { Arrangement, ArrangementRequest, ArrangementFile, ArrangementFilte
 export type { Game } from './game';
 export type { Series } from './series';
 export type { Instrument } from './instrument';
-export type { Performance } from './performance';
+export type { Performance, PerformanceFile } from './performance';
 export type { Ensemble } from './ensemble';

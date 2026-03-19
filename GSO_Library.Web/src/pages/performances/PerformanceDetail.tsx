@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { performancesApi } from '../../api/performances';
 import { arrangementsApi } from '../../api/arrangements';
 import ConfirmModal from '../../components/common/ConfirmModal';
+import ProgramSection from '../../components/performances/ProgramSection';
 import { useAuth } from '../../hooks/useAuth';
 
 function formatDuration(seconds?: number) {
@@ -31,6 +32,12 @@ export default function PerformanceDetail() {
   const { data: arrangements, isLoading: arrangementsLoading } = useQuery({
     queryKey: ['arrangements', { performanceId: Number(id) }],
     queryFn: () => arrangementsApi.list({ performanceId: Number(id), pageSize: 100 }),
+    enabled: !!id,
+  });
+
+  const { data: programFiles = [] } = useQuery({
+    queryKey: ['performance-files', Number(id)],
+    queryFn: () => performancesApi.listFiles(Number(id)),
     enabled: !!id,
   });
 
@@ -116,6 +123,12 @@ export default function PerformanceDetail() {
               )}
             </Card.Body>
           </Card>
+
+          <ProgramSection
+            files={programFiles}
+            performanceId={Number(id)}
+            editable={false}
+          />
         </Col>
 
         <Col md={4}>

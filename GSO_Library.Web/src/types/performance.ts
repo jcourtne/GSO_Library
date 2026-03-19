@@ -12,3 +12,14 @@ export interface Performance {
   updatedAt: string;
   createdBy?: string;
 }
+
+export interface PerformanceFile {
+  id: number;
+  performanceId: number;
+  fileName: string;
+  storedFileName: string;
+  contentType: string;
+  fileSize: number;
+  uploadedAt: string;
+  createdBy?: string;
+}

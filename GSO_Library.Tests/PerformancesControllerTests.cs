@@ -216,4 +216,171 @@ public class PerformancesControllerTests : IntegrationTestBase
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    // ───── Performance files ─────
+
+    private async Task<Performance> CreatePerformanceAsync(HttpClient client, string name = "FilesTest Concert")
+    {
+        var response = await client.PostAsJsonAsync("/api/performances", new
+        {
+            Name = name,
+            Link = "https://example.com/files-test"
+        });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<Performance>(JsonOpts))!;
+    }
+
+    private static MultipartFormDataContent CreatePdfContent(string fileName = "program.pdf")
+    {
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(new byte[] { 0x25, 0x50, 0x44, 0x46 }); // %PDF header
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(fileContent, "file", fileName);
+        return content;
+    }
+
+    [Fact]
+    public async Task UploadFile_AsAdmin_ReturnsPdfMetadata()
+    {
+        var adminClient = await GetAdminClientAsync();
+        var perf = await CreatePerformanceAsync(adminClient, "PF_Upload_Admin");
+
+        var response = await adminClient.PostAsync($"/api/performances/{perf.Id}/files", CreatePdfContent());
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var file = await response.Content.ReadFromJsonAsync<PerformanceFile>(JsonOpts);
+        Assert.NotNull(file);
+        Assert.Equal("program.pdf", file!.FileName);
+        Assert.Equal(perf.Id, file.PerformanceId);
+    }
+
+    [Fact]
+    public async Task UploadFile_AsEditor_Returns201()
+    {
+        var editorClient = await GetEditorClientAsync();
+        var perf = await CreatePerformanceAsync(editorClient, "PF_Upload_Editor");
+
+        var response = await editorClient.PostAsync($"/api/performances/{perf.Id}/files", CreatePdfContent());
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UploadFile_NonPdf_Returns400()
+    {
+        var adminClient = await GetAdminClientAsync();
+        var perf = await CreatePerformanceAsync(adminClient, "PF_Upload_NonPdf");
+
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(new byte[] { 1, 2, 3 });
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/plain");
+        content.Add(fileContent, "file", "notes.txt");
+
+        var response = await adminClient.PostAsync($"/api/performances/{perf.Id}/files", content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UploadFile_AsUser_Returns403()
+    {
+        var adminClient = await GetAdminClientAsync();
+        var perf = await CreatePerformanceAsync(adminClient, "PF_Upload_UserForbid");
+
+        var userClient = await GetUserClientAsync();
+        var response = await userClient.PostAsync($"/api/performances/{perf.Id}/files", CreatePdfContent());
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ListFiles_AsUser_Returns200()
+    {
+        var adminClient = await GetAdminClientAsync();
+        var perf = await CreatePerformanceAsync(adminClient, "PF_List_User");
+        await adminClient.PostAsync($"/api/performances/{perf.Id}/files", CreatePdfContent());
+
+        var userClient = await GetUserClientAsync();
+        var response = await userClient.GetAsync($"/api/performances/{perf.Id}/files");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var files = await response.Content.ReadFromJsonAsync<List<PerformanceFile>>(JsonOpts);
+        Assert.Single(files!);
+    }
+
+    [Fact]
+    public async Task DownloadFile_AsUser_Returns200()
+    {
+        var adminClient = await GetAdminClientAsync();
+        var perf = await CreatePerformanceAsync(adminClient, "PF_Download_User");
+        var uploadResp = await adminClient.PostAsync($"/api/performances/{perf.Id}/files", CreatePdfContent());
+        var file = await uploadResp.Content.ReadFromJsonAsync<PerformanceFile>(JsonOpts);
+
+        var userClient = await GetUserClientAsync();
+        var response = await userClient.GetAsync($"/api/performances/{perf.Id}/files/{file!.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DownloadFile_Unauthenticated_Returns401()
+    {
+        var adminClient = await GetAdminClientAsync();
+        var perf = await CreatePerformanceAsync(adminClient, "PF_Download_Unauth");
+        var uploadResp = await adminClient.PostAsync($"/api/performances/{perf.Id}/files", CreatePdfContent());
+        var file = await uploadResp.Content.ReadFromJsonAsync<PerformanceFile>(JsonOpts);
+
+        var anonClient = GetUnauthenticatedClient();
+        var response = await anonClient.GetAsync($"/api/performances/{perf.Id}/files/{file!.Id}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DownloadFile_LogsAuditEvent()
+    {
+        var adminClient = await GetAdminClientAsync();
+        var perf = await CreatePerformanceAsync(adminClient, "PF_Audit_Download");
+        var uploadResp = await adminClient.PostAsync($"/api/performances/{perf.Id}/files", CreatePdfContent());
+        var file = await uploadResp.Content.ReadFromJsonAsync<PerformanceFile>(JsonOpts);
+
+        var sinceId = await GetMaxAuditEventIdAsync();
+        await adminClient.GetAsync($"/api/performances/{perf.Id}/files/{file!.Id}");
+
+        var events = await GetAuditEventsSinceAsync(sinceId, "FileDownload");
+        Assert.Single(events);
+        Assert.Contains($"performanceId: {perf.Id}", events[0].Detail);
+    }
+
+    [Fact]
+    public async Task DeleteFile_AsAdmin_Returns204()
+    {
+        var adminClient = await GetAdminClientAsync();
+        var perf = await CreatePerformanceAsync(adminClient, "PF_Delete_Admin");
+        var uploadResp = await adminClient.PostAsync($"/api/performances/{perf.Id}/files", CreatePdfContent());
+        var file = await uploadResp.Content.ReadFromJsonAsync<PerformanceFile>(JsonOpts);
+
+        var response = await adminClient.DeleteAsync($"/api/performances/{perf.Id}/files/{file!.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        // Verify gone
+        var listResp = await adminClient.GetAsync($"/api/performances/{perf.Id}/files");
+        var files = await listResp.Content.ReadFromJsonAsync<List<PerformanceFile>>(JsonOpts);
+        Assert.Empty(files!);
+    }
+
+    [Fact]
+    public async Task DeleteFile_AsUser_Returns403()
+    {
+        var adminClient = await GetAdminClientAsync();
+        var perf = await CreatePerformanceAsync(adminClient, "PF_Delete_UserForbid");
+        var uploadResp = await adminClient.PostAsync($"/api/performances/{perf.Id}/files", CreatePdfContent());
+        var file = await uploadResp.Content.ReadFromJsonAsync<PerformanceFile>(JsonOpts);
+
+        var userClient = await GetUserClientAsync();
+        var response = await userClient.DeleteAsync($"/api/performances/{perf.Id}/files/{file!.Id}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 }

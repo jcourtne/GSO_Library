@@ -15,25 +15,25 @@ public class GcsFileStorageService : IFileStorageService
         _storageClient = StorageClient.Create();
     }
 
-    public async Task<string> SaveFileAsync(int arrangementId, string storedFileName, Stream content)
+    public async Task<string> SaveFileAsync(string folderPath, string storedFileName, Stream content)
     {
-        var objectName = $"arrangements/{arrangementId}/{storedFileName}";
+        var objectName = $"{folderPath}/{storedFileName}";
         await _storageClient.UploadObjectAsync(_bucketName, objectName, null, content);
         return objectName;
     }
 
-    public async Task<Stream> GetFileAsync(int arrangementId, string storedFileName)
+    public async Task<Stream> GetFileAsync(string folderPath, string storedFileName)
     {
-        var objectName = $"arrangements/{arrangementId}/{storedFileName}";
+        var objectName = $"{folderPath}/{storedFileName}";
         var ms = new MemoryStream();
         await _storageClient.DownloadObjectAsync(_bucketName, objectName, ms);
         ms.Position = 0;
         return ms;
     }
 
-    public async Task DeleteFileAsync(int arrangementId, string storedFileName)
+    public async Task DeleteFileAsync(string folderPath, string storedFileName)
     {
-        var objectName = $"arrangements/{arrangementId}/{storedFileName}";
+        var objectName = $"{folderPath}/{storedFileName}";
         try
         {
             await _storageClient.DeleteObjectAsync(_bucketName, objectName);
