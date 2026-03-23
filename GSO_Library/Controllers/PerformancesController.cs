@@ -65,6 +65,8 @@ public class PerformancesController : ControllerBase
         performance.UpdatedAt = now;
         performance.CreatedBy = User.Identity?.Name;
         var created = await _performanceRepository.AddPerformanceAsync(performance);
+        await _auditService.LogAsync(AuditEventType.PerformanceCreate, User.Identity?.Name, null, null,
+            $"performanceId: {created.Id}");
         return CreatedAtAction(nameof(GetPerformanceById), new { id = created.Id }, created);
     }
 
@@ -88,6 +90,8 @@ public class PerformancesController : ControllerBase
         if (!success)
             return NotFound();
 
+        await _auditService.LogAsync(AuditEventType.PerformanceDelete, User.Identity?.Name, null, null,
+            $"performanceId: {id}");
         return NoContent();
     }
 
@@ -133,6 +137,8 @@ public class PerformancesController : ControllerBase
         };
 
         await _fileRepository.AddFileAsync(performanceFile);
+        await _auditService.LogAsync(AuditEventType.FileUpload, User.Identity?.Name, null, null,
+            $"performanceId: {id}, fileId: {performanceFile.Id}, filename: {performanceFile.FileName}");
 
         return CreatedAtAction(nameof(DownloadFile), new { id, fileId = performanceFile.Id }, performanceFile);
     }
@@ -169,6 +175,8 @@ public class PerformancesController : ControllerBase
 
         await _fileStorageService.DeleteFileAsync($"performances/{id}", file.StoredFileName);
         await _fileRepository.DeleteFileAsync(id, fileId);
+        await _auditService.LogAsync(AuditEventType.FileDelete, User.Identity?.Name, null, null,
+            $"performanceId: {id}, fileId: {fileId}, filename: {file.FileName}");
 
         return NoContent();
     }

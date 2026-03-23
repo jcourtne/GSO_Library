@@ -11,4 +11,12 @@ public static class AuditEventType
     public const string RoleGrant = "RoleGrant";
     public const string RoleRemove = "RoleRemove";
     public const string PasswordReset = "PasswordReset";
+    public const string FileUpload = "FileUpload";
+    public const string FileDelete = "FileDelete";
+    public const string ArrangementCreate = "ArrangementCreate";
+    public const string ArrangementDelete = "ArrangementDelete";
+    public const string EnsembleCreate = "EnsembleCreate";
+    public const string EnsembleDelete = "EnsembleDelete";
+    public const string PerformanceCreate = "PerformanceCreate";
+    public const string PerformanceDelete = "PerformanceDelete";
 }

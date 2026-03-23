@@ -20,6 +20,7 @@ public class ArrangementsController : ControllerBase
     private static readonly Dictionary<string, string> ContentTypeByExtension = new(StringComparer.OrdinalIgnoreCase)
     {
         [".pdf"]    = "application/pdf",
+        [".zip"]    = "application/zip",
         [".xml"]    = "application/xml",
         [".mxl"]    = "application/vnd.recordare.musicxml",
         [".mid"]    = "audio/midi",
@@ -65,6 +66,8 @@ public class ArrangementsController : ControllerBase
     {
         var createdArrangement = await _arrangementRepository.AddArrangementAsync(request, User.Identity?.Name);
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(createdArrangement.Id);
+        await _auditService.LogAsync(Models.AuditEventType.ArrangementCreate, User.Identity?.Name, null, null,
+            $"arrangementId: {createdArrangement.Id}");
         return CreatedAtAction(nameof(GetArrangementById), new { id = createdArrangement.Id }, arrangement);
     }
 
@@ -143,6 +146,8 @@ public class ArrangementsController : ControllerBase
         if (deleted == null)
             return NotFound();
 
+        await _auditService.LogAsync(Models.AuditEventType.ArrangementDelete, User.Identity?.Name, null, null,
+            $"arrangementId: {id}");
         return NoContent();
     }
 
@@ -309,6 +314,8 @@ public class ArrangementsController : ControllerBase
         };
 
         await _fileRepository.AddFileAsync(arrangementFile);
+        await _auditService.LogAsync(Models.AuditEventType.FileUpload, User.Identity?.Name, null, null,
+            $"arrangementId: {id}, fileId: {arrangementFile.Id}, filename: {arrangementFile.FileName}");
         _arrangementRepository.InvalidateCache();
 
         return CreatedAtAction(nameof(DownloadFile), new { id, fileId = arrangementFile.Id }, arrangementFile);
@@ -382,6 +389,8 @@ public class ArrangementsController : ControllerBase
 
         await _fileStorageService.DeleteFileAsync($"arrangements/{id}", arrangementFile.StoredFileName);
         await _fileRepository.DeleteFileAsync(id, fileId);
+        await _auditService.LogAsync(Models.AuditEventType.FileDelete, User.Identity?.Name, null, null,
+            $"arrangementId: {id}, fileId: {fileId}, filename: {arrangementFile.FileName}");
         _arrangementRepository.InvalidateCache();
 
         return NoContent();

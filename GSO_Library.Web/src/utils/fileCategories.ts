@@ -1,12 +1,12 @@
 import type { ArrangementFile } from '../types';
 
-const ARRANGEMENT_EXTENSIONS = ['.xml', '.mxl', '.mscz', '.dorico', '.sib'];
-const PDF_EXTENSIONS = ['.pdf'];
+const NOTATION_EXTENSIONS = ['.xml', '.mxl', '.mscz', '.dorico', '.sib'];
+const RENDERED_SCORE_EXTENSIONS = ['.pdf', '.zip'];
 const PLAYBACK_EXTENSIONS = ['.mid', '.midi', '.mp3', '.wav', '.flac', '.ogg'];
 
 export interface CategorizedFiles {
-  arrangementFiles: ArrangementFile[];
-  pdfFiles: ArrangementFile[];
+  notationFiles: ArrangementFile[];
+  renderedScoreFiles: ArrangementFile[];
   playbackFiles: ArrangementFile[];
 }
 
@@ -16,25 +16,25 @@ function getExtension(fileName: string): string {
 }
 
 export function categorizeFiles(files: ArrangementFile[]): CategorizedFiles {
-  const arrangementFiles: ArrangementFile[] = [];
-  const pdfFiles: ArrangementFile[] = [];
+  const notationFiles: ArrangementFile[] = [];
+  const renderedScoreFiles: ArrangementFile[] = [];
   const playbackFiles: ArrangementFile[] = [];
 
   for (const file of files) {
     const ext = getExtension(file.fileName);
-    if (ARRANGEMENT_EXTENSIONS.includes(ext)) {
-      arrangementFiles.push(file);
-    } else if (PDF_EXTENSIONS.includes(ext)) {
-      pdfFiles.push(file);
+    if (NOTATION_EXTENSIONS.includes(ext)) {
+      notationFiles.push(file);
+    } else if (RENDERED_SCORE_EXTENSIONS.includes(ext)) {
+      renderedScoreFiles.push(file);
     } else if (PLAYBACK_EXTENSIONS.includes(ext)) {
       playbackFiles.push(file);
     } else {
-      // Uncategorized files go into arrangement files as a fallback
-      arrangementFiles.push(file);
+      // Uncategorized files go into notation files as a fallback
+      notationFiles.push(file);
     }
   }
 
-  return { arrangementFiles, pdfFiles, playbackFiles };
+  return { notationFiles, renderedScoreFiles, playbackFiles };
 }
 
 export function formatFileSize(bytes: number): string {
@@ -49,6 +49,6 @@ export function isBrowserPlayable(fileName: string): boolean {
   return BROWSER_AUDIO_EXTENSIONS.includes(getExtension(fileName));
 }
 
-export const ARRANGEMENT_ACCEPT = ARRANGEMENT_EXTENSIONS.join(',');
-export const PDF_ACCEPT = PDF_EXTENSIONS.join(',');
+export const NOTATION_ACCEPT = NOTATION_EXTENSIONS.join(',');
+export const RENDERED_SCORE_ACCEPT = RENDERED_SCORE_EXTENSIONS.join(',');
 export const PLAYBACK_ACCEPT = PLAYBACK_EXTENSIONS.join(',');

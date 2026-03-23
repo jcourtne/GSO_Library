@@ -10,7 +10,7 @@ import FileSection from '../../components/arrangements/FileSection';
 import QuickCreateGameModal from '../../components/common/QuickCreateGameModal';
 import QuickCreateInstrumentModal from '../../components/common/QuickCreateInstrumentModal';
 import QuickCreatePerformanceModal from '../../components/common/QuickCreatePerformanceModal';
-import { categorizeFiles, ARRANGEMENT_ACCEPT, PDF_ACCEPT, PLAYBACK_ACCEPT } from '../../utils/fileCategories';
+import { categorizeFiles, NOTATION_ACCEPT, RENDERED_SCORE_ACCEPT, PLAYBACK_ACCEPT } from '../../utils/fileCategories';
 import type { ArrangementRequest } from '../../types';
 
 export default function ArrangementForm() {
@@ -521,8 +521,8 @@ export default function ArrangementForm() {
         return (
           <div className="mt-4">
             <h4>Files</h4>
-            <FileSection title="Arrangement Files" files={categorized.arrangementFiles} arrangementId={Number(id)} editable accept={ARRANGEMENT_ACCEPT} />
-            <FileSection title="PDF Files" files={categorized.pdfFiles} arrangementId={Number(id)} editable accept={PDF_ACCEPT} />
+            <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={Number(id)} editable accept={NOTATION_ACCEPT} />
+            <FileSection title="Rendered Score/Parts" files={categorized.renderedScoreFiles} arrangementId={Number(id)} editable accept={RENDERED_SCORE_ACCEPT} />
             <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={Number(id)} editable accept={PLAYBACK_ACCEPT} />
           </div>
         );

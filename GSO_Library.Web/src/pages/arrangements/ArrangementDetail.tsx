@@ -91,11 +91,11 @@ export default function ArrangementDetail() {
             const categorized = categorizeFiles(arrangement.files);
             return (
               <>
-                {categorized.arrangementFiles.length > 0 && (
-                  <FileSection title="Arrangement Files" files={categorized.arrangementFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownloadAll()} />
+                {categorized.notationFiles.length > 0 && (
+                  <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownloadAll()} />
                 )}
-                {categorized.pdfFiles.length > 0 && (
-                  <FileSection title="PDF Files" files={categorized.pdfFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownloadAll()} />
+                {categorized.renderedScoreFiles.length > 0 && (
+                  <FileSection title="Rendered Score/Parts" files={categorized.renderedScoreFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownloadAll()} />
                 )}
                 {categorized.playbackFiles.length > 0 && (
                   <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={arrangement.id} editable={false} />

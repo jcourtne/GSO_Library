@@ -1,5 +1,6 @@
 using GSO_Library.Models;
 using GSO_Library.Repositories;
+using GSO_Library.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,10 +11,12 @@ namespace GSO_Library.Controllers;
 public class EnsemblesController : ControllerBase
 {
     private readonly EnsembleRepository _ensembleRepository;
+    private readonly IAuditService _auditService;
 
-    public EnsemblesController(EnsembleRepository ensembleRepository)
+    public EnsemblesController(EnsembleRepository ensembleRepository, IAuditService auditService)
     {
         _ensembleRepository = ensembleRepository;
+        _auditService = auditService;
     }
 
     [HttpGet]
@@ -49,6 +52,8 @@ public class EnsemblesController : ControllerBase
         ensemble.UpdatedAt = now;
         ensemble.CreatedBy = User.Identity?.Name;
         var created = await _ensembleRepository.AddEnsembleAsync(ensemble);
+        await _auditService.LogAsync(AuditEventType.EnsembleCreate, User.Identity?.Name, null, null,
+            $"ensembleId: {created.Id}");
         return CreatedAtAction(nameof(GetEnsembleById), new { id = created.Id }, created);
     }
 
@@ -72,6 +77,8 @@ public class EnsemblesController : ControllerBase
         if (!success)
             return NotFound();
 
+        await _auditService.LogAsync(AuditEventType.EnsembleDelete, User.Identity?.Name, null, null,
+            $"ensembleId: {id}");
         return NoContent();
     }
 }
