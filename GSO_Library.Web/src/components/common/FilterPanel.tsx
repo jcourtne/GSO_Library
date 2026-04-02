@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Form } from 'react-bootstrap';
+import { ButtonGroup, Form } from 'react-bootstrap';
 
 interface FilterPanelSectionProps {
   label: string;
   options: { value: string | number; label: string }[];
   selected: (string | number)[];
   onChange: (selected: (string | number)[]) => void;
+  matchMode?: 'any' | 'all';
+  onMatchModeChange?: (mode: 'any' | 'all') => void;
 }
 
-export default function FilterPanelSection({ label, options, selected, onChange }: FilterPanelSectionProps) {
+export default function FilterPanelSection({ label, options, selected, onChange, matchMode, onMatchModeChange }: FilterPanelSectionProps) {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -42,16 +44,38 @@ export default function FilterPanelSection({ label, options, selected, onChange 
             <span className="badge bg-primary ms-1" style={{ fontSize: '0.65rem' }}>{selected.length}</span>
           )}
         </strong>
-        {selected.length > 0 && (
-          <button
-            type="button"
-            className="btn btn-link btn-sm p-0 text-decoration-none"
-            style={{ fontSize: '0.75rem' }}
-            onClick={() => { onChange([]); setSearch(''); }}
-          >
-            Clear
-          </button>
-        )}
+        <div className="d-flex align-items-center gap-2">
+          {onMatchModeChange && selected.length >= 2 && (
+            <ButtonGroup size="sm">
+              <button
+                type="button"
+                className={`btn btn-outline-primary py-0${matchMode === 'any' ? ' active' : ''}`}
+                style={{ fontSize: '0.65rem' }}
+                onClick={() => onMatchModeChange('any')}
+              >
+                Any
+              </button>
+              <button
+                type="button"
+                className={`btn btn-outline-primary py-0${matchMode === 'all' ? ' active' : ''}`}
+                style={{ fontSize: '0.65rem' }}
+                onClick={() => onMatchModeChange('all')}
+              >
+                All
+              </button>
+            </ButtonGroup>
+          )}
+          {selected.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-link btn-sm p-0 text-decoration-none"
+              style={{ fontSize: '0.75rem' }}
+              onClick={() => { onChange([]); setSearch(''); }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
       {options.length > 8 && (
         <Form.Control

@@ -19,17 +19,19 @@ export default function ArrangementList() {
   const [gameIds, setGameIds] = useState<number[]>([]);
   const [seriesIds, setSeriesIds] = useState<number[]>([]);
   const [instrumentIds, setInstrumentIds] = useState<number[]>([]);
+  const [instrumentMatchAll, setInstrumentMatchAll] = useState(false);
   const [composers, setComposers] = useState<string[]>([]);
   const [arrangers, setArrangers] = useState<string[]>([]);
   const [search, setSearch] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['arrangements', { page, pageSize, sortBy, sortDirection, gameIds, seriesIds, instrumentIds, composers, arrangers, search }],
+    queryKey: ['arrangements', { page, pageSize, sortBy, sortDirection, gameIds, seriesIds, instrumentIds, instrumentMatchAll, composers, arrangers, search }],
     queryFn: () => arrangementsApi.list({
       page, pageSize, sortBy, sortDirection,
       gameIds: gameIds.length ? gameIds : undefined,
       seriesIds: seriesIds.length ? seriesIds : undefined,
       instrumentIds: instrumentIds.length ? instrumentIds : undefined,
+      instrumentMatchAll: instrumentMatchAll || undefined,
       composers: composers.length ? composers : undefined,
       arrangers: arrangers.length ? arrangers : undefined,
       search: search || undefined,
@@ -53,6 +55,7 @@ export default function ArrangementList() {
     setGameIds([]);
     setSeriesIds([]);
     setInstrumentIds([]);
+    setInstrumentMatchAll(false);
     setComposers([]);
     setArrangers([]);
     setPage(1);
@@ -120,6 +123,8 @@ export default function ArrangementList() {
               options={filterOptions.data?.instruments.map((i) => ({ value: i.id, label: i.name })) ?? []}
               selected={instrumentIds}
               onChange={(v) => { setInstrumentIds(v as number[]); setPage(1); }}
+              matchMode={instrumentMatchAll ? 'all' : 'any'}
+              onMatchModeChange={(m) => { setInstrumentMatchAll(m === 'all'); setPage(1); }}
             />
             <FilterPanelSection
               label="Composers"

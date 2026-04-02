@@ -175,7 +175,8 @@ public class ArrangementRepository
 
     public async Task<PaginatedResult<Arrangement>> GetArrangementsAsync(
         int page, int pageSize, int[]? gameIds = null, int[]? seriesIds = null, int[]? instrumentIds = null, int? performanceId = null,
-        string? sortBy = null, string? sortDirection = null, string? search = null, string[]? composers = null, string[]? arrangers = null)
+        string? sortBy = null, string? sortDirection = null, string? search = null, string[]? composers = null, string[]? arrangers = null,
+        bool instrumentMatchAll = false)
     {
         var arrangements = await GetCachedArrangementsAsync();
         IEnumerable<Arrangement> filtered = arrangements;
@@ -196,7 +197,9 @@ public class ArrangementRepository
             filtered = filtered.Where(a => a.Games.Any(g => seriesIds.Contains(g.SeriesId)));
 
         if (instrumentIds?.Length > 0)
-            filtered = filtered.Where(a => a.Instruments.Any(i => instrumentIds.Contains(i.Id)));
+            filtered = instrumentMatchAll
+                ? filtered.Where(a => instrumentIds.All(id => a.Instruments.Any(i => i.Id == id)))
+                : filtered.Where(a => a.Instruments.Any(i => instrumentIds.Contains(i.Id)));
 
         if (performanceId.HasValue)
             filtered = filtered.Where(a => a.Performances.Any(p => p.Id == performanceId.Value));

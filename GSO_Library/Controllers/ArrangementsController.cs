@@ -88,12 +88,13 @@ public class ArrangementsController : ControllerBase
         [FromQuery] int[]? gameIds, [FromQuery] int[]? seriesIds, [FromQuery] int[]? instrumentIds, [FromQuery] int? performanceId,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null,
-        [FromQuery] string? search = null, [FromQuery] string[]? composers = null, [FromQuery] string[]? arrangers = null)
+        [FromQuery] string? search = null, [FromQuery] string[]? composers = null, [FromQuery] string[]? arrangers = null,
+        [FromQuery] bool instrumentMatchAll = false)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameIds, seriesIds, instrumentIds, performanceId, sortBy, sortDirection, search, composers, arrangers);
+        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameIds, seriesIds, instrumentIds, performanceId, sortBy, sortDirection, search, composers, arrangers, instrumentMatchAll);
         return Ok(result);
     }
 

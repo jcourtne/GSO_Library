@@ -43,6 +43,7 @@ export interface ArrangementFilterParams {
   gameIds?: number[];
   seriesIds?: number[];
   instrumentIds?: number[];
+  instrumentMatchAll?: boolean;
   performanceId?: number;
   composers?: string[];
   arrangers?: string[];
