@@ -26,7 +26,6 @@ export default function FileSection({ title, files, arrangementId, editable, acc
 
   const invalidateFiles = () => {
     queryClient.invalidateQueries({ queryKey: ['arrangement-files', arrangementIdStr] });
-    queryClient.invalidateQueries({ queryKey: ['arrangement', arrangementIdStr] });
   };
 
   const uploadMutation = useMutation({
