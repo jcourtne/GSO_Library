@@ -58,6 +58,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 description TEXT,
+                release_year INTEGER,
                 series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now')),

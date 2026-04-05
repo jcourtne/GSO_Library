@@ -54,6 +54,7 @@ export default function GameList() {
   const columns = [
     { key: 'name', label: 'Name', sortable: true },
     { key: 'description', label: 'Description', render: (g: Game) => g.description || '-' },
+    { key: 'releaseYear', label: 'Year', render: (g: Game) => g.releaseYear ?? '-' },
     { key: 'series', label: 'Series', render: (g: Game) => g.series?.name || '-' },
     ...(canEdit() ? [{
       key: 'actions',

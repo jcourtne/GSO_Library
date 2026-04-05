@@ -17,6 +17,7 @@ export default function QuickCreateGameModal({ show, onHide, onCreated }: QuickC
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [releaseYear, setReleaseYear] = useState<number | ''>('');
   const [seriesId, setSeriesId] = useState<number | ''>('');
   const [error, setError] = useState('');
   const [showCreateSeries, setShowCreateSeries] = useState(false);
@@ -24,7 +25,7 @@ export default function QuickCreateGameModal({ show, onHide, onCreated }: QuickC
   const allSeries = useQuery({ queryKey: ['series-all'], queryFn: () => seriesApi.list({ page: 1, pageSize: 100 }), enabled: show });
 
   const mutation = useMutation({
-    mutationFn: () => gamesApi.create({ name, description: description || undefined, seriesId: Number(seriesId) }),
+    mutationFn: () => gamesApi.create({ name, description: description || undefined, releaseYear: releaseYear !== '' ? Number(releaseYear) : undefined, seriesId: Number(seriesId) }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ['games-all'] });
       onCreated(created);
@@ -36,6 +37,7 @@ export default function QuickCreateGameModal({ show, onHide, onCreated }: QuickC
   const resetAndClose = () => {
     setName('');
     setDescription('');
+    setReleaseYear('');
     setSeriesId('');
     setError('');
     onHide();
@@ -57,6 +59,10 @@ export default function QuickCreateGameModal({ show, onHide, onCreated }: QuickC
             <Form.Group className="mb-3">
               <Form.Label>Description</Form.Label>
               <Form.Control as="textarea" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Release Year</Form.Label>
+              <Form.Control type="number" min={1970} max={2100} value={releaseYear} onChange={(e) => setReleaseYear(e.target.value ? Number(e.target.value) : '')} />
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Series *</Form.Label>

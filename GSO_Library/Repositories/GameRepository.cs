@@ -27,7 +27,7 @@ public class GameRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var games = (await connection.QueryAsync<Game, Series, Game>(
-            @"SELECT g.id, g.name, g.description, g.series_id, g.created_at, g.updated_at, g.created_by,
+            @"SELECT g.id, g.name, g.description, g.release_year, g.series_id, g.created_at, g.updated_at, g.created_by,
                      s.id, s.name, s.description
               FROM games g
               LEFT JOIN series s ON g.series_id = s.id",
@@ -40,7 +40,7 @@ public class GameRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var game = (await connection.QueryAsync<Game, Series, Game>(
-            @"SELECT g.id, g.name, g.description, g.series_id, g.created_at, g.updated_at, g.created_by,
+            @"SELECT g.id, g.name, g.description, g.release_year, g.series_id, g.created_at, g.updated_at, g.created_by,
                      s.id, s.name, s.description
               FROM games g
               LEFT JOIN series s ON g.series_id = s.id
@@ -91,7 +91,7 @@ public class GameRepository
         var orderColumn = _sortColumns.GetValueOrDefault(sortBy ?? "", "g.id");
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
         var games = (await connection.QueryAsync<Game, Series, Game>(
-            $@"SELECT g.id, g.name, g.description, g.series_id, g.created_at, g.updated_at, g.created_by,
+            $@"SELECT g.id, g.name, g.description, g.release_year, g.series_id, g.created_at, g.updated_at, g.created_by,
                       s.id, s.name, s.description
                FROM games g
                LEFT JOIN series s ON g.series_id = s.id
@@ -108,8 +108,8 @@ public class GameRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var id = await connection.InsertReturningIdAsync(
-            "INSERT INTO games (name, description, series_id, created_at, updated_at, created_by) VALUES (@Name, @Description, @SeriesId, @CreatedAt, @UpdatedAt, @CreatedBy)",
-            new { game.Name, game.Description, game.SeriesId, game.CreatedAt, game.UpdatedAt, game.CreatedBy });
+            "INSERT INTO games (name, description, release_year, series_id, created_at, updated_at, created_by) VALUES (@Name, @Description, @ReleaseYear, @SeriesId, @CreatedAt, @UpdatedAt, @CreatedBy)",
+            new { game.Name, game.Description, game.ReleaseYear, game.SeriesId, game.CreatedAt, game.UpdatedAt, game.CreatedBy });
         game.Id = id;
         InvalidateArrangementCache();
         return game;
@@ -119,8 +119,8 @@ public class GameRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var rows = await connection.ExecuteAsync(
-            "UPDATE games SET name = @Name, description = @Description, series_id = @SeriesId, updated_at = @UpdatedAt WHERE id = @Id",
-            new { game.Name, game.Description, game.SeriesId, game.UpdatedAt, Id = id });
+            "UPDATE games SET name = @Name, description = @Description, release_year = @ReleaseYear, series_id = @SeriesId, updated_at = @UpdatedAt WHERE id = @Id",
+            new { game.Name, game.Description, game.ReleaseYear, game.SeriesId, game.UpdatedAt, Id = id });
         if (rows == 0) return null;
         game.Id = id;
         InvalidateArrangementCache();

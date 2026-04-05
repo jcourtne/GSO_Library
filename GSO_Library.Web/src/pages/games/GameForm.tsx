@@ -15,6 +15,7 @@ export default function GameForm() {
   const [error, setError] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [releaseYear, setReleaseYear] = useState<number | ''>('');
   const [seriesId, setSeriesId] = useState<number | ''>('');
   const [showCreateSeries, setShowCreateSeries] = useState(false);
 
@@ -30,13 +31,14 @@ export default function GameForm() {
     if (existing) {
       setName(existing.name);
       setDescription(existing.description || '');
+      setReleaseYear(existing.releaseYear ?? '');
       setSeriesId(existing.seriesId);
     }
   }, [existing]);
 
   const mutation = useMutation({
     mutationFn: () => {
-      const payload = { name, description: description || undefined, seriesId: Number(seriesId) };
+      const payload = { name, description: description || undefined, releaseYear: releaseYear !== '' ? Number(releaseYear) : undefined, seriesId: Number(seriesId) };
       return isEdit ? gamesApi.update(Number(id), payload) : gamesApi.create(payload);
     },
     onSuccess: () => {
@@ -62,6 +64,10 @@ export default function GameForm() {
             <Form.Group className="mb-3">
               <Form.Label>Description</Form.Label>
               <Form.Control as="textarea" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Release Year</Form.Label>
+              <Form.Control type="number" min={1970} max={2100} value={releaseYear} onChange={(e) => setReleaseYear(e.target.value ? Number(e.target.value) : '')} />
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Series *</Form.Label>
