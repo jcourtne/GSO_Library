@@ -86,12 +86,21 @@ export default function ArrangementForm() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const flushedForm = {
+        ...form,
+        composers: composerInput.trim()
+          ? [...(form.composers || []), composerInput.trim()]
+          : form.composers,
+        arrangers: arrangerInput.trim()
+          ? [...(form.arrangers || []), arrangerInput.trim()]
+          : form.arrangers,
+      };
       let arrangementId: number;
       if (isEdit) {
-        await arrangementsApi.update(Number(id), form);
+        await arrangementsApi.update(Number(id), flushedForm);
         arrangementId = Number(id);
       } else {
-        const created = await arrangementsApi.create(form);
+        const created = await arrangementsApi.create(flushedForm);
         arrangementId = created.id;
       }
 
@@ -132,6 +141,8 @@ export default function ArrangementForm() {
       return arrangementId;
     },
     onSuccess: (arrangementId) => {
+      setComposerInput('');
+      setArrangerInput('');
       queryClient.invalidateQueries({ queryKey: ['arrangements'] });
       queryClient.invalidateQueries({ queryKey: ['arrangement', id] });
       navigate(isEdit ? `/arrangements/${arrangementId}` : `/arrangements/${arrangementId}/edit`);
