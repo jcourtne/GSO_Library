@@ -6,3 +6,4 @@ export type { Series } from './series';
 export type { Instrument } from './instrument';
 export type { Performance, PerformanceFile } from './performance';
 export type { Ensemble } from './ensemble';
+export type { InstrumentSortOrder } from './instrumentSortOrder';

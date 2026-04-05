@@ -159,10 +159,21 @@ public class ArrangementRepository
             .Select(g => new { Id = g.Key, Name = g.First().Series!.Name })
             .OrderBy(s => s.Name)
             .ToList();
+        using var connection = _connectionFactory.CreateConnection();
+        var defaultSortPositions = (await connection.QueryAsync<(int InstrumentId, int Position)>(
+            """
+            SELECT isoi.instrument_id, isoi.position
+            FROM instrument_sort_order_items isoi
+            JOIN instrument_sort_orders iso ON iso.id = isoi.sort_order_id
+            WHERE iso.is_default = TRUE
+            ORDER BY isoi.position
+            """)).ToDictionary(r => r.InstrumentId, r => r.Position);
+
         var instruments = arrangements.SelectMany(a => a.Instruments)
             .GroupBy(i => i.Id)
             .Select(i => new { Id = i.Key, Name = i.First().Name })
-            .OrderBy(i => i.Name)
+            .OrderBy(i => defaultSortPositions.TryGetValue(i.Id, out var pos) ? pos : int.MaxValue)
+            .ThenBy(i => i.Name)
             .ToList();
         return new { Composers = composers, Arrangers = arrangers, Games = games, Series = series, Instruments = instruments };
     }

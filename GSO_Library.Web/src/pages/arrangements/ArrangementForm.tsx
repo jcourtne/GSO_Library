@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
 import { gamesApi } from '../../api/games';
 import { instrumentsApi } from '../../api/instruments';
+import { instrumentSortOrdersApi } from '../../api/instrumentSortOrders';
 import { performancesApi } from '../../api/performances';
 import FileSection from '../../components/arrangements/FileSection';
 import QuickCreateGameModal from '../../components/common/QuickCreateGameModal';
@@ -45,11 +46,6 @@ export default function ArrangementForm() {
     enabled: isEdit,
   });
 
-  // Load reference data for linking
-  const allGames = useQuery({ queryKey: ['games-all'], queryFn: () => gamesApi.list({ page: 1, pageSize: 100 }) });
-  const allInstruments = useQuery({ queryKey: ['instruments-all'], queryFn: () => instrumentsApi.list({ page: 1, pageSize: 100 }) });
-  const allPerformances = useQuery({ queryKey: ['performances-all'], queryFn: () => performancesApi.list({ page: 1, pageSize: 100 }) });
-
   // Track linked entity IDs
   const [linkedGameIds, setLinkedGameIds] = useState<Set<number>>(new Set());
   const [linkedInstrumentIds, setLinkedInstrumentIds] = useState<Set<number>>(new Set());
@@ -60,8 +56,20 @@ export default function ArrangementForm() {
   const [gameSearch, setGameSearch] = useState('');
   const [showInstrumentPicker, setShowInstrumentPicker] = useState(false);
   const [instrumentSearch, setInstrumentSearch] = useState('');
+  const [pickerSortOrderId, setPickerSortOrderId] = useState<number | null>(null);
   const [showPerformancePicker, setShowPerformancePicker] = useState(false);
   const [performanceSearch, setPerformanceSearch] = useState('');
+
+  // Load reference data for linking
+  const allGames = useQuery({ queryKey: ['games-all'], queryFn: () => gamesApi.list({ page: 1, pageSize: 100 }) });
+  const allInstruments = useQuery({ queryKey: ['instruments-all'], queryFn: () => instrumentsApi.list({ page: 1, pageSize: 100, sortBy: 'name' }) });
+  const allPerformances = useQuery({ queryKey: ['performances-all'], queryFn: () => performancesApi.list({ page: 1, pageSize: 100 }) });
+  const sortOrders = useQuery({ queryKey: ['instrument-sort-orders'], queryFn: instrumentSortOrdersApi.list });
+  const pickerSortOrderInstruments = useQuery({
+    queryKey: ['instrument-sort-order-instruments', pickerSortOrderId],
+    queryFn: () => instrumentSortOrdersApi.getInstruments(pickerSortOrderId!),
+    enabled: pickerSortOrderId !== null,
+  });
 
   // Quick-create modal state
   const [showCreateGame, setShowCreateGame] = useState(false);
@@ -370,7 +378,12 @@ export default function ArrangementForm() {
                 ) : (
                   <p className="text-muted mb-2">No instruments selected</p>
                 )}
-                <Button variant="outline-primary" size="sm" onClick={() => { setInstrumentSearch(''); setShowInstrumentPicker(true); }}>
+                <Button variant="outline-primary" size="sm" onClick={() => {
+                  const defaultSo = sortOrders.data?.find((so) => so.isDefault);
+                  setPickerSortOrderId(defaultSo?.id ?? null);
+                  setInstrumentSearch('');
+                  setShowInstrumentPicker(true);
+                }}>
                   Add
                 </Button>
               </Card.Body>
@@ -381,6 +394,19 @@ export default function ArrangementForm() {
                 <Modal.Title>Add Instruments</Modal.Title>
               </Modal.Header>
               <Modal.Body>
+                {sortOrders.data && sortOrders.data.length > 0 && (
+                  <Form.Select
+                    size="sm"
+                    value={pickerSortOrderId ?? ''}
+                    onChange={(e) => setPickerSortOrderId(e.target.value ? Number(e.target.value) : null)}
+                    className="mb-2"
+                  >
+                    <option value="">Alphabetical</option>
+                    {sortOrders.data.map((so) => (
+                      <option key={so.id} value={so.id}>{so.name}{so.isDefault ? ' ★' : ''}</option>
+                    ))}
+                  </Form.Select>
+                )}
                 <Form.Control
                   placeholder="Search instruments..."
                   value={instrumentSearch}
@@ -389,7 +415,7 @@ export default function ArrangementForm() {
                   autoFocus
                 />
                 <ListGroup style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                  {allInstruments.data?.items
+                  {(pickerSortOrderId !== null ? (pickerSortOrderInstruments.data ?? []) : (allInstruments.data?.items ?? []))
                     .filter((i) => !linkedInstrumentIds.has(i.id) && i.name.toLowerCase().includes(instrumentSearch.toLowerCase()))
                     .map((i) => (
                       <ListGroup.Item
