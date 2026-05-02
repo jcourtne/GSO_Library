@@ -27,10 +27,11 @@ export default function UserList() {
     onError: () => setError('Failed to update user status'),
   });
 
-  const filteredUsers = useMemo(() => {
-    if (!users || !search) return users;
+  const { filteredActive, filteredDisabled } = useMemo(() => {
     const lower = search.toLowerCase();
-    return users.filter((u) => u.userName?.toLowerCase().includes(lower));
+    const active = users?.filter((u) => !u.isDisabled && (!search || u.userName?.toLowerCase().includes(lower))) ?? [];
+    const disabled = users?.filter((u) => u.isDisabled && (!search || u.userName?.toLowerCase().includes(lower))) ?? [];
+    return { filteredActive: active, filteredDisabled: disabled };
   }, [users, search]);
 
   if (isLoading) return <Spinner animation="border" />;
@@ -58,12 +59,11 @@ export default function UserList() {
             <th>Email</th>
             <th>Name</th>
             <th>Roles</th>
-            <th>Status</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          {filteredUsers?.map((u) => (
+          {filteredActive.map((u) => (
             <tr key={u.id}>
               <td>{u.userName}</td>
               <td>{u.email}</td>
@@ -78,21 +78,12 @@ export default function UserList() {
                 </div>
               </td>
               <td>
-                <Badge bg={u.isDisabled ? 'danger' : 'success'}>
-                  {u.isDisabled ? 'Disabled' : 'Active'}
-                </Badge>
-              </td>
-              <td>
                 <div className="d-flex gap-1">
                   <Link to={`/admin/users/${u.id}`} className="btn btn-sm btn-outline-primary">
                     Manage
                   </Link>
-                  <Button
-                    size="sm"
-                    variant={u.isDisabled ? 'outline-success' : 'outline-danger'}
-                    onClick={() => setToggleTarget(u)}
-                  >
-                    {u.isDisabled ? 'Enable' : 'Disable'}
+                  <Button size="sm" variant="outline-danger" onClick={() => setToggleTarget(u)}>
+                    Disable
                   </Button>
                 </div>
               </td>
@@ -100,6 +91,51 @@ export default function UserList() {
           ))}
         </tbody>
       </Table>
+
+      {filteredDisabled.length > 0 && (
+        <>
+          <h5 className="mt-4 text-muted">Disabled Users</h5>
+          <Table striped hover responsive className="mt-2">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Name</th>
+                <th>Roles</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredDisabled.map((u) => (
+                <tr key={u.id} className="text-muted">
+                  <td>{u.userName}</td>
+                  <td>{u.email}</td>
+                  <td>{[u.firstName, u.lastName].filter(Boolean).join(' ') || '-'}</td>
+                  <td>
+                    <div className="d-flex gap-1 flex-wrap">
+                      {u.roles.map((r) => (
+                        <Badge key={r} bg="secondary">
+                          {r}
+                        </Badge>
+                      ))}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="d-flex gap-1">
+                      <Link to={`/admin/users/${u.id}`} className="btn btn-sm btn-outline-primary">
+                        Manage
+                      </Link>
+                      <Button size="sm" variant="outline-success" onClick={() => setToggleTarget(u)}>
+                        Enable
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </>
+      )}
 
       <ConfirmModal
         show={!!toggleTarget}
