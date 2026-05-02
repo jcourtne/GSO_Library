@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using GSO_Library.Data;
 using GSO_Library.Dtos;
 using GSO_Library.Models;
+using GSO_Library.Repositories;
 using GSO_Library.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -21,6 +22,7 @@ public class AuthController : ControllerBase
     private readonly ITokenService _tokenService;
     private readonly GSOLibraryContext _context;
     private readonly IAuditService _auditService;
+    private readonly UserRepository _userRepository;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -30,6 +32,7 @@ public class AuthController : ControllerBase
         ITokenService tokenService,
         GSOLibraryContext context,
         IAuditService auditService,
+        UserRepository userRepository,
         ILogger<AuthController> logger)
     {
         _userManager = userManager;
@@ -38,6 +41,7 @@ public class AuthController : ControllerBase
         _tokenService = tokenService;
         _context = context;
         _auditService = auditService;
+        _userRepository = userRepository;
         _logger = logger;
     }
 
@@ -46,6 +50,8 @@ public class AuthController : ControllerBase
     public async Task<ActionResult<List<UserResponse>>> GetAllUsers()
     {
         var users = await _userManager.Users.ToListAsync();
+        var usernames = users.Select(u => u.UserName).Where(n => n != null).Cast<string>();
+        var lastLogins = await _userRepository.GetLastLoginsAsync(usernames);
         var userResponses = new List<UserResponse>();
 
         foreach (var user in users)
@@ -59,6 +65,7 @@ public class AuthController : ControllerBase
                 FirstName = user.FirstName,
                 LastName = user.LastName,
                 IsDisabled = user.IsDisabled,
+                LastLoginAt = user.UserName != null ? lastLogins.GetValueOrDefault(user.UserName) : null,
                 Roles = roles.ToList()
             });
         }
@@ -75,6 +82,7 @@ public class AuthController : ControllerBase
             return NotFound();
 
         var roles = await _userManager.GetRolesAsync(user);
+        var lastLogin = user.UserName != null ? await _userRepository.GetLastLoginAsync(user.UserName) : null;
         return Ok(new UserResponse
         {
             Id = user.Id,
@@ -83,6 +91,7 @@ public class AuthController : ControllerBase
             FirstName = user.FirstName,
             LastName = user.LastName,
             IsDisabled = user.IsDisabled,
+            LastLoginAt = lastLogin,
             Roles = roles.ToList()
         });
     }

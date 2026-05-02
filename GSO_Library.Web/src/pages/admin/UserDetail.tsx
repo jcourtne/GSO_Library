@@ -92,6 +92,10 @@ export default function UserDetail() {
               <p><strong>Email:</strong> {user.email}</p>
               <p><strong>Name:</strong> {[user.firstName, user.lastName].filter(Boolean).join(' ') || '-'}</p>
               <p>
+                <strong>Last Login:</strong>{' '}
+                {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Never'}
+              </p>
+              <p>
                 <strong>Status:</strong>{' '}
                 <Badge bg={user.isDisabled ? 'danger' : 'success'}>
                   {user.isDisabled ? 'Disabled' : 'Active'}

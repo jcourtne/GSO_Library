@@ -6,7 +6,7 @@ import { authApi } from '../../api/auth';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import type { UserResponse } from '../../types';
 
-type SortKey = 'userName' | 'email' | 'name';
+type SortKey = 'userName' | 'email' | 'name' | 'lastLogin';
 type SortDir = 'asc' | 'desc';
 
 function roleBadgeBg(r: string) {
@@ -15,6 +15,11 @@ function roleBadgeBg(r: string) {
 
 function sortUsers(users: UserResponse[], key: SortKey, dir: SortDir) {
   return [...users].sort((a, b) => {
+    if (key === 'lastLogin') {
+      const at = a.lastLoginAt ? new Date(a.lastLoginAt).getTime() : 0;
+      const bt = b.lastLoginAt ? new Date(b.lastLoginAt).getTime() : 0;
+      return dir === 'asc' ? at - bt : bt - at;
+    }
     let av = '';
     let bv = '';
     if (key === 'userName') { av = a.userName ?? ''; bv = b.userName ?? ''; }
@@ -111,6 +116,7 @@ export default function UserList() {
             <SortTh label="Email" sortKey="email" {...sortThProps} />
             <SortTh label="Name" sortKey="name" {...sortThProps} />
             <th>Roles</th>
+            <SortTh label="Last Login" sortKey="lastLogin" {...sortThProps} />
             <th></th>
           </tr>
         </thead>
@@ -127,6 +133,7 @@ export default function UserList() {
                   ))}
                 </div>
               </td>
+              <td className="text-nowrap">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : 'Never'}</td>
               <td>
                 <div className="d-flex gap-1">
                   <Link to={`/admin/users/${u.id}`} className="btn btn-sm btn-outline-primary">
@@ -152,6 +159,7 @@ export default function UserList() {
                 <SortTh label="Email" sortKey="email" {...sortThProps} />
                 <SortTh label="Name" sortKey="name" {...sortThProps} />
                 <th>Roles</th>
+                <SortTh label="Last Login" sortKey="lastLogin" {...sortThProps} />
                 <th></th>
               </tr>
             </thead>
@@ -168,6 +176,7 @@ export default function UserList() {
                       ))}
                     </div>
                   </td>
+                  <td className="text-nowrap">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : 'Never'}</td>
                   <td>
                     <div className="d-flex gap-1">
                       <Link to={`/admin/users/${u.id}`} className="btn btn-sm btn-outline-primary">
