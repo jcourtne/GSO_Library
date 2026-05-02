@@ -27,7 +27,10 @@ export default function AppNavbar() {
                 <Nav.Link as={Link} to="/performances">Performances</Nav.Link>
                 <Nav.Link as={Link} to="/ensembles">Ensembles</Nav.Link>
                 {isAdmin() && (
-                  <Nav.Link as={Link} to="/admin/users">Users</Nav.Link>
+                  <>
+                    <Nav.Link as={Link} to="/admin/users">Users</Nav.Link>
+                    <Nav.Link as={Link} to="/admin/audit-events">Audit Log</Nav.Link>
+                  </>
                 )}
               </Nav>
               <Nav>

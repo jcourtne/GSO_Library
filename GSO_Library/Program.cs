@@ -135,6 +135,7 @@ builder.Services.AddScoped<PerformanceFileRepository>();
 builder.Services.AddScoped<EnsembleRepository>();
 builder.Services.AddScoped<InstrumentSortOrderRepository>();
 builder.Services.AddScoped<UserRepository>();
+builder.Services.AddScoped<AuditEventRepository>();
 
 var app = builder.Build();
 

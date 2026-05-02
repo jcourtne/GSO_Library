@@ -23,6 +23,7 @@ import EnsembleForm from './pages/ensembles/EnsembleForm';
 import UserList from './pages/admin/UserList';
 import UserDetail from './pages/admin/UserDetail';
 import RegisterUser from './pages/admin/RegisterUser';
+import AuditEvents from './pages/admin/AuditEvents';
 import ChangePassword from './pages/ChangePassword';
 
 const queryClient = new QueryClient({
@@ -89,6 +90,7 @@ export default function App() {
               <Route path="admin/users" element={<ProtectedRoute requiredRoles={adminRoles}><UserList /></ProtectedRoute>} />
               <Route path="admin/users/new" element={<ProtectedRoute requiredRoles={adminRoles}><RegisterUser /></ProtectedRoute>} />
               <Route path="admin/users/:id" element={<ProtectedRoute requiredRoles={adminRoles}><UserDetail /></ProtectedRoute>} />
+              <Route path="admin/audit-events" element={<ProtectedRoute requiredRoles={adminRoles}><AuditEvents /></ProtectedRoute>} />
             </Route>
           </Routes>
         </BrowserRouter>
