@@ -6,11 +6,53 @@ import { authApi } from '../../api/auth';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import type { UserResponse } from '../../types';
 
+type SortKey = 'userName' | 'email' | 'name';
+type SortDir = 'asc' | 'desc';
+
+function roleBadgeBg(r: string) {
+  return r === 'Admin' ? 'danger' : r === 'Librarian' ? 'warning' : r === 'Submitter' ? 'info' : r === 'Downloader' ? 'primary' : 'secondary';
+}
+
+function sortUsers(users: UserResponse[], key: SortKey, dir: SortDir) {
+  return [...users].sort((a, b) => {
+    let av = '';
+    let bv = '';
+    if (key === 'userName') { av = a.userName ?? ''; bv = b.userName ?? ''; }
+    else if (key === 'email') { av = a.email ?? ''; bv = b.email ?? ''; }
+    else if (key === 'name') {
+      av = [a.firstName, a.lastName].filter(Boolean).join(' ');
+      bv = [b.firstName, b.lastName].filter(Boolean).join(' ');
+    }
+    const cmp = av.localeCompare(bv);
+    return dir === 'asc' ? cmp : -cmp;
+  });
+}
+
+function SortTh({ label, sortKey, current, dir, onSort }: {
+  label: string;
+  sortKey: SortKey;
+  current: SortKey;
+  dir: SortDir;
+  onSort: (key: SortKey) => void;
+}) {
+  const active = current === sortKey;
+  return (
+    <th style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} onClick={() => onSort(sortKey)}>
+      {label}{' '}
+      <span className="text-muted" style={{ fontSize: '0.75em' }}>
+        {active ? (dir === 'asc' ? '▲' : '▼') : '▲▼'}
+      </span>
+    </th>
+  );
+}
+
 export default function UserList() {
   const queryClient = useQueryClient();
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [toggleTarget, setToggleTarget] = useState<UserResponse | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('userName');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
@@ -27,12 +69,22 @@ export default function UserList() {
     onError: () => setError('Failed to update user status'),
   });
 
+  function handleSort(key: SortKey) {
+    if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('asc'); }
+  }
+
   const { filteredActive, filteredDisabled } = useMemo(() => {
     const lower = search.toLowerCase();
     const active = users?.filter((u) => !u.isDisabled && (!search || u.userName?.toLowerCase().includes(lower))) ?? [];
     const disabled = users?.filter((u) => u.isDisabled && (!search || u.userName?.toLowerCase().includes(lower))) ?? [];
-    return { filteredActive: active, filteredDisabled: disabled };
-  }, [users, search]);
+    return {
+      filteredActive: sortUsers(active, sortKey, sortDir),
+      filteredDisabled: sortUsers(disabled, sortKey, sortDir),
+    };
+  }, [users, search, sortKey, sortDir]);
+
+  const sortThProps = { current: sortKey, dir: sortDir, onSort: handleSort };
 
   if (isLoading) return <Spinner animation="border" />;
 
@@ -55,9 +107,9 @@ export default function UserList() {
       <Table striped hover responsive>
         <thead>
           <tr>
-            <th>Username</th>
-            <th>Email</th>
-            <th>Name</th>
+            <SortTh label="Username" sortKey="userName" {...sortThProps} />
+            <SortTh label="Email" sortKey="email" {...sortThProps} />
+            <SortTh label="Name" sortKey="name" {...sortThProps} />
             <th>Roles</th>
             <th></th>
           </tr>
@@ -71,9 +123,7 @@ export default function UserList() {
               <td>
                 <div className="d-flex gap-1 flex-wrap">
                   {u.roles.map((r) => (
-                    <Badge key={r} bg={r === 'Admin' ? 'danger' : r === 'Librarian' ? 'warning' : r === 'Submitter' ? 'info' : r === 'Downloader' ? 'primary' : 'secondary'}>
-                      {r}
-                    </Badge>
+                    <Badge key={r} bg={roleBadgeBg(r)}>{r}</Badge>
                   ))}
                 </div>
               </td>
@@ -98,9 +148,9 @@ export default function UserList() {
           <Table striped hover responsive className="mt-2">
             <thead>
               <tr>
-                <th>Username</th>
-                <th>Email</th>
-                <th>Name</th>
+                <SortTh label="Username" sortKey="userName" {...sortThProps} />
+                <SortTh label="Email" sortKey="email" {...sortThProps} />
+                <SortTh label="Name" sortKey="name" {...sortThProps} />
                 <th>Roles</th>
                 <th></th>
               </tr>
@@ -114,9 +164,7 @@ export default function UserList() {
                   <td>
                     <div className="d-flex gap-1 flex-wrap">
                       {u.roles.map((r) => (
-                        <Badge key={r} bg="secondary">
-                          {r}
-                        </Badge>
+                        <Badge key={r} bg="secondary">{r}</Badge>
                       ))}
                     </div>
                   </td>
