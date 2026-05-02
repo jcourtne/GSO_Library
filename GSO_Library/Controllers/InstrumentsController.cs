@@ -1,5 +1,6 @@
 using GSO_Library.Models;
 using GSO_Library.Repositories;
+using GSO_Library.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,15 +8,8 @@ namespace GSO_Library.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class InstrumentsController : ControllerBase
+public class InstrumentsController(InstrumentRepository instrumentRepository, IAuditService auditService) : ControllerBase
 {
-    private readonly InstrumentRepository _instrumentRepository;
-
-    public InstrumentsController(InstrumentRepository instrumentRepository)
-    {
-        _instrumentRepository = instrumentRepository;
-    }
-
     [HttpGet]
     [Authorize]
     public async Task<ActionResult<PaginatedResult<Instrument>>> GetAllInstruments(
@@ -25,7 +19,7 @@ public class InstrumentsController : ControllerBase
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var result = await _instrumentRepository.GetAllInstrumentsAsync(page, pageSize, sortBy, sortDirection, search);
+        var result = await instrumentRepository.GetAllInstrumentsAsync(page, pageSize, sortBy, sortDirection, search);
         return Ok(result);
     }
 
@@ -33,7 +27,7 @@ public class InstrumentsController : ControllerBase
     [Authorize]
     public async Task<ActionResult<Instrument>> GetInstrumentById(int id)
     {
-        var instrument = await _instrumentRepository.GetInstrumentByIdAsync(id);
+        var instrument = await instrumentRepository.GetInstrumentByIdAsync(id);
         if (instrument == null)
             return NotFound();
 
@@ -48,7 +42,9 @@ public class InstrumentsController : ControllerBase
         instrument.CreatedAt = now;
         instrument.UpdatedAt = now;
         instrument.CreatedBy = User.Identity?.Name;
-        var created = await _instrumentRepository.AddInstrumentAsync(instrument);
+        var created = await instrumentRepository.AddInstrumentAsync(instrument);
+        await auditService.LogAsync(AuditEventType.InstrumentCreate, User.Identity?.Name, null, null,
+            $"instrumentId: {created.Id} ({created.Name})");
         return CreatedAtAction(nameof(GetInstrumentById), new { id = created.Id }, created);
     }
 
@@ -57,7 +53,7 @@ public class InstrumentsController : ControllerBase
     public async Task<ActionResult<Instrument>> UpdateInstrument(int id, [FromBody] Instrument instrument)
     {
         instrument.UpdatedAt = DateTime.UtcNow;
-        var updated = await _instrumentRepository.UpdateInstrumentAsync(id, instrument);
+        var updated = await instrumentRepository.UpdateInstrumentAsync(id, instrument);
         if (updated == null)
             return NotFound();
 
@@ -68,10 +64,16 @@ public class InstrumentsController : ControllerBase
     [Authorize(Roles = "Admin,Librarian")]
     public async Task<IActionResult> DeleteInstrument(int id)
     {
-        var success = await _instrumentRepository.DeleteInstrumentAsync(id);
+        var instrument = await instrumentRepository.GetInstrumentByIdAsync(id);
+        if (instrument == null)
+            return NotFound();
+
+        var success = await instrumentRepository.DeleteInstrumentAsync(id);
         if (!success)
             return NotFound();
 
+        await auditService.LogAsync(AuditEventType.InstrumentDelete, User.Identity?.Name, null, null,
+            $"instrumentId: {id} ({instrument.Name})");
         return NoContent();
     }
 }

@@ -1,5 +1,6 @@
 using GSO_Library.Models;
 using GSO_Library.Repositories;
+using GSO_Library.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,15 +8,8 @@ namespace GSO_Library.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class GamesController : ControllerBase
+public class GamesController(GameRepository gameRepository, IAuditService auditService) : ControllerBase
 {
-    private readonly GameRepository _gameRepository;
-
-    public GamesController(GameRepository gameRepository)
-    {
-        _gameRepository = gameRepository;
-    }
-
     [HttpGet]
     [Authorize]
     public async Task<ActionResult<PaginatedResult<Game>>> GetAllGames(
@@ -25,7 +19,7 @@ public class GamesController : ControllerBase
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var result = await _gameRepository.GetAllGamesAsync(page, pageSize, sortBy, sortDirection, search, seriesIds);
+        var result = await gameRepository.GetAllGamesAsync(page, pageSize, sortBy, sortDirection, search, seriesIds);
         return Ok(result);
     }
 
@@ -33,7 +27,7 @@ public class GamesController : ControllerBase
     [Authorize]
     public async Task<ActionResult<Game>> GetGameById(int id)
     {
-        var game = await _gameRepository.GetGameByIdAsync(id);
+        var game = await gameRepository.GetGameByIdAsync(id);
         if (game == null)
             return NotFound();
 
@@ -48,7 +42,9 @@ public class GamesController : ControllerBase
         game.CreatedAt = now;
         game.UpdatedAt = now;
         game.CreatedBy = User.Identity?.Name;
-        var createdGame = await _gameRepository.AddGameAsync(game);
+        var createdGame = await gameRepository.AddGameAsync(game);
+        await auditService.LogAsync(AuditEventType.GameCreate, User.Identity?.Name, null, null,
+            $"gameId: {createdGame.Id} ({createdGame.Name})");
         return CreatedAtAction(nameof(GetGameById), new { id = createdGame.Id }, createdGame);
     }
 
@@ -57,7 +53,7 @@ public class GamesController : ControllerBase
     public async Task<ActionResult<Game>> UpdateGame(int id, [FromBody] Game game)
     {
         game.UpdatedAt = DateTime.UtcNow;
-        var updated = await _gameRepository.UpdateGameAsync(id, game);
+        var updated = await gameRepository.UpdateGameAsync(id, game);
         if (updated == null)
             return NotFound();
 
@@ -68,10 +64,16 @@ public class GamesController : ControllerBase
     [Authorize(Roles = "Admin,Librarian")]
     public async Task<IActionResult> DeleteGame(int id)
     {
-        var success = await _gameRepository.DeleteGameAsync(id);
+        var game = await gameRepository.GetGameByIdAsync(id);
+        if (game == null)
+            return NotFound();
+
+        var success = await gameRepository.DeleteGameAsync(id);
         if (!success)
             return NotFound();
 
+        await auditService.LogAsync(AuditEventType.GameDelete, User.Identity?.Name, null, null,
+            $"gameId: {id} ({game.Name})");
         return NoContent();
     }
 }

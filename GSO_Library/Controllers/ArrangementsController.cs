@@ -67,7 +67,7 @@ public class ArrangementsController : ControllerBase
         var createdArrangement = await _arrangementRepository.AddArrangementAsync(request, User.Identity?.Name);
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(createdArrangement.Id);
         await _auditService.LogAsync(Models.AuditEventType.ArrangementCreate, User.Identity?.Name, null, null,
-            $"arrangementId: {createdArrangement.Id}");
+            $"arrangementId: {createdArrangement.Id} ({arrangement?.Name})");
         return CreatedAtAction(nameof(GetArrangementById), new { id = createdArrangement.Id }, arrangement);
     }
 
@@ -148,7 +148,7 @@ public class ArrangementsController : ControllerBase
             return NotFound();
 
         await _auditService.LogAsync(Models.AuditEventType.ArrangementDelete, User.Identity?.Name, null, null,
-            $"arrangementId: {id}");
+            $"arrangementId: {id} ({arrangement.Name})");
         return NoContent();
     }
 

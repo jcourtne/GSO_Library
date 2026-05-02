@@ -18,6 +18,10 @@ export const AUDIT_EVENT_TYPES = [
   'FileDelete',
   'FileDownload',
   'FileUpload',
+  'GameCreate',
+  'GameDelete',
+  'InstrumentCreate',
+  'InstrumentDelete',
   'LoginFailure',
   'LoginSuccess',
   'PasswordReset',
@@ -25,5 +29,7 @@ export const AUDIT_EVENT_TYPES = [
   'PerformanceDelete',
   'RoleGrant',
   'RoleRemove',
+  'SeriesCreate',
+  'SeriesDelete',
   'TokenRefresh',
 ] as const;

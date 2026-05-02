@@ -53,7 +53,7 @@ public class EnsemblesController : ControllerBase
         ensemble.CreatedBy = User.Identity?.Name;
         var created = await _ensembleRepository.AddEnsembleAsync(ensemble);
         await _auditService.LogAsync(AuditEventType.EnsembleCreate, User.Identity?.Name, null, null,
-            $"ensembleId: {created.Id}");
+            $"ensembleId: {created.Id} ({created.Name})");
         return CreatedAtAction(nameof(GetEnsembleById), new { id = created.Id }, created);
     }
 
@@ -73,12 +73,16 @@ public class EnsemblesController : ControllerBase
     [Authorize(Roles = "Admin,Librarian")]
     public async Task<IActionResult> DeleteEnsemble(int id)
     {
+        var ensemble = await _ensembleRepository.GetEnsembleByIdAsync(id);
+        if (ensemble == null)
+            return NotFound();
+
         var success = await _ensembleRepository.DeleteEnsembleAsync(id);
         if (!success)
             return NotFound();
 
         await _auditService.LogAsync(AuditEventType.EnsembleDelete, User.Identity?.Name, null, null,
-            $"ensembleId: {id}");
+            $"ensembleId: {id} ({ensemble.Name})");
         return NoContent();
     }
 }

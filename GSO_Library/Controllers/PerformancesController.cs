@@ -66,7 +66,7 @@ public class PerformancesController : ControllerBase
         performance.CreatedBy = User.Identity?.Name;
         var created = await _performanceRepository.AddPerformanceAsync(performance);
         await _auditService.LogAsync(AuditEventType.PerformanceCreate, User.Identity?.Name, null, null,
-            $"performanceId: {created.Id}");
+            $"performanceId: {created.Id} ({created.Name})");
         return CreatedAtAction(nameof(GetPerformanceById), new { id = created.Id }, created);
     }
 
@@ -86,12 +86,16 @@ public class PerformancesController : ControllerBase
     [Authorize(Roles = "Admin,Librarian")]
     public async Task<IActionResult> DeletePerformance(int id)
     {
+        var performance = await _performanceRepository.GetPerformanceByIdAsync(id);
+        if (performance == null)
+            return NotFound();
+
         var success = await _performanceRepository.DeletePerformanceAsync(id);
         if (!success)
             return NotFound();
 
         await _auditService.LogAsync(AuditEventType.PerformanceDelete, User.Identity?.Name, null, null,
-            $"performanceId: {id}");
+            $"performanceId: {id} ({performance.Name})");
         return NoContent();
     }
 

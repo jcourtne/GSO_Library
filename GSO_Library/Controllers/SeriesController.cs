@@ -1,5 +1,6 @@
 using GSO_Library.Models;
 using GSO_Library.Repositories;
+using GSO_Library.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,15 +8,8 @@ namespace GSO_Library.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class SeriesController : ControllerBase
+public class SeriesController(SeriesRepository seriesRepository, IAuditService auditService) : ControllerBase
 {
-    private readonly SeriesRepository _seriesRepository;
-
-    public SeriesController(SeriesRepository seriesRepository)
-    {
-        _seriesRepository = seriesRepository;
-    }
-
     [HttpGet]
     [Authorize]
     public async Task<ActionResult<PaginatedResult<Series>>> GetAllSeries(
@@ -25,7 +19,7 @@ public class SeriesController : ControllerBase
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var result = await _seriesRepository.GetAllSeriesAsync(page, pageSize, sortBy, sortDirection, search);
+        var result = await seriesRepository.GetAllSeriesAsync(page, pageSize, sortBy, sortDirection, search);
         return Ok(result);
     }
 
@@ -33,7 +27,7 @@ public class SeriesController : ControllerBase
     [Authorize]
     public async Task<ActionResult<Series>> GetSeriesById(int id)
     {
-        var series = await _seriesRepository.GetSeriesByIdAsync(id);
+        var series = await seriesRepository.GetSeriesByIdAsync(id);
         if (series == null)
             return NotFound();
 
@@ -48,7 +42,9 @@ public class SeriesController : ControllerBase
         series.CreatedAt = now;
         series.UpdatedAt = now;
         series.CreatedBy = User.Identity?.Name;
-        var createdSeries = await _seriesRepository.AddSeriesAsync(series);
+        var createdSeries = await seriesRepository.AddSeriesAsync(series);
+        await auditService.LogAsync(AuditEventType.SeriesCreate, User.Identity?.Name, null, null,
+            $"seriesId: {createdSeries.Id} ({createdSeries.Name})");
         return CreatedAtAction(nameof(GetSeriesById), new { id = createdSeries.Id }, createdSeries);
     }
 
@@ -57,7 +53,7 @@ public class SeriesController : ControllerBase
     public async Task<ActionResult<Series>> UpdateSeries(int id, [FromBody] Series series)
     {
         series.UpdatedAt = DateTime.UtcNow;
-        var updated = await _seriesRepository.UpdateSeriesAsync(id, series);
+        var updated = await seriesRepository.UpdateSeriesAsync(id, series);
         if (updated == null)
             return NotFound();
 
@@ -68,10 +64,16 @@ public class SeriesController : ControllerBase
     [Authorize(Roles = "Admin,Librarian")]
     public async Task<IActionResult> DeleteSeries(int id)
     {
-        var success = await _seriesRepository.DeleteSeriesAsync(id);
+        var series = await seriesRepository.GetSeriesByIdAsync(id);
+        if (series == null)
+            return NotFound();
+
+        var success = await seriesRepository.DeleteSeriesAsync(id);
         if (!success)
             return NotFound();
 
+        await auditService.LogAsync(AuditEventType.SeriesDelete, User.Identity?.Name, null, null,
+            $"seriesId: {id} ({series.Name})");
         return NoContent();
     }
 }

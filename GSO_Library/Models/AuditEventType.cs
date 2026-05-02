@@ -17,6 +17,12 @@ public static class AuditEventType
     public const string ArrangementDelete = "ArrangementDelete";
     public const string EnsembleCreate = "EnsembleCreate";
     public const string EnsembleDelete = "EnsembleDelete";
+    public const string GameCreate = "GameCreate";
+    public const string GameDelete = "GameDelete";
+    public const string SeriesCreate = "SeriesCreate";
+    public const string SeriesDelete = "SeriesDelete";
+    public const string InstrumentCreate = "InstrumentCreate";
+    public const string InstrumentDelete = "InstrumentDelete";
     public const string PerformanceCreate = "PerformanceCreate";
     public const string PerformanceDelete = "PerformanceDelete";
 }
