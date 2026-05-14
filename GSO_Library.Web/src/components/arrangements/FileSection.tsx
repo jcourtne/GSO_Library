@@ -32,6 +32,7 @@ export default function FileSection({ title, files, arrangementId, editable, acc
     mutationFn: (file: File) => arrangementsApi.uploadFile(arrangementId, file),
     onSuccess: () => {
       invalidateFiles();
+      queryClient.invalidateQueries({ queryKey: ['arrangement', arrangementIdStr] });
       setUploading(false);
     },
     onError: () => {

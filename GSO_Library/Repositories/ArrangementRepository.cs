@@ -304,6 +304,15 @@ public class ArrangementRepository
         };
     }
 
+    public async Task SetDurationIfUnsetAsync(int id, int durationSeconds)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        var rows = await connection.ExecuteAsync(
+            "UPDATE arrangements SET duration_seconds = @DurationSeconds WHERE id = @Id AND duration_seconds IS NULL",
+            new { DurationSeconds = durationSeconds, Id = id });
+        if (rows > 0) InvalidateCache();
+    }
+
     public async Task<List<ArrangementFile>?> DeleteArrangementAsync(int id)
     {
         using var connection = _connectionFactory.CreateConnection();

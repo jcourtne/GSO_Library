@@ -330,6 +330,20 @@ public class ArrangementsController : ControllerBase
         };
 
         await _fileRepository.AddFileAsync(arrangementFile);
+
+        if (extension is ".mp3")
+        {
+            try
+            {
+                using var durationStream = file.OpenReadStream();
+                using var tagFile = TagLib.File.Create(new Mp3StreamAbstraction(file.FileName, durationStream));
+                var seconds = (int)Math.Round(tagFile.Properties.Duration.TotalSeconds);
+                if (seconds > 0)
+                    await _arrangementRepository.SetDurationIfUnsetAsync(id, seconds);
+            }
+            catch { }
+        }
+
         await _auditService.LogAsync(Models.AuditEventType.FileUpload, User.Identity?.Name, null, null,
             $"arrangementId: {id}, fileId: {arrangementFile.Id}, filename: {arrangementFile.FileName}");
         _arrangementRepository.InvalidateCache();
@@ -439,5 +453,13 @@ public class ArrangementsController : ControllerBase
         _arrangementRepository.InvalidateCache();
         await _zipCacheService.InvalidateForArrangementAsync(id);
         return NoContent();
+    }
+
+    private sealed class Mp3StreamAbstraction(string name, Stream stream) : TagLib.File.IFileAbstraction
+    {
+        public string Name { get; } = name;
+        public Stream ReadStream { get; } = stream;
+        public Stream WriteStream { get; } = stream;
+        public void CloseStream(Stream s) { }
     }
 }

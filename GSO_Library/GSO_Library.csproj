@@ -21,6 +21,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.2" />
     <PackageReference Include="Microsoft.Extensions.Identity.Stores" Version="10.0.2" />
+    <PackageReference Include="TagLibSharp" Version="2.3.0" />
   </ItemGroup>
 
 </Project>
