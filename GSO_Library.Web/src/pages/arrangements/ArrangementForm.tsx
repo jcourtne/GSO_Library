@@ -6,12 +6,11 @@ import { arrangementsApi } from '../../api/arrangements';
 import { gamesApi } from '../../api/games';
 import { instrumentsApi } from '../../api/instruments';
 import { instrumentSortOrdersApi } from '../../api/instrumentSortOrders';
-import { performancesApi } from '../../api/performances';
 import FileSection from '../../components/arrangements/FileSection';
+import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
 import QuickCreateGameModal from '../../components/common/QuickCreateGameModal';
 import QuickCreateInstrumentModal from '../../components/common/QuickCreateInstrumentModal';
-import QuickCreatePerformanceModal from '../../components/common/QuickCreatePerformanceModal';
-import { categorizeFiles, NOTATION_ACCEPT, RENDERED_SCORE_ACCEPT, PLAYBACK_ACCEPT } from '../../utils/fileCategories';
+import { categorizeFiles, NOTATION_ACCEPT, PLAYBACK_ACCEPT } from '../../utils/fileCategories';
 import type { ArrangementRequest } from '../../types';
 
 export default function ArrangementForm() {
@@ -49,7 +48,6 @@ export default function ArrangementForm() {
   // Track linked entity IDs
   const [linkedGameIds, setLinkedGameIds] = useState<Set<number>>(new Set());
   const [linkedInstrumentIds, setLinkedInstrumentIds] = useState<Set<number>>(new Set());
-  const [linkedPerformanceIds, setLinkedPerformanceIds] = useState<Set<number>>(new Set());
 
   // Picker modal state
   const [showGamePicker, setShowGamePicker] = useState(false);
@@ -57,13 +55,10 @@ export default function ArrangementForm() {
   const [showInstrumentPicker, setShowInstrumentPicker] = useState(false);
   const [instrumentSearch, setInstrumentSearch] = useState('');
   const [pickerSortOrderId, setPickerSortOrderId] = useState<number | null>(null);
-  const [showPerformancePicker, setShowPerformancePicker] = useState(false);
-  const [performanceSearch, setPerformanceSearch] = useState('');
 
   // Load reference data for linking
   const allGames = useQuery({ queryKey: ['games-all'], queryFn: () => gamesApi.list({ page: 1, pageSize: 100 }) });
   const allInstruments = useQuery({ queryKey: ['instruments-all'], queryFn: () => instrumentsApi.list({ page: 1, pageSize: 100, sortBy: 'name' }) });
-  const allPerformances = useQuery({ queryKey: ['performances-all'], queryFn: () => performancesApi.list({ page: 1, pageSize: 100 }) });
   const sortOrders = useQuery({ queryKey: ['instrument-sort-orders'], queryFn: instrumentSortOrdersApi.list });
   const pickerSortOrderInstruments = useQuery({
     queryKey: ['instrument-sort-order-instruments', pickerSortOrderId],
@@ -74,7 +69,6 @@ export default function ArrangementForm() {
   // Quick-create modal state
   const [showCreateGame, setShowCreateGame] = useState(false);
   const [showCreateInstrument, setShowCreateInstrument] = useState(false);
-  const [showCreatePerformance, setShowCreatePerformance] = useState(false);
 
   useEffect(() => {
     if (existing) {
@@ -88,7 +82,6 @@ export default function ArrangementForm() {
       });
       setLinkedGameIds(new Set(existing.games?.map((g) => g.id) || []));
       setLinkedInstrumentIds(new Set(existing.instruments?.map((i) => i.id) || []));
-      setLinkedPerformanceIds(new Set(existing.performances?.map((p) => p.id) || []));
     }
   }, [existing]);
 
@@ -116,7 +109,6 @@ export default function ArrangementForm() {
       if (isEdit && existing) {
         const oldGameIds = new Set(existing.games?.map((g) => g.id) || []);
         const oldInstrumentIds = new Set(existing.instruments?.map((i) => i.id) || []);
-        const oldPerformanceIds = new Set(existing.performances?.map((p) => p.id) || []);
 
         // Games
         for (const gid of linkedGameIds) {
@@ -132,18 +124,10 @@ export default function ArrangementForm() {
         for (const iid of oldInstrumentIds) {
           if (!linkedInstrumentIds.has(iid)) await arrangementsApi.removeInstrument(arrangementId, iid);
         }
-        // Performances
-        for (const pid of linkedPerformanceIds) {
-          if (!oldPerformanceIds.has(pid)) await arrangementsApi.addPerformance(arrangementId, pid);
-        }
-        for (const pid of oldPerformanceIds) {
-          if (!linkedPerformanceIds.has(pid)) await arrangementsApi.removePerformance(arrangementId, pid);
-        }
       } else if (!isEdit) {
         // New arrangement - add all relationships
         for (const gid of linkedGameIds) await arrangementsApi.addGame(arrangementId, gid);
         for (const iid of linkedInstrumentIds) await arrangementsApi.addInstrument(arrangementId, iid);
-        for (const pid of linkedPerformanceIds) await arrangementsApi.addPerformance(arrangementId, pid);
       }
 
       return arrangementId;
@@ -442,78 +426,6 @@ export default function ArrangementForm() {
               </Modal.Footer>
             </Modal>
 
-            <Card className="mb-3">
-              <Card.Body>
-                <Card.Title>Performances</Card.Title>
-                {linkedPerformanceIds.size > 0 ? (
-                  <ListGroup variant="flush" className="mb-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                    {allPerformances.data?.items
-                      .filter((p) => linkedPerformanceIds.has(p.id))
-                      .map((p) => (
-                        <ListGroup.Item key={p.id} className="d-flex justify-content-between align-items-center px-0">
-                          {p.name}
-                          <Button
-                            variant="outline-danger"
-                            size="sm"
-                            onClick={() => {
-                              const next = new Set(linkedPerformanceIds);
-                              next.delete(p.id);
-                              setLinkedPerformanceIds(next);
-                            }}
-                          >
-                            Remove
-                          </Button>
-                        </ListGroup.Item>
-                      ))}
-                  </ListGroup>
-                ) : (
-                  <p className="text-muted mb-2">No performances selected</p>
-                )}
-                <Button variant="outline-primary" size="sm" onClick={() => { setPerformanceSearch(''); setShowPerformancePicker(true); }}>
-                  Add
-                </Button>
-              </Card.Body>
-            </Card>
-
-            <Modal show={showPerformancePicker} onHide={() => setShowPerformancePicker(false)}>
-              <Modal.Header closeButton>
-                <Modal.Title>Add Performances</Modal.Title>
-              </Modal.Header>
-              <Modal.Body>
-                <Form.Control
-                  placeholder="Search performances..."
-                  value={performanceSearch}
-                  onChange={(e) => setPerformanceSearch(e.target.value)}
-                  className="mb-3"
-                  autoFocus
-                />
-                <ListGroup style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                  {allPerformances.data?.items
-                    .filter((p) => !linkedPerformanceIds.has(p.id) && p.name.toLowerCase().includes(performanceSearch.toLowerCase()))
-                    .map((p) => (
-                      <ListGroup.Item
-                        key={p.id}
-                        action
-                        onClick={() => {
-                          const next = new Set(linkedPerformanceIds);
-                          next.add(p.id);
-                          setLinkedPerformanceIds(next);
-                        }}
-                      >
-                        {p.name}
-                      </ListGroup.Item>
-                    ))}
-                </ListGroup>
-              </Modal.Body>
-              <Modal.Footer>
-                <Button variant="outline-success" onClick={() => setShowCreatePerformance(true)}>
-                  Create New
-                </Button>
-                <Button variant="secondary" onClick={() => setShowPerformancePicker(false)}>
-                  Done
-                </Button>
-              </Modal.Footer>
-            </Modal>
           </Col>
         </Row>
 
@@ -543,23 +455,13 @@ export default function ArrangementForm() {
           setLinkedInstrumentIds(next);
         }}
       />
-      <QuickCreatePerformanceModal
-        show={showCreatePerformance}
-        onHide={() => setShowCreatePerformance(false)}
-        onCreated={(performance) => {
-          const next = new Set(linkedPerformanceIds);
-          next.add(performance.id);
-          setLinkedPerformanceIds(next);
-        }}
-      />
-
-      {isEdit && files && (() => {
+      {isEdit && files && existing && (() => {
         const categorized = categorizeFiles(files);
         return (
           <div className="mt-4">
             <h4>Files</h4>
             <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={Number(id)} editable accept={NOTATION_ACCEPT} />
-            <FileSection title="Rendered Score/Parts" files={categorized.renderedScoreFiles} arrangementId={Number(id)} editable accept={RENDERED_SCORE_ACCEPT} />
+            <RenderedScoreGrid arrangement={existing} files={files} editable canDownload />
             <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={Number(id)} editable accept={PLAYBACK_ACCEPT} />
           </div>
         );

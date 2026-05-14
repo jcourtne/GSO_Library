@@ -26,6 +26,11 @@ export default function ChangePassword() {
   });
 
   const passwordsMatch = newPassword === confirmPassword;
+  const requirements = [
+    { label: 'At least 8 characters', met: newPassword.length >= 8 },
+    { label: 'At least one uppercase letter', met: /[A-Z]/.test(newPassword) },
+    { label: 'At least one number', met: /[0-9]/.test(newPassword) },
+  ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +64,15 @@ export default function ChangePassword() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
               />
+              {newPassword && (
+                <ul className="list-unstyled mt-2 mb-0 small">
+                  {requirements.map((r) => (
+                    <li key={r.label} className={r.met ? 'text-success' : 'text-danger'}>
+                      {r.met ? '✓' : '✗'} {r.label}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Form.Group>
             <Form.Group className="mb-4">
               <Form.Label>Confirm New Password</Form.Label>

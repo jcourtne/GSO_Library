@@ -106,6 +106,13 @@ public class PerformanceRepository
         }
         performance.Arrangements = arrangements;
 
+        // Load linked seasons via junction table
+        performance.Seasons = (await connection.QueryAsync<Season>(
+            @"SELECT s.id, s.name, s.start_date, s.end_date
+              FROM seasons s
+              INNER JOIN season_performances sp ON s.id = sp.season_id
+              WHERE sp.performance_id = @Id", new { Id = id })).ToList();
+
         return performance;
     }
 

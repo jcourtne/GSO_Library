@@ -17,10 +17,15 @@ public class ArrangementsController : ControllerBase
         ".mid", ".midi", ".mp3", ".wav", ".flac", ".ogg"
     };
 
+
+    private static readonly HashSet<string> RenderedScoreExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".pdf"
+    };
+
     private static readonly Dictionary<string, string> ContentTypeByExtension = new(StringComparer.OrdinalIgnoreCase)
     {
         [".pdf"]    = "application/pdf",
-        [".zip"]    = "application/zip",
         [".xml"]    = "application/xml",
         [".mxl"]    = "application/vnd.recordare.musicxml",
         [".mid"]    = "audio/midi",
@@ -39,19 +44,22 @@ public class ArrangementsController : ControllerBase
     private readonly IFileStorageService _fileStorageService;
     private readonly FileUploadSettings _fileUploadSettings;
     private readonly IAuditService _auditService;
+    private readonly ISeasonZipCacheService _zipCacheService;
 
     public ArrangementsController(
         ArrangementRepository arrangementRepository,
         ArrangementFileRepository fileRepository,
         IFileStorageService fileStorageService,
         FileUploadSettings fileUploadSettings,
-        IAuditService auditService)
+        IAuditService auditService,
+        ISeasonZipCacheService zipCacheService)
     {
         _arrangementRepository = arrangementRepository;
         _fileRepository = fileRepository;
         _fileStorageService = fileStorageService;
         _fileUploadSettings = fileUploadSettings;
         _auditService = auditService;
+        _zipCacheService = zipCacheService;
     }
 
     private bool IsSubmitterOnly() =>
@@ -121,6 +129,7 @@ public class ArrangementsController : ControllerBase
         if (updated == null)
             return NotFound();
 
+        await _zipCacheService.InvalidateForArrangementAsync(id);
         return Ok(updated);
     }
 
@@ -149,6 +158,7 @@ public class ArrangementsController : ControllerBase
 
         await _auditService.LogAsync(Models.AuditEventType.ArrangementDelete, User.Identity?.Name, null, null,
             $"arrangementId: {id} ({arrangement.Name})");
+        await _zipCacheService.InvalidateForArrangementAsync(id);
         return NoContent();
     }
 
@@ -274,7 +284,9 @@ public class ArrangementsController : ControllerBase
 
     [HttpPost("{id}/files")]
     [Authorize(Roles = "Admin,Librarian,Submitter")]
-    public async Task<ActionResult<ArrangementFile>> UploadFile(int id, IFormFile file)
+    public async Task<ActionResult<ArrangementFile>> UploadFile(int id, IFormFile file,
+        [FromForm] string? scorePartType = null,
+        [FromForm] int? instrumentId = null)
     {
         if (IsSubmitterOnly())
         {
@@ -303,6 +315,7 @@ public class ArrangementsController : ControllerBase
             ? mapped
             : "application/octet-stream";
 
+        var isPdf = RenderedScoreExtensions.Contains(extension ?? "");
         var arrangementFile = new ArrangementFile
         {
             FileName = file.FileName,
@@ -311,13 +324,16 @@ public class ArrangementsController : ControllerBase
             FileSize = file.Length,
             UploadedAt = DateTime.UtcNow,
             ArrangementId = id,
-            CreatedBy = User.Identity?.Name
+            CreatedBy = User.Identity?.Name,
+            ScorePartType = isPdf ? (scorePartType ?? ScorePartType.UnlistedPart) : null,
+            InstrumentId = isPdf ? instrumentId : null,
         };
 
         await _fileRepository.AddFileAsync(arrangementFile);
         await _auditService.LogAsync(Models.AuditEventType.FileUpload, User.Identity?.Name, null, null,
             $"arrangementId: {id}, fileId: {arrangementFile.Id}, filename: {arrangementFile.FileName}");
         _arrangementRepository.InvalidateCache();
+        await _zipCacheService.InvalidateForArrangementAsync(id);
 
         return CreatedAtAction(nameof(DownloadFile), new { id, fileId = arrangementFile.Id }, arrangementFile);
     }
@@ -393,7 +409,35 @@ public class ArrangementsController : ControllerBase
         await _auditService.LogAsync(Models.AuditEventType.FileDelete, User.Identity?.Name, null, null,
             $"arrangementId: {id}, fileId: {fileId}, filename: {arrangementFile.FileName}");
         _arrangementRepository.InvalidateCache();
+        await _zipCacheService.InvalidateForArrangementAsync(id);
 
+        return NoContent();
+    }
+
+    [HttpPatch("{id}/files/{fileId}")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
+    public async Task<IActionResult> UpdateFileMetadata(int id, int fileId, [FromBody] UpdateFileMetadataRequest request)
+    {
+        if (request.ScorePartType != null && !ScorePartType.All.Contains(request.ScorePartType))
+            return BadRequest("Invalid scorePartType");
+
+        if (IsSubmitterOnly())
+        {
+            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
+            if (arrangement == null) return NotFound();
+            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
+        }
+
+        var file = await _fileRepository.GetFileAsync(id, fileId);
+        if (file == null)
+            return NotFound();
+
+        var updated = await _fileRepository.UpdateFileMetadataAsync(id, fileId, request.ScorePartType, request.InstrumentId);
+        if (!updated)
+            return NotFound();
+
+        _arrangementRepository.InvalidateCache();
+        await _zipCacheService.InvalidateForArrangementAsync(id);
         return NoContent();
     }
 }

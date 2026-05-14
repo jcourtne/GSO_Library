@@ -1,4 +1,6 @@
 import type { Ensemble } from './ensemble';
+import type { Season } from './season';
+import type { Arrangement } from './arrangement';
 
 export interface Performance {
   id: number;
@@ -8,6 +10,8 @@ export interface Performance {
   notes?: string;
   ensembleId?: number;
   ensemble?: Ensemble;
+  arrangements?: Arrangement[];
+  seasons?: Season[];
   createdAt: string;
   updatedAt: string;
   createdBy?: string;

@@ -33,5 +33,9 @@ public class UserRepository
         return rows.ToDictionary(r => r.Username, r => r.LastLogin);
     }
 
-    private record LastLoginRow(string Username, DateTime? LastLogin);
+    private class LastLoginRow
+    {
+        public string Username { get; set; } = "";
+        public DateTime? LastLogin { get; set; }
+    }
 }

@@ -9,3 +9,4 @@ export type { Ensemble } from './ensemble';
 export type { InstrumentSortOrder } from './instrumentSortOrder';
 export type { AuditEvent } from './auditEvent';
 export { AUDIT_EVENT_TYPES } from './auditEvent';
+export type { Season } from './season';

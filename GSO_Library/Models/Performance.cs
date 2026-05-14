@@ -4,7 +4,7 @@ public class Performance
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
-    public string Link { get; set; } = string.Empty;
+    public string? Link { get; set; }
     public DateTime? PerformanceDate { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -15,4 +15,5 @@ public class Performance
     // Navigation properties
     public virtual Ensemble? Ensemble { get; set; }
     public virtual ICollection<Arrangement> Arrangements { get; set; } = [];
+    public virtual ICollection<Season> Seasons { get; set; } = [];
 }

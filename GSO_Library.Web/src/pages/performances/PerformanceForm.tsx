@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Col, Form, Row, Spinner } from 'react-bootstrap';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Alert, Button, Card, Col, Form, ListGroup, Row, Spinner } from 'react-bootstrap';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { performancesApi } from '../../api/performances';
 import { ensemblesApi } from '../../api/ensembles';
+import { arrangementsApi } from '../../api/arrangements';
+import { seasonsApi } from '../../api/seasons';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import ProgramSection from '../../components/performances/ProgramSection';
+import ArrangementPickerModal from '../../components/arrangements/ArrangementPickerModal';
+import type { Arrangement } from '../../types';
 
 export default function PerformanceForm() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +22,8 @@ export default function PerformanceForm() {
   const [performanceDate, setPerformanceDate] = useState('');
   const [notes, setNotes] = useState('');
   const [ensembleId, setEnsembleId] = useState<number | null>(null);
+  const [showAddArrangement, setShowAddArrangement] = useState(false);
+  const [seasonId, setSeasonId] = useState<number | null>(null);
 
   const { data: existing, isLoading } = useQuery({
     queryKey: ['performance', id],
@@ -36,6 +42,18 @@ export default function PerformanceForm() {
     queryFn: () => ensemblesApi.getAll(),
   });
 
+  const { data: seasonsAll } = useQuery({
+    queryKey: ['seasons-all'],
+    queryFn: () => seasonsApi.list({ pageSize: 100 }),
+    enabled: !isEdit,
+  });
+
+  const { data: selectedSeason, isLoading: seasonLoading } = useQuery({
+    queryKey: ['season-for-performance', seasonId],
+    queryFn: () => seasonsApi.get(seasonId!),
+    enabled: !isEdit && seasonId !== null,
+  });
+
   useEffect(() => {
     if (existing) {
       setName(existing.name);
@@ -46,8 +64,23 @@ export default function PerformanceForm() {
     }
   }, [existing]);
 
+  const addArrangementMutation = useMutation({
+    mutationFn: (arrangementId: number) => arrangementsApi.addPerformance(arrangementId, Number(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['performance', id] });
+      setShowAddArrangement(false);
+    },
+    onError: () => setError('Failed to add arrangement'),
+  });
+
+  const removeArrangementMutation = useMutation({
+    mutationFn: (arrangementId: number) => arrangementsApi.removePerformance(arrangementId, Number(id)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['performance', id] }),
+    onError: () => setError('Failed to remove arrangement'),
+  });
+
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const payload = {
         name,
         link,
@@ -55,11 +88,24 @@ export default function PerformanceForm() {
         notes: notes || undefined,
         ensembleId: ensembleId ?? undefined,
       };
-      return isEdit ? performancesApi.update(Number(id), payload) : performancesApi.create(payload);
+      if (isEdit) {
+        await performancesApi.update(Number(id), payload);
+        return Number(id);
+      } else {
+        const created = await performancesApi.create(payload);
+        if (seasonId) {
+          await seasonsApi.addPerformance(seasonId, created.id);
+          for (const arr of selectedSeason?.arrangements ?? []) {
+            await arrangementsApi.addPerformance(arr.id, created.id);
+          }
+        }
+        return created.id;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (newId) => {
       queryClient.invalidateQueries({ queryKey: ['performances'] });
-      navigate('/performances');
+      queryClient.invalidateQueries({ queryKey: ['performance', id] });
+      navigate(`/performances/${newId}`);
     },
     onError: () => setError('Failed to save performance'),
   });
@@ -78,8 +124,8 @@ export default function PerformanceForm() {
               <Form.Control value={name} onChange={(e) => setName(e.target.value)} required />
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Link *</Form.Label>
-              <Form.Control type="url" value={link} onChange={(e) => setLink(e.target.value)} required placeholder="https://..." />
+              <Form.Label>Link</Form.Label>
+              <Form.Control type="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://..." />
             </Form.Group>
             <Row>
               <Col md={6}>
@@ -98,27 +144,116 @@ export default function PerformanceForm() {
                 onChange={(v) => setEnsembleId(v)}
               />
             </Form.Group>
+            {!isEdit && (
+              <Form.Group className="mb-3">
+                <Form.Label>Season</Form.Label>
+                <SearchableSelect
+                  placeholder="No Season"
+                  options={seasonsAll?.items.map((s) => ({ value: s.id, label: s.name })) ?? []}
+                  value={seasonId}
+                  onChange={(v) => setSeasonId(v)}
+                />
+              </Form.Group>
+            )}
             <Form.Group className="mb-3">
               <Form.Label>Notes</Form.Label>
               <Form.Control as="textarea" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
             </Form.Group>
-            <Button type="submit" disabled={mutation.isPending}>
+            <Button type="submit" disabled={mutation.isPending || (!isEdit && seasonId !== null && seasonLoading)}>
               {mutation.isPending ? <Spinner size="sm" animation="border" /> : (isEdit ? 'Save' : 'Create')}
             </Button>
-            <Button variant="secondary" className="ms-2" onClick={() => navigate('/performances')}>Cancel</Button>
+            <Button variant="secondary" className="ms-2" onClick={() => navigate(isEdit ? `/performances/${id}` : '/performances')}>Cancel</Button>
           </Form>
         </Card.Body>
       </Card>
 
-      {isEdit && (
-        <div className="mt-4">
-          <ProgramSection
-            files={programFiles}
-            performanceId={Number(id)}
-            editable={true}
-          />
-        </div>
+      {!isEdit && seasonId !== null && selectedSeason && (
+        <Card className="mt-4">
+          <Card.Body>
+            <Card.Title>Arrangements from {selectedSeason.name}</Card.Title>
+            {selectedSeason.arrangements && selectedSeason.arrangements.length > 0 ? (
+              <ListGroup variant="flush">
+                {selectedSeason.arrangements.map((a) => (
+                  <ListGroup.Item key={a.id} className="px-0">
+                    <div className="fw-semibold">{a.name}</div>
+                    <div className="text-muted small">
+                      {[
+                        a.composers?.length > 0 && `Composed by ${a.composers.join(', ')}`,
+                        a.arrangers?.length > 0 && `Arranged by ${a.arrangers.join(', ')}`,
+                      ].filter(Boolean).join(' · ')}
+                    </div>
+                  </ListGroup.Item>
+                ))}
+              </ListGroup>
+            ) : (
+              <p className="text-muted mb-0">No arrangements in this season.</p>
+            )}
+          </Card.Body>
+        </Card>
       )}
+
+      {isEdit && (() => {
+        const linkedArrangementIds = new Set(existing?.arrangements?.map((a: Arrangement) => a.id) ?? []);
+        return (
+          <>
+            <Card className="mb-4 mt-4">
+              <Card.Body>
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <Card.Title className="mb-0">Arrangements</Card.Title>
+                  <Button size="sm" variant="outline-primary" onClick={() => setShowAddArrangement(true)}>
+                    + Add
+                  </Button>
+                </div>
+                {existing?.arrangements && existing.arrangements.length > 0 ? (
+                  <ListGroup variant="flush">
+                    {existing.arrangements.map((a: Arrangement) => (
+                      <ListGroup.Item key={a.id} className="d-flex justify-content-between align-items-start px-0">
+                        <div>
+                          <Link to={`/arrangements/${a.id}`} className="fw-semibold text-decoration-none">
+                            {a.name}
+                          </Link>
+                          <div className="text-muted small">
+                            {[
+                              a.composers?.length > 0 && `Composed by ${a.composers.join(', ')}`,
+                              a.arrangers?.length > 0 && `Arranged by ${a.arrangers.join(', ')}`,
+                            ].filter(Boolean).join(' · ')}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline-danger"
+                          onClick={() => removeArrangementMutation.mutate(a.id)}
+                          disabled={removeArrangementMutation.isPending}
+                        >
+                          Remove
+                        </Button>
+                      </ListGroup.Item>
+                    ))}
+                  </ListGroup>
+                ) : (
+                  <p className="text-muted mb-0">No arrangements linked to this performance.</p>
+                )}
+              </Card.Body>
+            </Card>
+
+            <ArrangementPickerModal
+              show={showAddArrangement}
+              onHide={() => setShowAddArrangement(false)}
+              excludeIds={linkedArrangementIds}
+              onSelect={(arrangementId) => addArrangementMutation.mutate(arrangementId)}
+              isPending={addArrangementMutation.isPending}
+            />
+
+            <div className="mt-4">
+              <ProgramSection
+                files={programFiles}
+                performanceId={Number(id)}
+                editable={true}
+              />
+            </div>
+          </>
+        );
+      })()}
     </>
   );
 }

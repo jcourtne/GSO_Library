@@ -161,6 +161,23 @@ export default function PerformanceDetail() {
             </Card>
           )}
 
+          {performance.seasons && performance.seasons.length > 0 && (
+            <Card className="mb-3">
+              <Card.Body>
+                <Card.Title>Seasons</Card.Title>
+                <ListGroup variant="flush">
+                  {performance.seasons.map((s) => (
+                    <ListGroup.Item key={s.id} className="px-0">
+                      <Link to={`/seasons/${s.id}`} className="fw-semibold text-decoration-none">
+                        {s.name}
+                      </Link>
+                    </ListGroup.Item>
+                  ))}
+                </ListGroup>
+              </Card.Body>
+            </Card>
+          )}
+
           <Card className="mb-3">
             <Card.Body>
               <Card.Title>Details</Card.Title>

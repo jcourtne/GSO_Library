@@ -48,7 +48,7 @@ public class ArrangementRepository
                 "SELECT id, name, description, duration_seconds, year, created_at, updated_at, created_by FROM arrangements")).ToList();
 
             var allFiles = (await connection.QueryAsync<ArrangementFile>(
-                "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by FROM arrangement_files")).ToList();
+                "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by, score_part_type, instrument_id FROM arrangement_files")).ToList();
 
             var allGames = (await connection.QueryAsync<Game>(
                 "SELECT id, name, description, series_id, created_at, updated_at, created_by FROM games")).ToList();
@@ -71,6 +71,12 @@ public class ArrangementRepository
             var arrangementPerformances = (await connection.QueryAsync<(int ArrangementId, int PerformanceId)>(
                 "SELECT arrangement_id, performance_id FROM arrangement_performances")).ToList();
 
+            var allSeasons = (await connection.QueryAsync<Season>(
+                "SELECT id, name, start_date, end_date FROM seasons")).ToList();
+
+            var arrangementSeasons = (await connection.QueryAsync<(int ArrangementId, int SeasonId)>(
+                "SELECT arrangement_id, season_id FROM season_arrangements")).ToList();
+
             var allComposers = (await connection.QueryAsync<(int ArrangementId, string Name)>(
                 "SELECT arrangement_id, name FROM arrangement_composers ORDER BY sort_order")).ToList();
 
@@ -79,6 +85,7 @@ public class ArrangementRepository
 
             // Build lookups
             var seriesLookup = allSeries.ToDictionary(s => s.Id);
+            var seasonLookup = allSeasons.ToDictionary(s => s.Id);
             var gameLookup = allGames.ToDictionary(g => g.Id);
             var instrumentLookup = allInstruments.ToDictionary(i => i.Id);
             var performanceLookup = allPerformances.ToDictionary(p => p.Id);
@@ -97,6 +104,9 @@ public class ArrangementRepository
             var performancesByArrangement = arrangementPerformances.GroupBy(ap => ap.ArrangementId)
                 .ToDictionary(g => g.Key, g => g.Select(ap => performanceLookup.GetValueOrDefault(ap.PerformanceId)).Where(x => x != null).ToList()!);
 
+            var seasonsByArrangement = arrangementSeasons.GroupBy(sa => sa.ArrangementId)
+                .ToDictionary(g => g.Key, g => g.Select(sa => seasonLookup.GetValueOrDefault(sa.SeasonId)).Where(x => x != null).ToList()!);
+
             var filesByArrangement = allFiles.GroupBy(f => f.ArrangementId)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
@@ -112,6 +122,7 @@ public class ArrangementRepository
                 a.Games = gamesByArrangement.GetValueOrDefault(a.Id, [])!;
                 a.Instruments = instrumentsByArrangement.GetValueOrDefault(a.Id, [])!;
                 a.Performances = performancesByArrangement.GetValueOrDefault(a.Id, [])!;
+                a.Seasons = seasonsByArrangement.GetValueOrDefault(a.Id, [])!;
                 a.Files = filesByArrangement.GetValueOrDefault(a.Id, []);
                 a.Composers = composersByArrangement.GetValueOrDefault(a.Id, []);
                 a.Arrangers = arrangersByArrangement.GetValueOrDefault(a.Id, []);

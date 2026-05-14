@@ -590,4 +590,46 @@ public class ArrangementsControllerTests : IntegrationTestBase
         var downloadResponse = await editor.GetAsync($"/api/arrangements/{arrangement.Id}/files/{file!.Id}");
         Assert.Equal(HttpStatusCode.OK, downloadResponse.StatusCode);
     }
+
+    // ───── File metadata update ─────
+
+    [Fact]
+    public async Task UpdateFileMetadata_AsLibrarian_Returns204()
+    {
+        var client = await GetLibrarianClientAsync();
+        var arrangement = await CreateArrangementAsync(client, "MetaPatch");
+
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("pdf data"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(fileContent, "file", "part.pdf");
+
+        var uploadResponse = await client.PostAsync($"/api/arrangements/{arrangement.Id}/files", content);
+        uploadResponse.EnsureSuccessStatusCode();
+        var file = await uploadResponse.Content.ReadFromJsonAsync<ArrangementFile>(JsonOpts);
+
+        var patchResponse = await client.PatchAsJsonAsync(
+            $"/api/arrangements/{arrangement.Id}/files/{file!.Id}",
+            new { ScorePartType = "conductor_score", InstrumentId = (int?)null });
+
+        Assert.Equal(HttpStatusCode.NoContent, patchResponse.StatusCode);
+
+        var files = await client.GetAsync($"/api/arrangements/{arrangement.Id}/files");
+        var list = await files.Content.ReadFromJsonAsync<List<ArrangementFile>>(JsonOpts);
+        var updated = list!.First(f => f.Id == file.Id);
+        Assert.Equal("conductor_score", updated.ScorePartType);
+    }
+
+    [Fact]
+    public async Task UpdateFileMetadata_NotFound_Returns404()
+    {
+        var client = await GetLibrarianClientAsync();
+        var arrangement = await CreateArrangementAsync(client, "MetaPatchNF");
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/arrangements/{arrangement.Id}/files/99999",
+            new { ScorePartType = "conductor_score", InstrumentId = (int?)null });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
 }

@@ -17,4 +17,5 @@ public class Arrangement
     public virtual ICollection<Game> Games { get; set; } = [];
     public virtual ICollection<Instrument> Instruments { get; set; } = [];
     public virtual ICollection<Performance> Performances { get; set; } = [];
+    public virtual ICollection<Season> Seasons { get; set; } = [];
 }

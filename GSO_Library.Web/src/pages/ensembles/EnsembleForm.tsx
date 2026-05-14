@@ -75,7 +75,7 @@ export default function EnsembleForm() {
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? <Spinner size="sm" animation="border" /> : (isEdit ? 'Save' : 'Create')}
             </Button>
-            <Button variant="secondary" className="ms-2" onClick={() => navigate('/ensembles')}>Cancel</Button>
+            <Button variant="secondary" className="ms-2" onClick={() => navigate(isEdit ? `/ensembles/${id}` : '/ensembles')}>Cancel</Button>
           </Form>
         </Card.Body>
       </Card>

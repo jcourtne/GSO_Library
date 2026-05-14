@@ -1,7 +1,8 @@
 import type { ArrangementFile } from '../types';
+import { SCORE_PART_TYPES } from './scorePartTypes';
 
 const NOTATION_EXTENSIONS = ['.xml', '.mxl', '.mscz', '.dorico', '.sib'];
-const RENDERED_SCORE_EXTENSIONS = ['.pdf', '.zip'];
+const RENDERED_SCORE_EXTENSIONS = ['.pdf'];
 const PLAYBACK_EXTENSIONS = ['.mid', '.midi', '.mp3', '.wav', '.flac', '.ogg'];
 
 export interface CategorizedFiles {
@@ -35,6 +36,43 @@ export function categorizeFiles(files: ArrangementFile[]): CategorizedFiles {
   }
 
   return { notationFiles, renderedScoreFiles, playbackFiles };
+}
+
+export interface GroupedScoreFiles {
+  conductorScore: ArrangementFile[];
+  byInstrument: Map<number, ArrangementFile[]>;
+  percussion: ArrangementFile[];
+  unlisted: ArrangementFile[];
+}
+
+export function groupScoreFiles(
+  renderedFiles: ArrangementFile[],
+  arrangementInstrumentIds: Set<number>,
+): GroupedScoreFiles {
+  const result: GroupedScoreFiles = {
+    conductorScore: [],
+    byInstrument: new Map(),
+    percussion: [],
+    unlisted: [],
+  };
+  for (const f of renderedFiles) {
+    if (f.scorePartType === SCORE_PART_TYPES.CONDUCTOR_SCORE) {
+      result.conductorScore.push(f);
+    } else if (
+      f.scorePartType === SCORE_PART_TYPES.INSTRUMENT_PART &&
+      f.instrumentId != null &&
+      arrangementInstrumentIds.has(f.instrumentId)
+    ) {
+      const list = result.byInstrument.get(f.instrumentId) ?? [];
+      list.push(f);
+      result.byInstrument.set(f.instrumentId, list);
+    } else if (f.scorePartType === SCORE_PART_TYPES.PERCUSSION_PART) {
+      result.percussion.push(f);
+    } else {
+      result.unlisted.push(f);
+    }
+  }
+  return result;
 }
 
 export function formatFileSize(bytes: number): string {

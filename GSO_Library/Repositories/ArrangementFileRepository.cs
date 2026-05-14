@@ -25,9 +25,9 @@ public class ArrangementFileRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var id = await connection.InsertReturningIdAsync(
-            @"INSERT INTO arrangement_files (file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by)
-              VALUES (@FileName, @StoredFileName, @ContentType, @FileSize, @UploadedAt, @ArrangementId, @CreatedBy)",
-            new { file.FileName, file.StoredFileName, file.ContentType, file.FileSize, file.UploadedAt, file.ArrangementId, file.CreatedBy });
+            @"INSERT INTO arrangement_files (file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by, score_part_type, instrument_id)
+              VALUES (@FileName, @StoredFileName, @ContentType, @FileSize, @UploadedAt, @ArrangementId, @CreatedBy, @ScorePartType, @InstrumentId)",
+            new { file.FileName, file.StoredFileName, file.ContentType, file.FileSize, file.UploadedAt, file.ArrangementId, file.CreatedBy, file.ScorePartType, file.InstrumentId });
         file.Id = id;
         return file;
     }
@@ -36,7 +36,7 @@ public class ArrangementFileRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var files = await connection.QueryAsync<ArrangementFile>(
-            "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by FROM arrangement_files WHERE arrangement_id = @Id",
+            "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by, score_part_type, instrument_id FROM arrangement_files WHERE arrangement_id = @Id",
             new { Id = arrangementId });
         return files.ToList();
     }
@@ -45,8 +45,19 @@ public class ArrangementFileRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QuerySingleOrDefaultAsync<ArrangementFile>(
-            "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by FROM arrangement_files WHERE id = @FileId AND arrangement_id = @ArrangementId",
+            "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by, score_part_type, instrument_id FROM arrangement_files WHERE id = @FileId AND arrangement_id = @ArrangementId",
             new { FileId = fileId, ArrangementId = arrangementId });
+    }
+
+    public async Task<bool> UpdateFileMetadataAsync(int arrangementId, int fileId, string? scorePartType, int? instrumentId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        var rows = await connection.ExecuteAsync(
+            @"UPDATE arrangement_files
+              SET score_part_type = @ScorePartType, instrument_id = @InstrumentId
+              WHERE id = @FileId AND arrangement_id = @ArrangementId",
+            new { ScorePartType = scorePartType, InstrumentId = instrumentId, FileId = fileId, ArrangementId = arrangementId });
+        return rows > 0;
     }
 
     public async Task<bool> DeleteFileAsync(int arrangementId, int fileId)

@@ -20,11 +20,15 @@ import PerformanceForm from './pages/performances/PerformanceForm';
 import EnsembleList from './pages/ensembles/EnsembleList';
 import EnsembleDetail from './pages/ensembles/EnsembleDetail';
 import EnsembleForm from './pages/ensembles/EnsembleForm';
+import SeasonList from './pages/seasons/SeasonList';
+import SeasonDetail from './pages/seasons/SeasonDetail';
+import SeasonForm from './pages/seasons/SeasonForm';
 import UserList from './pages/admin/UserList';
 import UserDetail from './pages/admin/UserDetail';
 import RegisterUser from './pages/admin/RegisterUser';
 import AuditEvents from './pages/admin/AuditEvents';
 import ChangePassword from './pages/ChangePassword';
+import SeasonPublicPage from './pages/public/SeasonPublicPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,6 +50,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/share/seasons/:token" element={<SeasonPublicPage />} />
 
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route index element={<Dashboard />} />
@@ -82,6 +87,12 @@ export default function App() {
               <Route path="ensembles/:id" element={<EnsembleDetail />} />
               <Route path="ensembles/new" element={<ProtectedRoute requiredRoles={librarianRoles}><EnsembleForm /></ProtectedRoute>} />
               <Route path="ensembles/:id/edit" element={<ProtectedRoute requiredRoles={librarianRoles}><EnsembleForm /></ProtectedRoute>} />
+
+              {/* Seasons */}
+              <Route path="seasons" element={<SeasonList />} />
+              <Route path="seasons/:id" element={<SeasonDetail />} />
+              <Route path="seasons/new" element={<ProtectedRoute requiredRoles={librarianRoles}><SeasonForm /></ProtectedRoute>} />
+              <Route path="seasons/:id/edit" element={<ProtectedRoute requiredRoles={librarianRoles}><SeasonForm /></ProtectedRoute>} />
 
               {/* Account */}
               <Route path="change-password" element={<ChangePassword />} />

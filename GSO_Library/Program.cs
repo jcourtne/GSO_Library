@@ -39,7 +39,7 @@ builder.Services.AddCors(options =>
             ?? ["http://localhost:5173"];
         policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
-              .WithMethods("GET", "POST", "PUT", "DELETE")
+              .WithMethods("GET", "POST", "PUT", "DELETE", "PATCH")
               .AllowCredentials();
     });
 });
@@ -56,6 +56,7 @@ builder.Services.AddOpenApi();
 
 // Configure Dapper to map snake_case columns to PascalCase properties
 Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
+Dapper.SqlMapper.AddTypeHandler(new GSO_Library.Data.DateOnlyTypeHandler());
 
 // Add DbContext (Identity-only, using Npgsql)
 builder.Services.AddDbContext<GSOLibraryContext>(options =>
@@ -133,9 +134,13 @@ builder.Services.AddScoped<InstrumentRepository>();
 builder.Services.AddScoped<PerformanceRepository>();
 builder.Services.AddScoped<PerformanceFileRepository>();
 builder.Services.AddScoped<EnsembleRepository>();
+builder.Services.AddScoped<SeasonRepository>();
+builder.Services.AddScoped<SeasonShareZipRepository>();
 builder.Services.AddScoped<InstrumentSortOrderRepository>();
 builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<AuditEventRepository>();
+
+builder.Services.AddScoped<ISeasonZipCacheService, SeasonZipCacheService>();
 
 var app = builder.Build();
 

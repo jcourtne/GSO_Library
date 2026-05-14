@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import FileSection from '../../components/arrangements/FileSection';
+import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
 import { categorizeFiles } from '../../utils/fileCategories';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -22,6 +23,8 @@ export default function ArrangementDetail() {
   const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [error, setError] = useState('');
+  const [showAllPerformances, setShowAllPerformances] = useState(false);
+  const [showAllSeasons, setShowAllSeasons] = useState(false);
 
   const { data: arrangement, isLoading } = useQuery({
     queryKey: ['arrangement', id],
@@ -94,9 +97,7 @@ export default function ArrangementDetail() {
                 {categorized.notationFiles.length > 0 && (
                   <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownloadAll()} />
                 )}
-                {categorized.renderedScoreFiles.length > 0 && (
-                  <FileSection title="Rendered Score/Parts" files={categorized.renderedScoreFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownloadAll()} />
-                )}
+                <RenderedScoreGrid arrangement={arrangement} files={arrangement.files} editable={false} canDownload={canDownloadAll()} />
                 {categorized.playbackFiles.length > 0 && (
                   <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={arrangement.id} editable={false} />
                 )}
@@ -140,21 +141,77 @@ export default function ArrangementDetail() {
 
           <Card className="mb-3">
             <Card.Body>
-              <Card.Title>Performances</Card.Title>
-              {arrangement.performances?.length > 0 ? (
-                <ListGroup variant="flush">
-                  {arrangement.performances.map((p) => (
-                    <ListGroup.Item key={p.id}>
-                      <Link to={`/performances/${p.id}`}>{p.name}</Link>
-                      {p.performanceDate && (
-                        <small className="text-muted d-block">
-                          {new Date(p.performanceDate).toLocaleDateString()}
-                        </small>
-                      )}
-                    </ListGroup.Item>
-                  ))}
-                </ListGroup>
-              ) : (
+              <Card.Title>Recent Performances</Card.Title>
+              {arrangement.performances?.length > 0 ? (() => {
+                const sorted = [...arrangement.performances].sort((a, b) => {
+                  if (!a.performanceDate && !b.performanceDate) return 0;
+                  if (!a.performanceDate) return 1;
+                  if (!b.performanceDate) return -1;
+                  return b.performanceDate.localeCompare(a.performanceDate);
+                });
+                const visible = showAllPerformances ? sorted : sorted.slice(0, 3);
+                return (
+                  <>
+                    <ListGroup variant="flush">
+                      {visible.map((p) => (
+                        <ListGroup.Item key={p.id}>
+                          <Link to={`/performances/${p.id}`}>{p.name}</Link>
+                          {p.performanceDate && (
+                            <small className="text-muted d-block">
+                              {new Date(p.performanceDate).toLocaleDateString()}
+                            </small>
+                          )}
+                        </ListGroup.Item>
+                      ))}
+                    </ListGroup>
+                    {sorted.length > 3 && (
+                      <Button variant="link" size="sm" className="p-0 mt-2" onClick={() => setShowAllPerformances(!showAllPerformances)}>
+                        {showAllPerformances ? 'Show less' : `Show all ${sorted.length}`}
+                      </Button>
+                    )}
+                  </>
+                );
+              })() : (
+                <p className="text-muted mb-0">None</p>
+              )}
+            </Card.Body>
+          </Card>
+
+          <Card className="mb-3">
+            <Card.Body>
+              <Card.Title>Recent Seasons</Card.Title>
+              {arrangement.seasons && arrangement.seasons.length > 0 ? (() => {
+                const sorted = [...arrangement.seasons].sort((a, b) => {
+                  if (!a.startDate && !b.startDate) return 0;
+                  if (!a.startDate) return 1;
+                  if (!b.startDate) return -1;
+                  return b.startDate.localeCompare(a.startDate);
+                });
+                const visible = showAllSeasons ? sorted : sorted.slice(0, 3);
+                return (
+                  <>
+                    <ListGroup variant="flush">
+                      {visible.map((s) => (
+                        <ListGroup.Item key={s.id} className="px-0">
+                          <Link to={`/seasons/${s.id}`} className="text-decoration-none">
+                            {s.name}
+                          </Link>
+                          {s.startDate && (
+                            <small className="text-muted d-block">
+                              {new Date(s.startDate).toLocaleDateString()}
+                            </small>
+                          )}
+                        </ListGroup.Item>
+                      ))}
+                    </ListGroup>
+                    {sorted.length > 3 && (
+                      <Button variant="link" size="sm" className="p-0 mt-2" onClick={() => setShowAllSeasons(!showAllSeasons)}>
+                        {showAllSeasons ? 'Show less' : `Show all ${sorted.length}`}
+                      </Button>
+                    )}
+                  </>
+                );
+              })() : (
                 <p className="text-muted mb-0">None</p>
               )}
             </Card.Body>

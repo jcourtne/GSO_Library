@@ -25,4 +25,7 @@ public static class AuditEventType
     public const string InstrumentDelete = "InstrumentDelete";
     public const string PerformanceCreate = "PerformanceCreate";
     public const string PerformanceDelete = "PerformanceDelete";
+    public const string SeasonCreate = "SeasonCreate";
+    public const string SeasonUpdate = "SeasonUpdate";
+    public const string SeasonDelete = "SeasonDelete";
 }

@@ -13,4 +13,5 @@ public class Ensemble
 
     // Navigation properties
     public virtual ICollection<Performance> Performances { get; set; } = [];
+    public virtual ICollection<Season> Seasons { get; set; } = [];
 }

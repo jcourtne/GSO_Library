@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Alert, Button, Card, Col, Form, Row, Spinner } from 'react-bootstrap';
+import { Alert, Button, Card, Col, Form, ListGroup, Row, Spinner } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ensemblesApi } from '../../api/ensembles';
+import { seasonsApi } from '../../api/seasons';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import DataTable from '../../components/common/DataTable';
 import { useAuth } from '../../hooks/useAuth';
@@ -21,6 +22,12 @@ export default function EnsembleDetail() {
   const { data: ensemble, isLoading } = useQuery({
     queryKey: ['ensemble', id],
     queryFn: () => ensemblesApi.get(Number(id)),
+    enabled: !!id,
+  });
+
+  const { data: seasons } = useQuery({
+    queryKey: ['seasons', { ensembleId: id }],
+    queryFn: () => seasonsApi.list({ ensembleIds: [Number(id)], pageSize: 100 }),
     enabled: !!id,
   });
 
@@ -103,6 +110,31 @@ export default function EnsembleDetail() {
 
       <Row className="g-4">
         <Col md={8}>
+          <Card className="mb-3">
+            <Card.Body>
+              <Card.Title>Seasons</Card.Title>
+              {seasons && seasons.items.length > 0 ? (
+                <ListGroup variant="flush">
+                  {seasons.items.map((s) => (
+                    <ListGroup.Item key={s.id} className="d-flex justify-content-between align-items-center px-0">
+                      <Link to={`/seasons/${s.id}`} className="fw-semibold text-decoration-none">
+                        {s.name}
+                      </Link>
+                      <span className="text-muted small">
+                        {[
+                          s.startDate && new Date(s.startDate).toLocaleDateString(),
+                          s.endDate && new Date(s.endDate).toLocaleDateString(),
+                        ].filter(Boolean).join(' – ')}
+                      </span>
+                    </ListGroup.Item>
+                  ))}
+                </ListGroup>
+              ) : (
+                <p className="text-muted mb-0">No seasons for this ensemble.</p>
+              )}
+            </Card.Body>
+          </Card>
+
           <Card className="mb-3">
             <Card.Body>
               <Card.Title>Performances</Card.Title>

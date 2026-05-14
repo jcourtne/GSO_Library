@@ -1,6 +1,7 @@
 import type { Game } from './game';
 import type { Instrument } from './instrument';
 import type { Performance } from './performance';
+import type { Season } from './season';
 
 export interface ArrangementFile {
   id: number;
@@ -11,6 +12,8 @@ export interface ArrangementFile {
   uploadedAt: string;
   createdBy?: string;
   arrangementId: number;
+  scorePartType?: string | null;
+  instrumentId?: number | null;
 }
 
 export interface Arrangement {
@@ -28,6 +31,7 @@ export interface Arrangement {
   games: Game[];
   instruments: Instrument[];
   performances: Performance[];
+  seasons?: Season[];
 }
 
 export interface ArrangementRequest {

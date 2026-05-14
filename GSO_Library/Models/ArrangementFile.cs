@@ -11,6 +11,9 @@ public class ArrangementFile
 
     public string? CreatedBy { get; set; }
 
+    public string? ScorePartType { get; set; }
+    public int? InstrumentId { get; set; }
+
     // Foreign key
     public int ArrangementId { get; set; }
 

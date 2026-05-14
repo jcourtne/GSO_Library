@@ -46,9 +46,11 @@ export const arrangementsApi = {
   listFiles: (arrangementId: number) =>
     apiClient.get<ArrangementFile[]>(`/arrangements/${arrangementId}/files`).then((r) => r.data),
 
-  uploadFile: (arrangementId: number, file: File) => {
+  uploadFile: (arrangementId: number, file: File, scorePartType?: string, instrumentId?: number) => {
     const formData = new FormData();
     formData.append('file', file);
+    if (scorePartType) formData.append('scorePartType', scorePartType);
+    if (instrumentId != null) formData.append('instrumentId', String(instrumentId));
     return apiClient.post<ArrangementFile>(`/arrangements/${arrangementId}/files`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then((r) => r.data);
@@ -61,4 +63,7 @@ export const arrangementsApi = {
 
   deleteFile: (arrangementId: number, fileId: number) =>
     apiClient.delete(`/arrangements/${arrangementId}/files/${fileId}`),
+
+  updateFileMetadata: (arrangementId: number, fileId: number, scorePartType: string | null, instrumentId: number | null) =>
+    apiClient.patch(`/arrangements/${arrangementId}/files/${fileId}`, { scorePartType, instrumentId }),
 };

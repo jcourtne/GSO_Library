@@ -129,7 +129,7 @@ export default function FileSection({ title, files, arrangementId, editable, acc
                       </small>
                     </div>
                     <div>
-                      {canDownload && (
+                      {canDownload && !editable && (
                         <Button size="sm" variant="outline-primary" className="me-2" onClick={() => handleDownload(f)}>
                           Download
                         </Button>

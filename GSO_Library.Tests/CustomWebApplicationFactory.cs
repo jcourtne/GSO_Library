@@ -84,7 +84,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 file_size INTEGER NOT NULL,
                 uploaded_at TEXT NOT NULL,
                 arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
-                created_by TEXT
+                created_by TEXT,
+                score_part_type TEXT,
+                instrument_id INTEGER REFERENCES instruments(id) ON DELETE SET NULL
             );
 
             CREATE TABLE IF NOT EXISTS instruments (
@@ -182,6 +184,45 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 instrument_id INTEGER NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
                 position INTEGER NOT NULL,
                 PRIMARY KEY (sort_order_id, instrument_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS seasons (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                ensemble_id INTEGER NOT NULL REFERENCES ensembles(id) ON DELETE RESTRICT,
+                start_date TEXT,
+                end_date TEXT,
+                notes TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT,
+                share_token TEXT UNIQUE,
+                share_include_pdf INTEGER NOT NULL DEFAULT 1,
+                share_include_notation INTEGER NOT NULL DEFAULT 0,
+                share_include_playback INTEGER NOT NULL DEFAULT 0,
+                share_password_hash TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS season_share_zips (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+                zip_key TEXT NOT NULL,
+                folder_path TEXT NOT NULL,
+                stored_file_name TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE (season_id, zip_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS season_arrangements (
+                season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
+                PRIMARY KEY (season_id, arrangement_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS season_performances (
+                season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
+                performance_id INTEGER NOT NULL REFERENCES performances(id) ON DELETE CASCADE,
+                PRIMARY KEY (season_id, performance_id)
             );
             """);
     }
