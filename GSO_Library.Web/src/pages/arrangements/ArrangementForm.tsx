@@ -11,6 +11,7 @@ import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
 import QuickCreateGameModal from '../../components/common/QuickCreateGameModal';
 import QuickCreateInstrumentModal from '../../components/common/QuickCreateInstrumentModal';
 import { categorizeFiles, NOTATION_ACCEPT, PLAYBACK_ACCEPT } from '../../utils/fileCategories';
+import { useDragAutoScroll } from '../../hooks/useDragAutoScroll';
 import type { ArrangementRequest } from '../../types';
 
 export default function ArrangementForm() {
@@ -18,6 +19,7 @@ export default function ArrangementForm() {
   const isEdit = !!id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  useDragAutoScroll();
   const [error, setError] = useState('');
 
   const [form, setForm] = useState<ArrangementRequest>({
