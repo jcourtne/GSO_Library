@@ -35,9 +35,10 @@ public class SeasonsControllerTests : IntegrationTestBase
         return body.GetProperty("token").GetString()!;
     }
 
-    private async Task<Ensemble> CreateEnsembleAsync(HttpClient client, string name = "Test Ensemble")
+    private async Task<Ensemble> CreateEnsembleAsync(string name = "Test Ensemble")
     {
-        var response = await client.PostAsJsonAsync("/api/ensembles", new { Name = name });
+        var admin = await GetAdminClientAsync();
+        var response = await admin.PostAsJsonAsync("/api/ensembles", new { Name = name });
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<Ensemble>(JsonOpts))!;
     }
@@ -62,7 +63,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task CreateSeason_AsLibrarian_Returns201()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_Create");
+        var ensemble = await CreateEnsembleAsync("Ens_Create");
 
         var response = await client.PostAsJsonAsync("/api/seasons", new
         {
@@ -83,7 +84,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task GetAllSeasons_Authenticated_Returns200()
     {
         var editor = await GetEditorClientAsync();
-        var ensemble = await CreateEnsembleAsync(editor, "Ens_GetAll");
+        var ensemble = await CreateEnsembleAsync("Ens_GetAll");
         await CreateSeasonAsync(editor, ensemble.Id, "Season_GetAll");
 
         var user = await GetUserClientAsync();
@@ -99,7 +100,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task GetSeasonById_Exists_Returns200WithLinkedData()
     {
         var editor = await GetEditorClientAsync();
-        var ensemble = await CreateEnsembleAsync(editor, "Ens_GetById");
+        var ensemble = await CreateEnsembleAsync("Ens_GetById");
         var season = await CreateSeasonAsync(editor, ensemble.Id, "Season_GetById");
 
         var user = await GetUserClientAsync();
@@ -116,7 +117,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task UpdateSeason_AsLibrarian_Returns200()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_Update");
+        var ensemble = await CreateEnsembleAsync("Ens_Update");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Old Season");
 
         var response = await client.PutAsJsonAsync($"/api/seasons/{season.Id}", new
@@ -135,7 +136,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task DeleteSeason_AsAdmin_Returns204()
     {
         var client = await GetAdminClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_Delete");
+        var ensemble = await CreateEnsembleAsync("Ens_Delete");
         var season = await CreateSeasonAsync(client, ensemble.Id, "ToDelete Season");
 
         var response = await client.DeleteAsync($"/api/seasons/{season.Id}");
@@ -152,7 +153,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task GetAllSeasons_SortByNameDesc_ReturnsSorted()
     {
         var client = await GetEditorClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_Sort");
+        var ensemble = await CreateEnsembleAsync("Ens_Sort");
         await CreateSeasonAsync(client, ensemble.Id, "AAA_SeasonSort");
         await CreateSeasonAsync(client, ensemble.Id, "ZZZ_SeasonSort");
 
@@ -169,8 +170,8 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task GetAllSeasons_FilterByEnsembleId_ReturnsOnlyMatching()
     {
         var client = await GetEditorClientAsync();
-        var ensA = await CreateEnsembleAsync(client, "Ens_FilterA");
-        var ensB = await CreateEnsembleAsync(client, "Ens_FilterB");
+        var ensA = await CreateEnsembleAsync("Ens_FilterA");
+        var ensB = await CreateEnsembleAsync("Ens_FilterB");
         await CreateSeasonAsync(client, ensA.Id, "Season_FilterA");
         await CreateSeasonAsync(client, ensB.Id, "Season_FilterB");
 
@@ -186,7 +187,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task CreateSeason_SetsAuditFields()
     {
         var client = await GetEditorClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_Audit");
+        var ensemble = await CreateEnsembleAsync("Ens_Audit");
 
         var response = await client.PostAsJsonAsync("/api/seasons", new
         {
@@ -205,7 +206,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task CreateSeason_LogsAuditEvent()
     {
         var client = await GetEditorClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_AuditLog");
+        var ensemble = await CreateEnsembleAsync("Ens_AuditLog");
         var sinceId = await GetMaxAuditEventIdAsync();
 
         var response = await client.PostAsJsonAsync("/api/seasons", new
@@ -235,7 +236,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task UpdateSeason_NotFound_Returns404()
     {
         var client = await GetEditorClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_UpdateNotFound");
+        var ensemble = await CreateEnsembleAsync("Ens_UpdateNotFound");
         var response = await client.PutAsJsonAsync("/api/seasons/99999", new { Name = "Nope", EnsembleId = ensemble.Id });
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -270,7 +271,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task AddArrangement_AsLibrarian_Returns204()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_ArrLink");
+        var ensemble = await CreateEnsembleAsync("Ens_ArrLink");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_ArrLink");
 
         // Create an arrangement to link
@@ -299,7 +300,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task RemoveArrangement_AsLibrarian_Returns204()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_ArrUnlink");
+        var ensemble = await CreateEnsembleAsync("Ens_ArrUnlink");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_ArrUnlink");
 
         var series = await client.PostAsJsonAsync("/api/series", new { Name = "Series_ArrUnlink" });
@@ -338,7 +339,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task AddPerformance_AsLibrarian_Returns204()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_PerfLink");
+        var ensemble = await CreateEnsembleAsync("Ens_PerfLink");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_PerfLink");
 
         var perf = await client.PostAsJsonAsync("/api/performances", new
@@ -361,7 +362,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task RemovePerformance_AsLibrarian_Returns204()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_PerfUnlink");
+        var ensemble = await CreateEnsembleAsync("Ens_PerfUnlink");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_PerfUnlink");
 
         var perf = await client.PostAsJsonAsync("/api/performances", new
@@ -404,7 +405,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task ConfigureShare_AsLibrarian_ReturnsToken()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_Share");
+        var ensemble = await CreateEnsembleAsync("Ens_Share");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_Share");
 
         var response = await client.PostAsJsonAsync($"/api/seasons/{season.Id}/share", new
@@ -425,7 +426,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task GetPublicSeason_WithValidToken_Returns200()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_PubGet");
+        var ensemble = await CreateEnsembleAsync("Ens_PubGet");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_PubGet");
 
         var shareResponse = await client.PostAsJsonAsync($"/api/seasons/{season.Id}/share", new
@@ -459,7 +460,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task GetPublicSeason_WithPassword_RequiresPassword()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_PubPw");
+        var ensemble = await CreateEnsembleAsync("Ens_PubPw");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_PubPw");
 
         var shareResponse = await client.PostAsJsonAsync($"/api/seasons/{season.Id}/share", new
@@ -492,7 +493,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task RevokeShare_AsLibrarian_Returns204AndInvalidatesToken()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_Revoke");
+        var ensemble = await CreateEnsembleAsync("Ens_Revoke");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_Revoke");
 
         var shareResponse = await client.PostAsJsonAsync($"/api/seasons/{season.Id}/share", new
@@ -532,7 +533,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task Download_ValidToken_ReturnsZip()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_DLBasic");
+        var ensemble = await CreateEnsembleAsync("Ens_DLBasic");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLBasic");
         var token = await ConfigureShareAsync(client, season.Id);
 
@@ -547,7 +548,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task Download_WithPdfFile_ZipContainsFile()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_DLFile");
+        var ensemble = await CreateEnsembleAsync("Ens_DLFile");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLFile");
 
         var arrangementId = await CreateArrangementAsync(client, "Arr_DLFile");
@@ -577,7 +578,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task Download_FilterByScorePartType_ReturnsZip()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_DLFilter");
+        var ensemble = await CreateEnsembleAsync("Ens_DLFilter");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLFilter");
         var token = await ConfigureShareAsync(client, season.Id);
 
@@ -600,7 +601,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task Download_WrongPassword_Returns401()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_DLPw");
+        var ensemble = await CreateEnsembleAsync("Ens_DLPw");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLPw");
 
         var shareResponse = await client.PostAsJsonAsync($"/api/seasons/{season.Id}/share", new
@@ -624,7 +625,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task Download_InvalidScorePartType_Returns400()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_DLBadType");
+        var ensemble = await CreateEnsembleAsync("Ens_DLBadType");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLBadType");
         var token = await ConfigureShareAsync(client, season.Id);
 
