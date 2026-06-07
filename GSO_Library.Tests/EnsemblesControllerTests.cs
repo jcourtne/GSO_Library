@@ -15,9 +15,9 @@ public class EnsemblesControllerTests : IntegrationTestBase
     // ───── Green cases ─────
 
     [Fact]
-    public async Task CreateEnsemble_AsEditor_Returns201()
+    public async Task CreateEnsemble_AsAdmin_Returns201()
     {
-        var client = await GetEditorClientAsync();
+        var client = await GetAdminClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/ensembles", new
         {
@@ -37,9 +37,19 @@ public class EnsemblesControllerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task GetAllEnsembles_Authenticated_Returns200()
+    public async Task CreateEnsemble_AsEditor_Returns403()
     {
         var client = await GetEditorClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/ensembles", new { Name = "EditorEnsemble" });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetAllEnsembles_Authenticated_Returns200()
+    {
+        var client = await GetAdminClientAsync();
         await client.PostAsJsonAsync("/api/ensembles", new { Name = "ListEnsemble" });
 
         var userClient = await GetUserClientAsync();
@@ -54,7 +64,7 @@ public class EnsemblesControllerTests : IntegrationTestBase
     [Fact]
     public async Task GetEnsembleById_Exists_Returns200()
     {
-        var client = await GetEditorClientAsync();
+        var client = await GetAdminClientAsync();
 
         var createResponse = await client.PostAsJsonAsync("/api/ensembles", new
         {
@@ -72,9 +82,9 @@ public class EnsemblesControllerTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task UpdateEnsemble_AsEditor_Returns200()
+    public async Task UpdateEnsemble_AsAdmin_Returns200()
     {
-        var client = await GetEditorClientAsync();
+        var client = await GetAdminClientAsync();
 
         var createResponse = await client.PostAsJsonAsync("/api/ensembles", new { Name = "OldEnsemble" });
         var created = await createResponse.Content.ReadFromJsonAsync<Ensemble>(JsonOpts);
@@ -114,7 +124,7 @@ public class EnsemblesControllerTests : IntegrationTestBase
     [Fact]
     public async Task GetAllEnsembles_SortByNameDesc_ReturnsSorted()
     {
-        var client = await GetEditorClientAsync();
+        var client = await GetAdminClientAsync();
         await client.PostAsJsonAsync("/api/ensembles", new { Name = "AAA_EnsembleSort" });
         await client.PostAsJsonAsync("/api/ensembles", new { Name = "ZZZ_EnsembleSort" });
 
@@ -130,7 +140,7 @@ public class EnsemblesControllerTests : IntegrationTestBase
     [Fact]
     public async Task CreateEnsemble_SetsAuditFields()
     {
-        var client = await GetEditorClientAsync();
+        var client = await GetAdminClientAsync();
 
         var response = await client.PostAsJsonAsync("/api/ensembles", new { Name = "AuditEnsemble" });
         response.EnsureSuccessStatusCode();
@@ -138,7 +148,7 @@ public class EnsemblesControllerTests : IntegrationTestBase
 
         Assert.NotEqual(default, ensemble!.CreatedAt);
         Assert.NotEqual(default, ensemble.UpdatedAt);
-        Assert.Equal("testeditor", ensemble.CreatedBy);
+        Assert.Equal("testadmin", ensemble.CreatedBy);
     }
 
     // ───── Error cases ─────
@@ -156,7 +166,7 @@ public class EnsemblesControllerTests : IntegrationTestBase
     [Fact]
     public async Task UpdateEnsemble_NotFound_Returns404()
     {
-        var client = await GetEditorClientAsync();
+        var client = await GetAdminClientAsync();
 
         var response = await client.PutAsJsonAsync("/api/ensembles/99999", new { Name = "Nope" });
 
@@ -166,7 +176,7 @@ public class EnsemblesControllerTests : IntegrationTestBase
     [Fact]
     public async Task DeleteEnsemble_NotFound_Returns404()
     {
-        var client = await GetEditorClientAsync();
+        var client = await GetAdminClientAsync();
 
         var response = await client.DeleteAsync("/api/ensembles/99999");
 
@@ -198,7 +208,7 @@ public class EnsemblesControllerTests : IntegrationTestBase
     [Fact]
     public async Task CreatePerformanceWithEnsemble_ReturnsEnsembleId()
     {
-        var client = await GetEditorClientAsync();
+        var client = await GetAdminClientAsync();
 
         // Create ensemble
         var ensembleResponse = await client.PostAsJsonAsync("/api/ensembles", new { Name = "FK Test Ensemble" });
