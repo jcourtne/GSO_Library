@@ -11,7 +11,7 @@ import type { Ensemble } from '../../types';
 
 export default function EnsembleList() {
   const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -50,7 +50,7 @@ export default function EnsembleList() {
         </a>
       ) : '-',
     },
-    ...(canEdit() ? [{
+    ...(isAdmin() ? [{
       key: 'actions',
       label: '',
       render: (e: Ensemble) => (
@@ -66,7 +66,7 @@ export default function EnsembleList() {
     <>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h2>Ensembles</h2>
-        {canEdit() && <Link to="/ensembles/new" className="btn btn-primary">New Ensemble</Link>}
+        {isAdmin() && <Link to="/ensembles/new" className="btn btn-primary">New Ensemble</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
 

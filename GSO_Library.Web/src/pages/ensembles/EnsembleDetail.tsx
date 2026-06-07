@@ -11,7 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 export default function EnsembleDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [error, setError] = useState('');
@@ -99,7 +99,7 @@ export default function EnsembleDetail() {
       <div className="d-flex justify-content-between align-items-start mb-3">
         <h2>{ensemble.name}</h2>
         <div>
-          {canEdit() && (
+          {isAdmin() && (
             <>
               <Link to={`/ensembles/${id}/edit`} className="btn btn-outline-primary me-2">Edit</Link>
               <Button variant="outline-danger" onClick={() => setShowDelete(true)}>Delete</Button>
