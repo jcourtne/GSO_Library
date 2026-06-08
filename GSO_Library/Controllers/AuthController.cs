@@ -23,6 +23,7 @@ public class AuthController : ControllerBase
     private readonly GSOLibraryContext _context;
     private readonly IAuditService _auditService;
     private readonly UserRepository _userRepository;
+    private readonly EnsembleRepository _ensembleRepository;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -33,6 +34,7 @@ public class AuthController : ControllerBase
         GSOLibraryContext context,
         IAuditService auditService,
         UserRepository userRepository,
+        EnsembleRepository ensembleRepository,
         ILogger<AuthController> logger)
     {
         _userManager = userManager;
@@ -42,6 +44,7 @@ public class AuthController : ControllerBase
         _context = context;
         _auditService = auditService;
         _userRepository = userRepository;
+        _ensembleRepository = ensembleRepository;
         _logger = logger;
     }
 
@@ -94,6 +97,18 @@ public class AuthController : ControllerBase
             LastLoginAt = lastLogin,
             Roles = roles.ToList()
         });
+    }
+
+    [HttpGet("users/{id}/ensembles")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetUserEnsembles(string id)
+    {
+        var user = await _userManager.FindByIdAsync(id);
+        if (user == null)
+            return NotFound();
+
+        var ensembles = await _ensembleRepository.GetEnsemblesForUserAsync(id);
+        return Ok(ensembles);
     }
 
     [HttpPost("register")]

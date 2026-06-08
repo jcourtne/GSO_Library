@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Alert, Badge, Button, Card, Col, Form, Row, Spinner } from 'react-bootstrap';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../../api/auth';
+import { ensemblesApi } from '../../api/ensembles';
 
 const ALL_ROLES = ['Admin', 'Librarian', 'Submitter', 'Downloader', 'User'];
 
@@ -22,6 +23,7 @@ export default function UserDetail() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [selectedRole, setSelectedRole] = useState('');
+  const [selectedEnsembleId, setSelectedEnsembleId] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -70,6 +72,33 @@ export default function UserDetail() {
       setSuccess(resp.message);
     },
     onError: () => setError('Failed to update status'),
+  });
+
+  const { data: userEnsembles } = useQuery({
+    queryKey: ['user-ensembles', id],
+    queryFn: () => authApi.getUserEnsembles(id!),
+    enabled: !!id,
+  });
+
+  const { data: allEnsembles } = useQuery({
+    queryKey: ['ensembles'],
+    queryFn: () => ensemblesApi.getAll(),
+    enabled: !!id,
+  });
+
+  const addEnsembleMutation = useMutation({
+    mutationFn: (ensembleId: number) => ensemblesApi.addMember(ensembleId, id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-ensembles', id] });
+      setSelectedEnsembleId('');
+    },
+    onError: () => setError('Failed to add ensemble membership'),
+  });
+
+  const removeEnsembleMutation = useMutation({
+    mutationFn: (ensembleId: number) => ensemblesApi.removeMember(ensembleId, id!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-ensembles', id] }),
+    onError: () => setError('Failed to remove ensemble membership'),
   });
 
   if (isLoading) return <Spinner animation="border" />;
@@ -155,7 +184,7 @@ export default function UserDetail() {
             </Card.Body>
           </Card>
 
-          <Card>
+          <Card className="mb-4">
             <Card.Body>
               <Card.Title>Roles</Card.Title>
               <div className="d-flex flex-wrap gap-2 mb-3">
@@ -184,6 +213,55 @@ export default function UserDetail() {
                     ))}
                   </Form.Select>
                   <Button size="sm" type="submit" disabled={!selectedRole || grantMutation.isPending}>
+                    Add
+                  </Button>
+                </Form>
+              )}
+            </Card.Body>
+          </Card>
+
+          <Card>
+            <Card.Body>
+              <Card.Title>Ensemble Memberships</Card.Title>
+              <div className="d-flex flex-wrap gap-2 mb-3">
+                {userEnsembles && userEnsembles.length > 0 ? userEnsembles.map((e) => (
+                  <Badge key={e.id} bg="info" className="d-flex align-items-center gap-1 fs-6">
+                    <Link to={`/ensembles/${e.id}`} className="text-white text-decoration-none">
+                      {e.name}
+                    </Link>
+                    <Button
+                      size="sm"
+                      variant="link"
+                      className="text-white p-0 ms-1"
+                      onClick={() => removeEnsembleMutation.mutate(e.id)}
+                      title={`Remove from ${e.name}`}
+                    >
+                      &times;
+                    </Button>
+                  </Badge>
+                )) : (
+                  <span className="text-muted small">No ensemble memberships.</span>
+                )}
+              </div>
+
+              {allEnsembles && (
+                <Form
+                  className="d-flex gap-2"
+                  onSubmit={(e) => { e.preventDefault(); if (selectedEnsembleId) addEnsembleMutation.mutate(Number(selectedEnsembleId)); }}
+                >
+                  <Form.Select
+                    size="sm"
+                    value={selectedEnsembleId}
+                    onChange={(e) => setSelectedEnsembleId(e.target.value)}
+                  >
+                    <option value="">Add to ensemble...</option>
+                    {allEnsembles
+                      .filter((e) => !userEnsembles?.some((ue) => ue.id === e.id))
+                      .map((e) => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                  </Form.Select>
+                  <Button size="sm" type="submit" disabled={!selectedEnsembleId || addEnsembleMutation.isPending}>
                     Add
                   </Button>
                 </Form>

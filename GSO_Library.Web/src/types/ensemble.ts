@@ -1,6 +1,14 @@
 import type { Performance } from './performance';
 import type { Season } from './season';
 
+export interface EnsembleMember {
+  id: string;
+  userName?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
 export interface Ensemble {
   id: number;
   name: string;

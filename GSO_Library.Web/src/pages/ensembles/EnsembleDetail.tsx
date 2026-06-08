@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Alert, Button, Card, Col, Form, ListGroup, Row, Spinner } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Col, Form, ListGroup, Row, Spinner } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ensemblesApi } from '../../api/ensembles';
+import { authApi } from '../../api/auth';
 import { seasonsApi } from '../../api/seasons';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import DataTable from '../../components/common/DataTable';
@@ -18,6 +19,7 @@ export default function EnsembleDetail() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [selectedUserId, setSelectedUserId] = useState('');
 
   const { data: ensemble, isLoading } = useQuery({
     queryKey: ['ensemble', id],
@@ -29,6 +31,33 @@ export default function EnsembleDetail() {
     queryKey: ['seasons', { ensembleId: id }],
     queryFn: () => seasonsApi.list({ ensembleIds: [Number(id)], pageSize: 100 }),
     enabled: !!id,
+  });
+
+  const { data: members } = useQuery({
+    queryKey: ['ensemble-members', id],
+    queryFn: () => ensemblesApi.getMembers(Number(id)),
+    enabled: !!id && isAdmin(),
+  });
+
+  const { data: allUsers } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => authApi.getUsers(),
+    enabled: isAdmin(),
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: (userId: string) => ensemblesApi.addMember(Number(id), userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ensemble-members', id] });
+      setSelectedUserId('');
+    },
+    onError: () => setError('Failed to add member'),
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: (userId: string) => ensemblesApi.removeMember(Number(id), userId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ensemble-members', id] }),
+    onError: () => setError('Failed to remove member'),
   });
 
   const deleteMutation = useMutation({
@@ -186,6 +215,56 @@ export default function EnsembleDetail() {
               <p><strong>Created by:</strong> {ensemble.createdBy || '-'}</p>
             </Card.Body>
           </Card>
+
+          {isAdmin() && (
+            <Card className="mb-3">
+              <Card.Body>
+                <Card.Title>Members</Card.Title>
+                <div className="d-flex flex-wrap gap-2 mb-3">
+                  {members && members.length > 0 ? members.map((m) => (
+                    <Badge key={m.id} bg="secondary" className="d-flex align-items-center gap-1 fs-6">
+                      {m.firstName && m.lastName ? `${m.firstName} ${m.lastName}` : m.userName}
+                      <Button
+                        size="sm"
+                        variant="link"
+                        className="text-white p-0 ms-1"
+                        onClick={() => removeMemberMutation.mutate(m.id)}
+                        title="Remove member"
+                      >
+                        &times;
+                      </Button>
+                    </Badge>
+                  )) : (
+                    <span className="text-muted small">No members yet.</span>
+                  )}
+                </div>
+                {allUsers && (
+                  <Form
+                    className="d-flex gap-2"
+                    onSubmit={(e) => { e.preventDefault(); if (selectedUserId) addMemberMutation.mutate(selectedUserId); }}
+                  >
+                    <Form.Select
+                      size="sm"
+                      value={selectedUserId}
+                      onChange={(e) => setSelectedUserId(e.target.value)}
+                    >
+                      <option value="">Add member...</option>
+                      {allUsers
+                        .filter((u) => !members?.some((m) => m.id === u.id))
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.userName}
+                          </option>
+                        ))}
+                    </Form.Select>
+                    <Button size="sm" type="submit" disabled={!selectedUserId || addMemberMutation.isPending}>
+                      Add
+                    </Button>
+                  </Form>
+                )}
+              </Card.Body>
+            </Card>
+          )}
         </Col>
       </Row>
 

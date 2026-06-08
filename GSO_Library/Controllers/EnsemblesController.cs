@@ -2,6 +2,7 @@ using GSO_Library.Models;
 using GSO_Library.Repositories;
 using GSO_Library.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GSO_Library.Controllers;
@@ -12,11 +13,13 @@ public class EnsemblesController : ControllerBase
 {
     private readonly EnsembleRepository _ensembleRepository;
     private readonly IAuditService _auditService;
+    private readonly UserManager<ApplicationUser> _userManager;
 
-    public EnsemblesController(EnsembleRepository ensembleRepository, IAuditService auditService)
+    public EnsemblesController(EnsembleRepository ensembleRepository, IAuditService auditService, UserManager<ApplicationUser> userManager)
     {
         _ensembleRepository = ensembleRepository;
         _auditService = auditService;
+        _userManager = userManager;
     }
 
     [HttpGet]
@@ -83,6 +86,53 @@ public class EnsemblesController : ControllerBase
 
         await _auditService.LogAsync(AuditEventType.EnsembleDelete, User.Identity?.Name, null, null,
             $"ensembleId: {id} ({ensemble.Name})");
+        return NoContent();
+    }
+
+    [HttpGet("{id}/members")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetMembers(int id)
+    {
+        var ensemble = await _ensembleRepository.GetEnsembleByIdAsync(id);
+        if (ensemble == null)
+            return NotFound();
+
+        var members = await _ensembleRepository.GetEnsembleMembersAsync(id);
+        return Ok(members);
+    }
+
+    [HttpPost("{id}/members/{userId}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> AddMember(int id, string userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+            return NotFound("User not found.");
+
+        var result = await _ensembleRepository.AddMemberAsync(id, userId);
+        if (result == null)
+            return NotFound("Ensemble not found.");
+        if (result == false)
+            return Conflict("User is already a member of this ensemble.");
+
+        await _auditService.LogAsync(AuditEventType.UserEnsembleAdd, User.Identity?.Name, user.UserName, null,
+            $"ensembleId: {id}, userId: {userId}");
+        return NoContent();
+    }
+
+    [HttpDelete("{id}/members/{userId}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> RemoveMember(int id, string userId)
+    {
+        var result = await _ensembleRepository.RemoveMemberAsync(id, userId);
+        if (result == null)
+            return NotFound("Ensemble not found.");
+        if (result == false)
+            return NotFound("User is not a member of this ensemble.");
+
+        var user = await _userManager.FindByIdAsync(userId);
+        await _auditService.LogAsync(AuditEventType.UserEnsembleRemove, User.Identity?.Name, user?.UserName, null,
+            $"ensembleId: {id}, userId: {userId}");
         return NoContent();
     }
 }

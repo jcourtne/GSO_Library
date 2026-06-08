@@ -28,4 +28,6 @@ public static class AuditEventType
     public const string SeasonCreate = "SeasonCreate";
     public const string SeasonUpdate = "SeasonUpdate";
     public const string SeasonDelete = "SeasonDelete";
+    public const string UserEnsembleAdd = "UserEnsembleAdd";
+    public const string UserEnsembleRemove = "UserEnsembleRemove";
 }

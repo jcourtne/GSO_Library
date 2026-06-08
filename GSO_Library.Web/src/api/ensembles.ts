@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { Ensemble, PaginatedResult, PaginationParams } from '../types';
+import type { Ensemble, EnsembleMember, PaginatedResult, PaginationParams } from '../types';
 
 export const ensemblesApi = {
   list: (params?: PaginationParams) =>
@@ -20,4 +20,13 @@ export const ensemblesApi = {
 
   delete: (id: number) =>
     apiClient.delete(`/ensembles/${id}`),
+
+  getMembers: (ensembleId: number) =>
+    apiClient.get<EnsembleMember[]>(`/ensembles/${ensembleId}/members`).then((r) => r.data),
+
+  addMember: (ensembleId: number, userId: string) =>
+    apiClient.post(`/ensembles/${ensembleId}/members/${userId}`),
+
+  removeMember: (ensembleId: number, userId: string) =>
+    apiClient.delete(`/ensembles/${ensembleId}/members/${userId}`),
 };

@@ -224,6 +224,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 performance_id INTEGER NOT NULL REFERENCES performances(id) ON DELETE CASCADE,
                 PRIMARY KEY (season_id, performance_id)
             );
+
+            CREATE TABLE IF NOT EXISTS user_ensembles (
+                user_id     TEXT    NOT NULL REFERENCES AspNetUsers(Id) ON DELETE CASCADE,
+                ensemble_id INTEGER NOT NULL REFERENCES ensembles(id)   ON DELETE CASCADE,
+                PRIMARY KEY (user_id, ensemble_id)
+            );
             """);
     }
 
