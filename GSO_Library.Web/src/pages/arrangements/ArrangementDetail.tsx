@@ -141,6 +141,21 @@ export default function ArrangementDetail() {
 
           <Card className="mb-3">
             <Card.Body>
+              <Card.Title>Ensembles</Card.Title>
+              {arrangement.ensembles && arrangement.ensembles.length > 0 ? (
+                <div className="d-flex flex-wrap gap-1">
+                  {arrangement.ensembles.map((e) => (
+                    <Badge key={e.id} bg="warning" text="dark">{e.name}</Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted mb-0">None</p>
+              )}
+            </Card.Body>
+          </Card>
+
+          <Card className="mb-3">
+            <Card.Body>
               <Card.Title>Recent Performances</Card.Title>
               {arrangement.performances?.length > 0 ? (() => {
                 const sorted = [...arrangement.performances].sort((a, b) => {

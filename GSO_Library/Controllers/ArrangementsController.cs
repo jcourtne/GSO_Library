@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using GSO_Library.Configuration;
 using GSO_Library.Dtos;
 using GSO_Library.Models;
@@ -41,6 +42,7 @@ public class ArrangementsController : ControllerBase
 
     private readonly ArrangementRepository _arrangementRepository;
     private readonly ArrangementFileRepository _fileRepository;
+    private readonly EnsembleRepository _ensembleRepository;
     private readonly IFileStorageService _fileStorageService;
     private readonly FileUploadSettings _fileUploadSettings;
     private readonly IAuditService _auditService;
@@ -49,6 +51,7 @@ public class ArrangementsController : ControllerBase
     public ArrangementsController(
         ArrangementRepository arrangementRepository,
         ArrangementFileRepository fileRepository,
+        EnsembleRepository ensembleRepository,
         IFileStorageService fileStorageService,
         FileUploadSettings fileUploadSettings,
         IAuditService auditService,
@@ -56,6 +59,7 @@ public class ArrangementsController : ControllerBase
     {
         _arrangementRepository = arrangementRepository;
         _fileRepository = fileRepository;
+        _ensembleRepository = ensembleRepository;
         _fileStorageService = fileStorageService;
         _fileUploadSettings = fileUploadSettings;
         _auditService = auditService;
@@ -68,11 +72,27 @@ public class ArrangementsController : ControllerBase
     private static bool IsOwner(Arrangement arrangement, string? username) =>
         string.Equals(arrangement.CreatedBy, username, StringComparison.OrdinalIgnoreCase);
 
+    private async Task<bool> IsEnsembleMemberAsync(string? userId, int ensembleId)
+    {
+        if (userId == null) return false;
+        var userEnsembles = await _ensembleRepository.GetEnsemblesForUserAsync(userId);
+        return userEnsembles.Any(e => e.Id == ensembleId);
+    }
+
     [HttpPost]
     [Authorize(Roles = "Admin,Librarian,Submitter")]
     public async Task<ActionResult<Arrangement>> AddArrangement([FromBody] ArrangementRequest request)
     {
         var createdArrangement = await _arrangementRepository.AddArrangementAsync(request, User.Identity?.Name);
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId != null)
+        {
+            var userEnsembles = await _ensembleRepository.GetEnsemblesForUserAsync(userId);
+            foreach (var ensemble in userEnsembles)
+                await _arrangementRepository.AddEnsembleAsync(createdArrangement.Id, ensemble.Id);
+        }
+
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(createdArrangement.Id);
         await _auditService.LogAsync(Models.AuditEventType.ArrangementCreate, User.Identity?.Name, null, null,
             $"arrangementId: {createdArrangement.Id} ({arrangement?.Name})");
@@ -279,6 +299,52 @@ public class ArrangementsController : ControllerBase
         if (!result.Value)
             return NotFound();
 
+        return NoContent();
+    }
+
+    [HttpPost("{arrangementId}/ensembles/{ensembleId}")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
+    public async Task<IActionResult> AddEnsemble(int arrangementId, int ensembleId)
+    {
+        if (IsSubmitterOnly())
+        {
+            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+            if (arrangement == null) return NotFound();
+            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
+            if (!await IsEnsembleMemberAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), ensembleId)) return Forbid();
+        }
+
+        var result = await _arrangementRepository.AddEnsembleAsync(arrangementId, ensembleId);
+        if (result == null)
+            return NotFound();
+        if (!result.Value)
+            return BadRequest();
+
+        await _auditService.LogAsync(Models.AuditEventType.ArrangementEnsembleAdd, User.Identity?.Name, null, null,
+            $"arrangementId: {arrangementId}, ensembleId: {ensembleId}");
+        return NoContent();
+    }
+
+    [HttpDelete("{arrangementId}/ensembles/{ensembleId}")]
+    [Authorize(Roles = "Admin,Librarian,Submitter")]
+    public async Task<IActionResult> RemoveEnsemble(int arrangementId, int ensembleId)
+    {
+        if (IsSubmitterOnly())
+        {
+            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+            if (arrangement == null) return NotFound();
+            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
+            if (!await IsEnsembleMemberAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), ensembleId)) return Forbid();
+        }
+
+        var result = await _arrangementRepository.RemoveEnsembleAsync(arrangementId, ensembleId);
+        if (result == null)
+            return NotFound();
+        if (!result.Value)
+            return NotFound();
+
+        await _auditService.LogAsync(Models.AuditEventType.ArrangementEnsembleRemove, User.Identity?.Name, null, null,
+            $"arrangementId: {arrangementId}, ensembleId: {ensembleId}");
         return NoContent();
     }
 

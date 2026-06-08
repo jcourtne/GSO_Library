@@ -230,6 +230,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ensemble_id INTEGER NOT NULL REFERENCES ensembles(id)   ON DELETE CASCADE,
                 PRIMARY KEY (user_id, ensemble_id)
             );
+
+            CREATE TABLE IF NOT EXISTS arrangement_ensembles (
+                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
+                ensemble_id    INTEGER NOT NULL REFERENCES ensembles(id)    ON DELETE CASCADE,
+                PRIMARY KEY (arrangement_id, ensemble_id)
+            );
             """);
     }
 

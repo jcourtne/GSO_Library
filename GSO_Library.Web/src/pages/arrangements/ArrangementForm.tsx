@@ -3,9 +3,12 @@ import { Alert, Badge, Button, Card, Col, Form, ListGroup, Modal, Row, Spinner }
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
+import { authApi } from '../../api/auth';
+import { ensemblesApi } from '../../api/ensembles';
 import { gamesApi } from '../../api/games';
 import { instrumentsApi } from '../../api/instruments';
 import { instrumentSortOrdersApi } from '../../api/instrumentSortOrders';
+import { useAuth } from '../../hooks/useAuth';
 import FileSection from '../../components/arrangements/FileSection';
 import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
 import QuickCreateGameModal from '../../components/common/QuickCreateGameModal';
@@ -20,6 +23,7 @@ export default function ArrangementForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   useDragAutoScroll();
+  const { canEdit } = useAuth();
   const [error, setError] = useState('');
 
   const [form, setForm] = useState<ArrangementRequest>({
@@ -50,6 +54,7 @@ export default function ArrangementForm() {
   // Track linked entity IDs
   const [linkedGameIds, setLinkedGameIds] = useState<Set<number>>(new Set());
   const [linkedInstrumentIds, setLinkedInstrumentIds] = useState<Set<number>>(new Set());
+  const [linkedEnsembleIds, setLinkedEnsembleIds] = useState<Set<number>>(new Set());
 
   // Picker modal state
   const [showGamePicker, setShowGamePicker] = useState(false);
@@ -57,11 +62,16 @@ export default function ArrangementForm() {
   const [showInstrumentPicker, setShowInstrumentPicker] = useState(false);
   const [instrumentSearch, setInstrumentSearch] = useState('');
   const [pickerSortOrderId, setPickerSortOrderId] = useState<number | null>(null);
+  const [showEnsemblePicker, setShowEnsemblePicker] = useState(false);
+  const [ensembleSearch, setEnsembleSearch] = useState('');
 
   // Load reference data for linking
   const allGames = useQuery({ queryKey: ['games-all'], queryFn: () => gamesApi.list({ page: 1, pageSize: 100 }) });
   const allInstruments = useQuery({ queryKey: ['instruments-all'], queryFn: () => instrumentsApi.list({ page: 1, pageSize: 100, sortBy: 'name' }) });
   const sortOrders = useQuery({ queryKey: ['instrument-sort-orders'], queryFn: instrumentSortOrdersApi.list });
+  // Admin/Librarian can pick from all ensembles; Submitters can only pick their own
+  const allEnsembles = useQuery({ queryKey: ['ensembles-all'], queryFn: () => ensemblesApi.list({ page: 1, pageSize: 100 }), enabled: canEdit() });
+  const myEnsembles = useQuery({ queryKey: ['my-ensembles'], queryFn: authApi.getMyEnsembles });
   const pickerSortOrderInstruments = useQuery({
     queryKey: ['instrument-sort-order-instruments', pickerSortOrderId],
     queryFn: () => instrumentSortOrdersApi.getInstruments(pickerSortOrderId!),
@@ -84,8 +94,15 @@ export default function ArrangementForm() {
       });
       setLinkedGameIds(new Set(existing.games?.map((g) => g.id) || []));
       setLinkedInstrumentIds(new Set(existing.instruments?.map((i) => i.id) || []));
+      setLinkedEnsembleIds(new Set(existing.ensembles?.map((e) => e.id) || []));
     }
   }, [existing]);
+
+  useEffect(() => {
+    if (!isEdit && myEnsembles.data) {
+      setLinkedEnsembleIds(new Set(myEnsembles.data.map((e) => e.id)));
+    }
+  }, [isEdit, myEnsembles.data]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -111,6 +128,7 @@ export default function ArrangementForm() {
       if (isEdit && existing) {
         const oldGameIds = new Set(existing.games?.map((g) => g.id) || []);
         const oldInstrumentIds = new Set(existing.instruments?.map((i) => i.id) || []);
+        const oldEnsembleIds = new Set(existing.ensembles?.map((e) => e.id) || []);
 
         // Games
         for (const gid of linkedGameIds) {
@@ -126,10 +144,18 @@ export default function ArrangementForm() {
         for (const iid of oldInstrumentIds) {
           if (!linkedInstrumentIds.has(iid)) await arrangementsApi.removeInstrument(arrangementId, iid);
         }
+        // Ensembles
+        for (const eid of linkedEnsembleIds) {
+          if (!oldEnsembleIds.has(eid)) await arrangementsApi.addEnsemble(arrangementId, eid);
+        }
+        for (const eid of oldEnsembleIds) {
+          if (!linkedEnsembleIds.has(eid)) await arrangementsApi.removeEnsemble(arrangementId, eid);
+        }
       } else if (!isEdit) {
-        // New arrangement - add all relationships
+        // New arrangement - add all relationships; backend already auto-linked user's ensembles so ignore 400s
         for (const gid of linkedGameIds) await arrangementsApi.addGame(arrangementId, gid);
         for (const iid of linkedInstrumentIds) await arrangementsApi.addInstrument(arrangementId, iid);
+        for (const eid of linkedEnsembleIds) await arrangementsApi.addEnsemble(arrangementId, eid).catch(() => {});
       }
 
       return arrangementId;
@@ -423,6 +449,76 @@ export default function ArrangementForm() {
                   Create New
                 </Button>
                 <Button variant="secondary" onClick={() => setShowInstrumentPicker(false)}>
+                  Done
+                </Button>
+              </Modal.Footer>
+            </Modal>
+
+            <Card className="mb-3">
+              <Card.Body>
+                <Card.Title>Ensembles</Card.Title>
+                {linkedEnsembleIds.size > 0 ? (
+                  <ListGroup variant="flush" className="mb-2">
+                    {(canEdit() ? (allEnsembles.data?.items ?? []) : (myEnsembles.data ?? []))
+                      .filter((e) => linkedEnsembleIds.has(e.id))
+                      .map((e) => (
+                        <ListGroup.Item key={e.id} className="d-flex justify-content-between align-items-center px-0">
+                          {e.name}
+                          <Button
+                            variant="outline-danger"
+                            size="sm"
+                            onClick={() => {
+                              const next = new Set(linkedEnsembleIds);
+                              next.delete(e.id);
+                              setLinkedEnsembleIds(next);
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </ListGroup.Item>
+                      ))}
+                  </ListGroup>
+                ) : (
+                  <p className="text-muted mb-2">No ensembles selected</p>
+                )}
+                <Button variant="outline-primary" size="sm" onClick={() => { setEnsembleSearch(''); setShowEnsemblePicker(true); }}>
+                  Add
+                </Button>
+              </Card.Body>
+            </Card>
+
+            <Modal show={showEnsemblePicker} onHide={() => setShowEnsemblePicker(false)}>
+              <Modal.Header closeButton>
+                <Modal.Title>Add Ensembles</Modal.Title>
+              </Modal.Header>
+              <Modal.Body>
+                <Form.Control
+                  placeholder="Search ensembles..."
+                  value={ensembleSearch}
+                  onChange={(e) => setEnsembleSearch(e.target.value)}
+                  className="mb-3"
+                  autoFocus
+                />
+                <ListGroup style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                  {(canEdit() ? (allEnsembles.data?.items ?? []) : (myEnsembles.data ?? []))
+                    .filter((e) => !linkedEnsembleIds.has(e.id) && e.name.toLowerCase().includes(ensembleSearch.toLowerCase()))
+                    .map((e) => (
+                      <ListGroup.Item
+                        key={e.id}
+                        action
+                        onClick={() => {
+                          const next = new Set(linkedEnsembleIds);
+                          next.add(e.id);
+                          setLinkedEnsembleIds(next);
+                        }}
+                      >
+                        {e.name}
+                      </ListGroup.Item>
+                    ))}
+                </ListGroup>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button variant="secondary" onClick={() => setShowEnsemblePicker(false)}>
                   Done
                 </Button>
               </Modal.Footer>

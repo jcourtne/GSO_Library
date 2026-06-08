@@ -41,4 +41,7 @@ export const authApi = {
 
   getUserEnsembles: (userId: string) =>
     apiClient.get<Ensemble[]>(`/auth/users/${userId}/ensembles`).then((r) => r.data),
+
+  getMyEnsembles: () =>
+    apiClient.get<Ensemble[]>('/auth/users/me/ensembles').then((r) => r.data),
 };

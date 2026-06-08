@@ -77,6 +77,12 @@ public class ArrangementRepository
             var arrangementSeasons = (await connection.QueryAsync<(int ArrangementId, int SeasonId)>(
                 "SELECT arrangement_id, season_id FROM season_arrangements")).ToList();
 
+            var allEnsembles = (await connection.QueryAsync<Ensemble>(
+                "SELECT id, name, description, website, contact_info, created_at, updated_at, created_by FROM ensembles")).ToList();
+
+            var arrangementEnsembles = (await connection.QueryAsync<(int ArrangementId, int EnsembleId)>(
+                "SELECT arrangement_id, ensemble_id FROM arrangement_ensembles")).ToList();
+
             var allComposers = (await connection.QueryAsync<(int ArrangementId, string Name)>(
                 "SELECT arrangement_id, name FROM arrangement_composers ORDER BY sort_order")).ToList();
 
@@ -84,6 +90,7 @@ public class ArrangementRepository
                 "SELECT arrangement_id, name FROM arrangement_arrangers ORDER BY sort_order")).ToList();
 
             // Build lookups
+            var ensembleLookup = allEnsembles.ToDictionary(e => e.Id);
             var seriesLookup = allSeries.ToDictionary(s => s.Id);
             var seasonLookup = allSeasons.ToDictionary(s => s.Id);
             var gameLookup = allGames.ToDictionary(g => g.Id);
@@ -107,6 +114,9 @@ public class ArrangementRepository
             var seasonsByArrangement = arrangementSeasons.GroupBy(sa => sa.ArrangementId)
                 .ToDictionary(g => g.Key, g => g.Select(sa => seasonLookup.GetValueOrDefault(sa.SeasonId)).Where(x => x != null).ToList()!);
 
+            var ensemblesByArrangement = arrangementEnsembles.GroupBy(ae => ae.ArrangementId)
+                .ToDictionary(g => g.Key, g => g.Select(ae => ensembleLookup.GetValueOrDefault(ae.EnsembleId)).Where(x => x != null).ToList()!);
+
             var filesByArrangement = allFiles.GroupBy(f => f.ArrangementId)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
@@ -123,6 +133,7 @@ public class ArrangementRepository
                 a.Instruments = instrumentsByArrangement.GetValueOrDefault(a.Id, [])!;
                 a.Performances = performancesByArrangement.GetValueOrDefault(a.Id, [])!;
                 a.Seasons = seasonsByArrangement.GetValueOrDefault(a.Id, [])!;
+                a.Ensembles = ensemblesByArrangement.GetValueOrDefault(a.Id, [])!;
                 a.Files = filesByArrangement.GetValueOrDefault(a.Id, []);
                 a.Composers = composersByArrangement.GetValueOrDefault(a.Id, []);
                 a.Arrangers = arrangersByArrangement.GetValueOrDefault(a.Id, []);
@@ -446,6 +457,47 @@ public class ArrangementRepository
         var rows = await connection.ExecuteAsync(
             "DELETE FROM arrangement_performances WHERE arrangement_id = @ArrangementId AND performance_id = @PerformanceId",
             new { ArrangementId = arrangementId, PerformanceId = performanceId });
+        if (rows == 0) return false;
+
+        InvalidateCache();
+        return true;
+    }
+
+    public async Task<bool?> AddEnsembleAsync(int arrangementId, int ensembleId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var arrangementExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangements WHERE id = @Id", new { Id = arrangementId });
+        if (arrangementExists == 0) return null;
+
+        var ensembleExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM ensembles WHERE id = @Id", new { Id = ensembleId });
+        if (ensembleExists == 0) return false;
+
+        var linkExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangement_ensembles WHERE arrangement_id = @ArrangementId AND ensemble_id = @EnsembleId",
+            new { ArrangementId = arrangementId, EnsembleId = ensembleId });
+        if (linkExists > 0) return false;
+
+        await connection.ExecuteAsync(
+            "INSERT INTO arrangement_ensembles (arrangement_id, ensemble_id) VALUES (@ArrangementId, @EnsembleId)",
+            new { ArrangementId = arrangementId, EnsembleId = ensembleId });
+        InvalidateCache();
+        return true;
+    }
+
+    public async Task<bool?> RemoveEnsembleAsync(int arrangementId, int ensembleId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var arrangementExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangements WHERE id = @Id", new { Id = arrangementId });
+        if (arrangementExists == 0) return null;
+
+        var rows = await connection.ExecuteAsync(
+            "DELETE FROM arrangement_ensembles WHERE arrangement_id = @ArrangementId AND ensemble_id = @EnsembleId",
+            new { ArrangementId = arrangementId, EnsembleId = ensembleId });
         if (rows == 0) return false;
 
         InvalidateCache();

@@ -99,6 +99,16 @@ public class AuthController : ControllerBase
         });
     }
 
+    [HttpGet("users/me/ensembles")]
+    [Authorize]
+    public async Task<IActionResult> GetMyEnsembles()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+        var ensembles = await _ensembleRepository.GetEnsemblesForUserAsync(userId);
+        return Ok(ensembles);
+    }
+
     [HttpGet("users/{id}/ensembles")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetUserEnsembles(string id)
