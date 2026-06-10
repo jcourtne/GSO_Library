@@ -18,6 +18,8 @@ interface AuthContextValue extends AuthState {
   isLibrarian: () => boolean;
   isSubmitter: () => boolean;
   isDownloader: () => boolean;
+  isEnsembleLibrarian: () => boolean;
+  isEnsembleDownloader: () => boolean;
   canEdit: () => boolean;
   canDownloadAll: () => boolean;
 }
@@ -93,6 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLibrarian: () => state.roles.includes('Librarian'),
     isSubmitter: () => state.roles.includes('Submitter'),
     isDownloader: () => state.roles.includes('Downloader'),
+    isEnsembleLibrarian: () => state.roles.includes('Ensemble Librarian'),
+    isEnsembleDownloader: () => state.roles.includes('Ensemble Downloader'),
     canEdit: () => state.roles.includes('Admin') || state.roles.includes('Librarian'),
     canDownloadAll: () => state.roles.includes('Admin') || state.roles.includes('Librarian') || state.roles.includes('Downloader') || state.roles.includes('Submitter'),
   }), [state, login, logout]);

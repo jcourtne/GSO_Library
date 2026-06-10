@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function AppNavbar() {
-  const { isAuthenticated, username, isAdmin, canEdit, logout } = useAuth();
+  const { isAuthenticated, username, isAdmin, canEdit, isEnsembleLibrarian, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -36,7 +36,7 @@ export default function AppNavbar() {
               </Nav>
               <Nav>
                 <NavDropdown title={username || 'Account'} align="end">
-                  {canEdit() && (
+                  {(canEdit() || isEnsembleLibrarian()) && (
                     <>
                       <NavDropdown.Item as={Link} to="/arrangements/new">
                         New Arrangement

@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../../api/auth';
 import { ensemblesApi } from '../../api/ensembles';
 
-const ALL_ROLES = ['Admin', 'Librarian', 'Submitter', 'Downloader', 'User'];
+const ALL_ROLES = ['Admin', 'Librarian', 'Submitter', 'Downloader', 'User', 'Ensemble Librarian', 'Ensemble Downloader'];
 
 function roleBadgeColor(role: string): string {
   switch (role) {
@@ -13,6 +13,8 @@ function roleBadgeColor(role: string): string {
     case 'Librarian': return 'warning';
     case 'Submitter': return 'info';
     case 'Downloader': return 'primary';
+    case 'Ensemble Librarian': return 'warning';
+    case 'Ensemble Downloader': return 'primary';
     default: return 'secondary';
   }
 }

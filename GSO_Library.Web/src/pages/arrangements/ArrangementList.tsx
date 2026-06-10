@@ -11,7 +11,7 @@ import type { Arrangement } from '../../types';
 
 export default function ArrangementList() {
   const navigate = useNavigate();
-  const { canEdit, isSubmitter } = useAuth();
+  const { canEdit, isSubmitter, isEnsembleLibrarian } = useAuth();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [sortBy, setSortBy] = useState('name');
@@ -90,7 +90,7 @@ export default function ArrangementList() {
     <>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h2>Arrangements</h2>
-        {(canEdit() || isSubmitter()) && (
+        {(canEdit() || isSubmitter() || isEnsembleLibrarian()) && (
           <Link to="/arrangements/new" className="btn btn-primary">New Arrangement</Link>
         )}
       </div>

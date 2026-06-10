@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Card, Col, ListGroup, Row, Spinner } from 'react-
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
+import { authApi } from '../../api/auth';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import FileSection from '../../components/arrangements/FileSection';
 import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
@@ -19,7 +20,8 @@ function formatDuration(seconds?: number) {
 export default function ArrangementDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canEdit, canDownloadAll, isSubmitter, username } = useAuth();
+  const { canEdit, canDownloadAll, isSubmitter, isEnsembleLibrarian, isEnsembleDownloader, username } = useAuth();
+  const isEnsembleScoped = isEnsembleLibrarian() || isEnsembleDownloader();
   const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [error, setError] = useState('');
@@ -31,6 +33,17 @@ export default function ArrangementDetail() {
     queryFn: () => arrangementsApi.get(Number(id)),
     enabled: !!id,
   });
+
+  const { data: myEnsembles = [] } = useQuery({
+    queryKey: ['my-ensembles'],
+    queryFn: () => authApi.getMyEnsembles(),
+    enabled: isEnsembleScoped,
+  });
+
+  const arrangementInMyEnsembles = isEnsembleScoped &&
+    (arrangement?.ensembles ?? []).some(e => myEnsembles.some(me => me.id === e.id));
+
+  const canDownloadNonPlayback = canDownloadAll() || arrangementInMyEnsembles;
 
   const deleteMutation = useMutation({
     mutationFn: () => arrangementsApi.delete(Number(id)),
@@ -54,7 +67,7 @@ export default function ArrangementDetail() {
           {arrangement.composers?.length > 0 && <p className="text-muted mb-0">Composed by {arrangement.composers.join(', ')}</p>}
           {arrangement.arrangers?.length > 0 && <p className="text-muted mb-0">Arranged by {arrangement.arrangers.join(', ')}</p>}
         </div>
-        {(canEdit() || (isSubmitter() && arrangement.createdBy === username)) && (
+        {(canEdit() || (isEnsembleLibrarian() && arrangementInMyEnsembles) || (isSubmitter() && arrangement.createdBy === username)) && (
           <div>
             <Link to={`/arrangements/${id}/edit`} className="btn btn-outline-primary me-2">
               Edit
@@ -95,9 +108,9 @@ export default function ArrangementDetail() {
             return (
               <>
                 {categorized.notationFiles.length > 0 && (
-                  <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownloadAll()} />
+                  <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownloadNonPlayback} />
                 )}
-                <RenderedScoreGrid arrangement={arrangement} files={arrangement.files} editable={false} canDownload={canDownloadAll()} />
+                <RenderedScoreGrid arrangement={arrangement} files={arrangement.files} editable={false} canDownload={canDownloadNonPlayback} />
                 {categorized.playbackFiles.length > 0 && (
                   <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={arrangement.id} editable={false} />
                 )}
