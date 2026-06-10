@@ -66,12 +66,6 @@ public class ArrangementsController : ControllerBase
         _zipCacheService = zipCacheService;
     }
 
-    private bool IsSubmitterOnly() =>
-        User.IsInRole("Submitter") && !User.IsInRole("Admin") && !User.IsInRole("Librarian");
-
-    private bool IsEnsembleLibrarianOnly() =>
-        User.IsInRole("Ensemble Librarian") && !User.IsInRole("Admin") && !User.IsInRole("Librarian");
-
     private static bool IsOwner(Arrangement arrangement, string? username) =>
         string.Equals(arrangement.CreatedBy, username, StringComparison.OrdinalIgnoreCase);
 
@@ -88,6 +82,22 @@ public class ArrangementsController : ControllerBase
         if (userId == null) return false;
         var userEnsembles = await _ensembleRepository.GetEnsemblesForUserAsync(userId);
         return arrangement.Ensembles.Any(e => userEnsembles.Any(ue => ue.Id == e.Id));
+    }
+
+    // Returns null (allow) or a Forbid result. Handles Submitter, Ensemble Librarian, and dual-role
+    // users correctly. Admin and Librarian always get null (full access).
+    private async Task<IActionResult?> EnforceWriteAccessAsync(Arrangement arrangement)
+    {
+        if (User.IsInRole("Admin") || User.IsInRole("Librarian"))
+            return null;
+
+        bool isSubmitter = User.IsInRole("Submitter");
+        bool isEnsembleLibrarian = User.IsInRole("Ensemble Librarian");
+
+        bool ownerOk = isSubmitter && IsOwner(arrangement, User.Identity?.Name);
+        bool ensembleOk = isEnsembleLibrarian && await IsInUserEnsemblesAsync(arrangement);
+
+        return (ownerOk || ensembleOk) ? null : Forbid();
     }
 
     [HttpPost]
@@ -149,19 +159,10 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
     public async Task<ActionResult<Arrangement>> UpdateArrangementDetails(int id, [FromBody] ArrangementRequest request)
     {
-        if (IsSubmitterOnly())
-        {
-            var existing = await _arrangementRepository.GetArrangementByIdAsync(id);
-            if (existing == null) return NotFound();
-            if (!IsOwner(existing, User.Identity?.Name)) return Forbid();
-        }
-
-        if (IsEnsembleLibrarianOnly())
-        {
-            var existing = await _arrangementRepository.GetArrangementByIdAsync(id);
-            if (existing == null) return NotFound();
-            if (!await IsInUserEnsemblesAsync(existing)) return Forbid();
-        }
+        var existing = await _arrangementRepository.GetArrangementByIdAsync(id);
+        if (existing == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(existing);
+        if (deny != null) return deny;
 
         var updated = await _arrangementRepository.UpdateArrangementAsync(id, request);
         if (updated == null)
@@ -180,11 +181,8 @@ public class ArrangementsController : ControllerBase
         if (arrangement == null)
             return NotFound();
 
-        if (IsSubmitterOnly() && !IsOwner(arrangement, User.Identity?.Name))
-            return Forbid();
-
-        if (IsEnsembleLibrarianOnly() && !await IsInUserEnsemblesAsync(arrangement))
-            return Forbid();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
 
         // Delete files from disk first
         foreach (var file in arrangement.Files)
@@ -207,19 +205,10 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
     public async Task<IActionResult> AddGame(int arrangementId, int gameId)
     {
-        if (IsSubmitterOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
-        }
-
-        if (IsEnsembleLibrarianOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
-        }
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
 
         var result = await _arrangementRepository.AddGameAsync(arrangementId, gameId);
         if (result == null)
@@ -234,19 +223,10 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
     public async Task<IActionResult> RemoveGame(int arrangementId, int gameId)
     {
-        if (IsSubmitterOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
-        }
-
-        if (IsEnsembleLibrarianOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
-        }
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
 
         var result = await _arrangementRepository.RemoveGameAsync(arrangementId, gameId);
         if (result == null)
@@ -261,19 +241,10 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
     public async Task<IActionResult> AddInstrument(int arrangementId, int instrumentId)
     {
-        if (IsSubmitterOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
-        }
-
-        if (IsEnsembleLibrarianOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
-        }
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
 
         var result = await _arrangementRepository.AddInstrumentAsync(arrangementId, instrumentId);
         if (result == null)
@@ -288,19 +259,10 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
     public async Task<IActionResult> RemoveInstrument(int arrangementId, int instrumentId)
     {
-        if (IsSubmitterOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
-        }
-
-        if (IsEnsembleLibrarianOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
-        }
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
 
         var result = await _arrangementRepository.RemoveInstrumentAsync(arrangementId, instrumentId);
         if (result == null)
@@ -315,19 +277,10 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
     public async Task<IActionResult> AddPerformance(int arrangementId, int performanceId)
     {
-        if (IsSubmitterOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
-        }
-
-        if (IsEnsembleLibrarianOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
-        }
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
 
         var result = await _arrangementRepository.AddPerformanceAsync(arrangementId, performanceId);
         if (result == null)
@@ -342,19 +295,10 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
     public async Task<IActionResult> RemovePerformance(int arrangementId, int performanceId)
     {
-        if (IsSubmitterOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
-        }
-
-        if (IsEnsembleLibrarianOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
-        }
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
 
         var result = await _arrangementRepository.RemovePerformanceAsync(arrangementId, performanceId);
         if (result == null)
@@ -369,20 +313,16 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
     public async Task<IActionResult> AddEnsemble(int arrangementId, int ensembleId)
     {
-        if (IsSubmitterOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
-            if (!await IsEnsembleMemberAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), ensembleId)) return Forbid();
-        }
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
 
-        if (IsEnsembleLibrarianOnly())
+        // Non-admin/librarian users can only link an ensemble they are a member of
+        if (!User.IsInRole("Admin") && !User.IsInRole("Librarian"))
         {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
-            if (!await IsEnsembleMemberAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), ensembleId)) return Forbid();
+            if (!await IsEnsembleMemberAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), ensembleId))
+                return Forbid();
         }
 
         var result = await _arrangementRepository.AddEnsembleAsync(arrangementId, ensembleId);
@@ -400,20 +340,16 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
     public async Task<IActionResult> RemoveEnsemble(int arrangementId, int ensembleId)
     {
-        if (IsSubmitterOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
-            if (!await IsEnsembleMemberAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), ensembleId)) return Forbid();
-        }
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
 
-        if (IsEnsembleLibrarianOnly())
+        // Non-admin/librarian users can only unlink an ensemble they are a member of
+        if (!User.IsInRole("Admin") && !User.IsInRole("Librarian"))
         {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
-            if (arrangement == null) return NotFound();
-            if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
-            if (!await IsEnsembleMemberAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), ensembleId)) return Forbid();
+            if (!await IsEnsembleMemberAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), ensembleId))
+                return Forbid();
         }
 
         var result = await _arrangementRepository.RemoveEnsembleAsync(arrangementId, ensembleId);
@@ -433,19 +369,10 @@ public class ArrangementsController : ControllerBase
         [FromForm] string? scorePartType = null,
         [FromForm] int? instrumentId = null)
     {
-        if (IsSubmitterOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
-            if (arrangement == null) return NotFound();
-            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
-        }
-
-        if (IsEnsembleLibrarianOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
-            if (arrangement == null) return NotFound();
-            if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
-        }
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
 
         if (!await _fileRepository.ArrangementExistsAsync(id))
             return NotFound();
@@ -565,19 +492,10 @@ public class ArrangementsController : ControllerBase
     [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
     public async Task<IActionResult> DeleteFile(int id, int fileId)
     {
-        if (IsSubmitterOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
-            if (arrangement == null) return NotFound();
-            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
-        }
-
-        if (IsEnsembleLibrarianOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
-            if (arrangement == null) return NotFound();
-            if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
-        }
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
 
         var arrangementFile = await _fileRepository.GetFileAsync(id, fileId);
         if (arrangementFile == null)
@@ -594,18 +512,16 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPatch("{id}/files/{fileId}")]
-    [Authorize(Roles = "Admin,Librarian,Submitter")]
+    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
     public async Task<IActionResult> UpdateFileMetadata(int id, int fileId, [FromBody] UpdateFileMetadataRequest request)
     {
         if (request.ScorePartType != null && !ScorePartType.All.Contains(request.ScorePartType))
             return BadRequest("Invalid scorePartType");
 
-        if (IsSubmitterOnly())
-        {
-            var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
-            if (arrangement == null) return NotFound();
-            if (!IsOwner(arrangement, User.Identity?.Name)) return Forbid();
-        }
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
 
         var file = await _fileRepository.GetFileAsync(id, fileId);
         if (file == null)
