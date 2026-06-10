@@ -8,6 +8,7 @@ import { ensemblesApi } from '../../api/ensembles';
 import { gamesApi } from '../../api/games';
 import { instrumentsApi } from '../../api/instruments';
 import { instrumentSortOrdersApi } from '../../api/instrumentSortOrders';
+import axios from 'axios';
 import { useAuth } from '../../hooks/useAuth';
 import FileSection from '../../components/arrangements/FileSection';
 import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
@@ -71,7 +72,7 @@ export default function ArrangementForm() {
   const sortOrders = useQuery({ queryKey: ['instrument-sort-orders'], queryFn: instrumentSortOrdersApi.list });
   // Admin/Librarian can pick from all ensembles; Submitters can only pick their own
   const allEnsembles = useQuery({ queryKey: ['ensembles-all'], queryFn: () => ensemblesApi.list({ page: 1, pageSize: 100 }), enabled: canEdit() });
-  const myEnsembles = useQuery({ queryKey: ['my-ensembles'], queryFn: authApi.getMyEnsembles });
+  const myEnsembles = useQuery({ queryKey: ['my-ensembles'], queryFn: authApi.getMyEnsembles, enabled: !canEdit() });
   const pickerSortOrderInstruments = useQuery({
     queryKey: ['instrument-sort-order-instruments', pickerSortOrderId],
     queryFn: () => instrumentSortOrdersApi.getInstruments(pickerSortOrderId!),
@@ -155,7 +156,12 @@ export default function ArrangementForm() {
         // New arrangement - add all relationships; backend already auto-linked user's ensembles so ignore 400s
         for (const gid of linkedGameIds) await arrangementsApi.addGame(arrangementId, gid);
         for (const iid of linkedInstrumentIds) await arrangementsApi.addInstrument(arrangementId, iid);
-        for (const eid of linkedEnsembleIds) await arrangementsApi.addEnsemble(arrangementId, eid).catch(() => {});
+        for (const eid of linkedEnsembleIds) {
+          await arrangementsApi.addEnsemble(arrangementId, eid).catch((err: unknown) => {
+            // Backend auto-links the user's ensembles on create; ignore 400 "already linked" conflicts only.
+            if (!axios.isAxiosError(err) || err.response?.status !== 400) throw err;
+          });
+        }
       }
 
       return arrangementId;

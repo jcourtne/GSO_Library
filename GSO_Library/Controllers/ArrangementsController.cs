@@ -69,18 +69,28 @@ public class ArrangementsController : ControllerBase
     private static bool IsOwner(Arrangement arrangement, string? username) =>
         string.Equals(arrangement.CreatedBy, username, StringComparison.OrdinalIgnoreCase);
 
+    // Request-scoped cache so AddEnsemble/RemoveEnsemble don't call GetEnsemblesForUserAsync twice.
+    private IReadOnlyList<Ensemble>? _userEnsemblesCache;
+
+    private async Task<IReadOnlyList<Ensemble>> GetUserEnsemblesAsync()
+    {
+        if (_userEnsemblesCache != null) return _userEnsemblesCache;
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return _userEnsemblesCache = [];
+        _userEnsemblesCache = (await _ensembleRepository.GetEnsemblesForUserAsync(userId)).ToList();
+        return _userEnsemblesCache;
+    }
+
     private async Task<bool> IsEnsembleMemberAsync(string? userId, int ensembleId)
     {
         if (userId == null) return false;
-        var userEnsembles = await _ensembleRepository.GetEnsemblesForUserAsync(userId);
+        var userEnsembles = await GetUserEnsemblesAsync();
         return userEnsembles.Any(e => e.Id == ensembleId);
     }
 
     private async Task<bool> IsInUserEnsemblesAsync(Arrangement arrangement)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null) return false;
-        var userEnsembles = await _ensembleRepository.GetEnsemblesForUserAsync(userId);
+        var userEnsembles = await GetUserEnsemblesAsync();
         return arrangement.Ensembles.Any(e => userEnsembles.Any(ue => ue.Id == e.Id));
     }
 
@@ -459,8 +469,8 @@ public class ArrangementsController : ControllerBase
 
                 if (User.IsInRole("Ensemble Librarian") || User.IsInRole("Ensemble Downloader"))
                 {
-                    if (arrangement == null || !await IsInUserEnsemblesAsync(arrangement))
-                        return Forbid();
+                    if (arrangement == null) return NotFound();
+                    if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
                 }
                 else if (User.IsInRole("Submitter"))
                 {
