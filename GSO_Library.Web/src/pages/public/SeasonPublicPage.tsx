@@ -19,13 +19,16 @@ type RenderItem =
 
 function buildRenderItems(sections: DownloadSection[]): RenderItem[] {
   const items: RenderItem[] = [];
+  const familyMap = new Map<string, RenderItem & { type: 'family' }>();
   for (const section of sections) {
     if (section.familyName) {
-      const last = items[items.length - 1];
-      if (last?.type === 'family' && last.familyName === section.familyName) {
-        last.sections.push(section);
+      const existing = familyMap.get(section.familyName);
+      if (existing) {
+        existing.sections.push(section);
       } else {
-        items.push({ type: 'family', familyName: section.familyName, familyId: section.familyId ?? null, sections: [section] });
+        const item: RenderItem & { type: 'family' } = { type: 'family', familyName: section.familyName, familyId: section.familyId ?? null, sections: [section] };
+        familyMap.set(section.familyName, item);
+        items.push(item);
       }
     } else {
       items.push({ type: 'section', section });
