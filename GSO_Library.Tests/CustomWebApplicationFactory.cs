@@ -85,13 +85,24 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 uploaded_at TEXT NOT NULL,
                 arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
                 created_by TEXT,
-                score_part_type TEXT,
-                instrument_id INTEGER REFERENCES instruments(id) ON DELETE SET NULL
+                score_part_type TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS arrangement_file_instruments (
+                file_id INTEGER NOT NULL REFERENCES arrangement_files(id) ON DELETE CASCADE,
+                instrument_id INTEGER NOT NULL REFERENCES instruments(id) ON DELETE CASCADE,
+                PRIMARY KEY (file_id, instrument_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS instrument_families (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
             );
 
             CREATE TABLE IF NOT EXISTS instruments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
+                family_id INTEGER REFERENCES instrument_families(id) ON DELETE SET NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now')),
                 created_by TEXT

@@ -48,7 +48,15 @@ public class ArrangementRepository
                 "SELECT id, name, description, duration_seconds, year, created_at, updated_at, created_by FROM arrangements")).ToList();
 
             var allFiles = (await connection.QueryAsync<ArrangementFile>(
-                "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by, score_part_type, instrument_id FROM arrangement_files")).ToList();
+                "SELECT id, file_name, stored_file_name, content_type, file_size, uploaded_at, arrangement_id, created_by, score_part_type FROM arrangement_files")).ToList();
+
+            var allFileInstrumentLinks = (await connection.QueryAsync<(int FileId, int InstrumentId)>(
+                "SELECT file_id, instrument_id FROM arrangement_file_instruments")).ToList();
+            var fileInstrumentMap = allFileInstrumentLinks.GroupBy(l => l.FileId)
+                .ToDictionary(g => g.Key, g => g.Select(l => l.InstrumentId).ToList());
+            foreach (var f in allFiles)
+                if (fileInstrumentMap.TryGetValue(f.Id, out var instIds))
+                    f.InstrumentIds = instIds;
 
             var allGames = (await connection.QueryAsync<Game>(
                 "SELECT id, name, description, series_id, created_at, updated_at, created_by FROM games")).ToList();
@@ -57,7 +65,8 @@ public class ArrangementRepository
                 "SELECT id, name, description, created_at, updated_at, created_by FROM series")).ToList();
 
             var allInstruments = (await connection.QueryAsync<Instrument>(
-                "SELECT id, name, created_at, updated_at, created_by FROM instruments")).ToList();
+                "SELECT i.id, i.name, i.family_id, i.created_at, i.updated_at, i.created_by, f.name as family_name " +
+                "FROM instruments i LEFT JOIN instrument_families f ON i.family_id = f.id")).ToList();
 
             var allPerformances = (await connection.QueryAsync<Performance>(
                 "SELECT id, name, link, performance_date, notes, created_at, updated_at, created_by FROM performances")).ToList();
@@ -98,8 +107,23 @@ public class ArrangementRepository
             var gamesByArrangement = arrangementGames.GroupBy(ag => ag.ArrangementId)
                 .ToDictionary(g => g.Key, g => g.Select(ag => gameLookup.GetValueOrDefault(ag.GameId)).Where(x => x != null).ToList()!);
 
+            var defaultSortPositions = (await connection.QueryAsync<(int InstrumentId, int Position)>(
+                """
+                SELECT isoi.instrument_id, isoi.position
+                FROM instrument_sort_order_items isoi
+                JOIN instrument_sort_orders iso ON iso.id = isoi.sort_order_id
+                WHERE iso.is_default = TRUE
+                ORDER BY isoi.position
+                """)).ToDictionary(r => r.InstrumentId, r => r.Position);
+
             var instrumentsByArrangement = arrangementInstruments.GroupBy(ai => ai.ArrangementId)
-                .ToDictionary(g => g.Key, g => g.Select(ai => instrumentLookup.GetValueOrDefault(ai.InstrumentId)).Where(x => x != null).ToList()!);
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(ai => instrumentLookup.GetValueOrDefault(ai.InstrumentId))
+                          .Where(x => x != null)
+                          .OrderBy(i => defaultSortPositions.TryGetValue(i!.Id, out var pos) ? pos : int.MaxValue)
+                          .ThenBy(i => i!.Name)
+                          .ToList()!);
 
             var performancesByArrangement = arrangementPerformances.GroupBy(ap => ap.ArrangementId)
                 .ToDictionary(g => g.Key, g => g.Select(ap => performanceLookup.GetValueOrDefault(ap.PerformanceId)).Where(x => x != null).ToList()!);

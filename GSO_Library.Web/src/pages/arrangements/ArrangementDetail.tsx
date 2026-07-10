@@ -127,13 +127,28 @@ export default function ArrangementDetail() {
           <Card className="mb-3">
             <Card.Body>
               <Card.Title>Instruments</Card.Title>
-              {arrangement.instruments?.length > 0 ? (
-                <div className="d-flex flex-wrap gap-1">
-                  {arrangement.instruments.map((i) => (
-                    <Badge key={i.id} bg="success">{i.name}</Badge>
-                  ))}
-                </div>
-              ) : (
+              {arrangement.instruments?.length > 0 ? (() => {
+                const seen = new Map<string, typeof arrangement.instruments>();
+                for (const i of arrangement.instruments) {
+                  const key = i.familyName ?? '';
+                  if (!seen.has(key)) seen.set(key, []);
+                  seen.get(key)!.push(i);
+                }
+                const groups: { label: string; items: typeof arrangement.instruments }[] = [];
+                seen.forEach((items, key) => {
+                  if (key !== '') groups.push({ label: key, items });
+                });
+                const unassigned = seen.get('');
+                if (unassigned?.length) groups.push({ label: 'Other', items: unassigned });
+                return groups.map(({ label, items }) => (
+                  <div key={label} className="mb-2">
+                    <div className="text-muted small fw-semibold mb-1">{label}</div>
+                    <div className="d-flex flex-wrap gap-1">
+                      {items.map((i) => <Badge key={i.id} bg="success">{i.name}</Badge>)}
+                    </div>
+                  </div>
+                ));
+              })() : (
                 <p className="text-muted mb-0">None</p>
               )}
             </Card.Body>

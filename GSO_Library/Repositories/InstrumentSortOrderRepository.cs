@@ -73,11 +73,12 @@ public class InstrumentSortOrderRepository
         using var connection = _connectionFactory.CreateConnection();
         return (await connection.QueryAsync<Instrument>(
             """
-            SELECT i.id, i.name, i.created_at, i.updated_at, i.created_by,
-                   isoi.position
+            SELECT i.id, i.name, i.family_id, i.created_at, i.updated_at, i.created_by,
+                   f.name as family_name, isoi.position
             FROM instruments i
             LEFT JOIN instrument_sort_order_items isoi
                 ON isoi.instrument_id = i.id AND isoi.sort_order_id = @SortOrderId
+            LEFT JOIN instrument_families f ON f.id = i.family_id
             ORDER BY isoi.position NULLS LAST, i.name ASC
             """, new { SortOrderId = sortOrderId })).ToList();
     }

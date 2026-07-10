@@ -205,6 +205,7 @@ export default function InstrumentList() {
 
   const tableColumns = [
     { key: 'name', label: 'Name', sortable: activeSortOrderId === null },
+    { key: 'familyName', label: 'Family', render: (i: Instrument) => i.familyName ?? '—' },
     ...actionColumn,
   ];
 

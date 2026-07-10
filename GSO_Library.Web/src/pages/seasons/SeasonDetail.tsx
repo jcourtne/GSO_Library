@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Button, Card, Col, Collapse, Form, InputGroup, ListGroup, Row, Spinner, Table } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,7 +8,7 @@ import { instrumentSortOrdersApi } from '../../api/instrumentSortOrders';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import { useAuth } from '../../hooks/useAuth';
 import { categorizeFiles, groupScoreFiles } from '../../utils/fileCategories';
-import type { Arrangement, Instrument, Performance } from '../../types';
+import type { Arrangement, ArrangementFile, Instrument, Performance } from '../../types';
 
 function formatDuration(seconds?: number) {
   if (!seconds) return '-';
@@ -20,6 +20,39 @@ function formatDuration(seconds?: number) {
 function maxUploadedAt(files: { uploadedAt: string }[]): string | null {
   if (files.length === 0) return null;
   return files.reduce((max, f) => f.uploadedAt > max ? f.uploadedAt : max, files[0].uploadedAt);
+}
+
+type InstrumentRow = { key: string; label: string; files: ArrangementFile[]; italic?: boolean };
+type FamilyGroupItem =
+  | { type: 'row'; row: InstrumentRow }
+  | { type: 'family'; familyName: string; rows: InstrumentRow[] };
+
+function buildFamilyGroups(
+  instruments: Instrument[],
+  filesByInstrument: Map<number, ArrangementFile[]>,
+  specialRows: { familyName: string; row: InstrumentRow }[] = [],
+): FamilyGroupItem[] {
+  const items: FamilyGroupItem[] = [];
+  for (const inst of instruments) {
+    const row: InstrumentRow = { key: String(inst.id), label: inst.name, files: filesByInstrument.get(inst.id) ?? [] };
+    if (inst.familyName) {
+      const last = items[items.length - 1];
+      if (last?.type === 'family' && last.familyName === inst.familyName) {
+        last.rows.push(row);
+      } else {
+        items.push({ type: 'family', familyName: inst.familyName, rows: [row] });
+      }
+    } else {
+      items.push({ type: 'row', row });
+    }
+  }
+  for (const { familyName, row } of specialRows) {
+    const existing = items.find((i): i is { type: 'family'; familyName: string; rows: InstrumentRow[] } =>
+      i.type === 'family' && i.familyName === familyName);
+    if (existing) existing.rows.push(row);
+    else items.push({ type: 'family', familyName, rows: [row] });
+  }
+  return items;
 }
 
 function formatDateRange(startDate?: string, endDate?: string) {
@@ -100,6 +133,7 @@ export default function SeasonDetail() {
   const hasInstrumentContent = sortedInstruments.length > 0 ||
     grouped.conductorScore.length > 0 ||
     grouped.percussion.length > 0 ||
+    grouped.voice.length > 0 ||
     grouped.unlisted.length > 0;
 
   const deleteMutation = useMutation({
@@ -249,29 +283,50 @@ export default function SeasonDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {[
-                      { key: 'conductor', label: "Conductor's Score", files: grouped.conductorScore, italic: true },
-                      ...sortedInstruments.map((inst) => ({
-                        key: String(inst.id),
-                        label: inst.name,
-                        files: grouped.byInstrument.get(inst.id) ?? [],
-                        italic: false,
-                      })),
-                      { key: 'percussion', label: 'Percussion (Generic)', files: grouped.percussion, italic: true },
-                      { key: 'unlisted', label: 'Unlisted Parts', files: grouped.unlisted, italic: true },
-                    ].map(({ key, label, files, italic }) => {
-                      const date = maxUploadedAt(files);
+                    {grouped.conductorScore.length > 0 && (
+                      <tr>
+                        <td><em>Conductor's Score</em></td>
+                        <td>{(() => { const d = maxUploadedAt(grouped.conductorScore); return d ? new Date(d).toLocaleDateString() : <span className="text-muted">—</span>; })()}</td>
+                      </tr>
+                    )}
+                    {buildFamilyGroups(sortedInstruments, grouped.byInstrument, [
+                      ...(grouped.percussion.length > 0 ? [{ familyName: 'Percussion', row: { key: 'percussion', label: 'Percussion (Generic)', files: grouped.percussion, italic: true } }] : []),
+                      ...(grouped.voice.length > 0      ? [{ familyName: 'Voice',      row: { key: 'voice',      label: 'Voice (Generic)',      files: grouped.voice,      italic: true } }] : []),
+                    ]).map((item, i) => {
+                      if (item.type === 'row') {
+                        const d = maxUploadedAt(item.row.files);
+                        return (
+                          <tr key={item.row.key}>
+                            <td>{item.row.italic ? <em>{item.row.label}</em> : item.row.label}</td>
+                            <td>{d ? new Date(d).toLocaleDateString() : <span className="text-muted">—</span>}</td>
+                          </tr>
+                        );
+                      }
                       return (
-                        <tr key={key}>
-                          <td>{italic ? <em>{label}</em> : label}</td>
-                          <td>
-                            {date
-                              ? new Date(date).toLocaleDateString()
-                              : <span className="text-muted">—</span>}
-                          </td>
-                        </tr>
+                        <Fragment key={i}>
+                          <tr style={{ background: '#dee2e6' }}>
+                            <td colSpan={2} className="fw-semibold py-2" style={{ fontSize: '1rem', color: '#212529' }}>
+                              {item.familyName}
+                            </td>
+                          </tr>
+                          {item.rows.map((row) => {
+                            const d = maxUploadedAt(row.files);
+                            return (
+                              <tr key={row.key}>
+                                <td className="ps-3">{row.italic ? <em>{row.label}</em> : row.label}</td>
+                                <td>{d ? new Date(d).toLocaleDateString() : <span className="text-muted">—</span>}</td>
+                              </tr>
+                            );
+                          })}
+                        </Fragment>
                       );
                     })}
+                    {grouped.unlisted.length > 0 && (
+                      <tr>
+                        <td><em>Unlisted Parts</em></td>
+                        <td>{(() => { const d = maxUploadedAt(grouped.unlisted); return d ? new Date(d).toLocaleDateString() : <span className="text-muted">—</span>; })()}</td>
+                      </tr>
+                    )}
                   </tbody>
                 </Table>
               </Card.Body>

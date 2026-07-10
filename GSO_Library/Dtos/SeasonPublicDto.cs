@@ -32,6 +32,8 @@ public class DownloadSectionDto
     public string Label { get; set; } = "";
     public string? ScorePartType { get; set; }
     public int? InstrumentId { get; set; }
+    public int? FamilyId { get; set; }
+    public string? FamilyName { get; set; }
     public DateTime? LastUpdated { get; set; }
     public int FileCount { get; set; }
 }

@@ -18,6 +18,8 @@ export interface DownloadSection {
   label: string;
   scorePartType?: string | null;
   instrumentId?: number | null;
+  familyId?: number | null;
+  familyName?: string | null;
   lastUpdated?: string | null;
   fileCount: number;
 }

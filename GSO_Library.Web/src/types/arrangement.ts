@@ -13,7 +13,7 @@ export interface ArrangementFile {
   createdBy?: string;
   arrangementId: number;
   scorePartType?: string | null;
-  instrumentId?: number | null;
+  instrumentIds: number[];
 }
 
 export interface Arrangement {
