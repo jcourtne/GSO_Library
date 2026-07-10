@@ -185,20 +185,30 @@ public class PublicController(
             });
         }
 
-        // Unlisted
-        var unlistedFiles = filteredFiles.Where(x =>
-            x.File.ScorePartType == null ||
-            x.File.ScorePartType == ScorePartType.UnlistedPart ||
-            (x.File.ScorePartType == ScorePartType.InstrumentPart &&
-             !x.File.InstrumentIds.Any(id => validInstrumentIds.Contains(id))))
+        // Notation Files
+        var notationSectionFiles = filteredFiles
+            .Where(x => NotationExtensions.Contains(Path.GetExtension(x.File.FileName)?.ToLowerInvariant() ?? ""))
             .ToList();
-        if (unlistedFiles.Count > 0)
+        if (notationSectionFiles.Count > 0)
             sections.Add(new DownloadSectionDto
             {
-                Label = "Unlisted Parts",
-                ScorePartType = ScorePartType.UnlistedPart,
-                FileCount = unlistedFiles.Count,
-                LastUpdated = unlistedFiles.Max(x => (DateTime?)x.File.UploadedAt),
+                Label = "Notation Files",
+                ScorePartType = ScorePartType.NotationFiles,
+                FileCount = notationSectionFiles.Count,
+                LastUpdated = notationSectionFiles.Max(x => (DateTime?)x.File.UploadedAt),
+            });
+
+        // Playback Files
+        var playbackSectionFiles = filteredFiles
+            .Where(x => PlaybackExtensions.Contains(Path.GetExtension(x.File.FileName)?.ToLowerInvariant() ?? ""))
+            .ToList();
+        if (playbackSectionFiles.Count > 0)
+            sections.Add(new DownloadSectionDto
+            {
+                Label = "Playback Files",
+                ScorePartType = ScorePartType.PlaybackFiles,
+                FileCount = playbackSectionFiles.Count,
+                LastUpdated = playbackSectionFiles.Max(x => (DateTime?)x.File.UploadedAt),
             });
 
         return new SeasonPublicDto

@@ -33,6 +33,8 @@ public class SeasonZipCacheService(
             ScorePartType.PercussionPart => "percussion",
             ScorePartType.VoicePart      => "voice",
             ScorePartType.UnlistedPart   => "unlisted",
+            ScorePartType.NotationFiles  => "notation",
+            ScorePartType.PlaybackFiles  => "playback",
             _                            => Sanitize(scorePartType ?? "misc"),
         };
     }
@@ -232,6 +234,12 @@ public class SeasonZipCacheService(
                    (file.ScorePartType == ScorePartType.InstrumentPart &&
                     !file.InstrumentIds.Any(id => validInstrumentIds.Contains(id)));
 
+        if (scorePartType == ScorePartType.NotationFiles)
+            return NotationExtensions.Contains(Path.GetExtension(file.FileName)?.ToLowerInvariant() ?? "");
+
+        if (scorePartType == ScorePartType.PlaybackFiles)
+            return PlaybackExtensions.Contains(Path.GetExtension(file.FileName)?.ToLowerInvariant() ?? "");
+
         return file.ScorePartType == scorePartType;
     }
 
@@ -252,6 +260,8 @@ public class SeasonZipCacheService(
             "percussion" => $"{baseName} - Percussion (Generic).zip",
             "voice"      => $"{baseName} - Voice (Generic).zip",
             "unlisted"   => $"{baseName} - Unlisted Parts.zip",
+            "notation"   => $"{baseName} - Notation Files.zip",
+            "playback"   => $"{baseName} - Playback Files.zip",
             _ when instrumentId.HasValue =>
                 $"{baseName} - {Sanitize(GetInstrumentName(season, instrumentId.Value))}.zip",
             _ => $"{baseName}.zip",
