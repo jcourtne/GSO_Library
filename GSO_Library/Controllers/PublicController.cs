@@ -52,8 +52,7 @@ public class PublicController(
         if (!ValidatePassword(season, pw)) return Unauthorized();
 
         var zipKey = zipCache.BuildZipKey(scorePartType, instrumentId, familyId);
-        var (stream, _) = await zipCache.GetOrGenerateAsync(season, zipKey, scorePartType, instrumentId, familyId);
-        await stream.DisposeAsync();
+        await zipCache.EnsureGeneratedAsync(season, zipKey, scorePartType, instrumentId, familyId);
         return NoContent();
     }
 

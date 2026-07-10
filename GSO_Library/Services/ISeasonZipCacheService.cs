@@ -6,6 +6,8 @@ public interface ISeasonZipCacheService
 {
     Task<(Stream stream, string zipFileName)> GetOrGenerateAsync(
         Season season, string zipKey, string? scorePartType, int? instrumentId, int? familyId = null);
+    Task EnsureGeneratedAsync(
+        Season season, string zipKey, string? scorePartType, int? instrumentId, int? familyId = null);
     Task InvalidateForSeasonAsync(int seasonId);
     Task InvalidateForArrangementAsync(int arrangementId);
     string BuildZipKey(string? scorePartType, int? instrumentId, int? familyId = null);
