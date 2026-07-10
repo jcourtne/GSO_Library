@@ -157,6 +157,11 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
     if (e.dataTransfer.files.length > 0) uploadFiles(Array.from(e.dataTransfer.files));
   };
 
+  const isNamedSection = (type: string | null | undefined) =>
+    type === SCORE_PART_TYPES.CONDUCTOR_SCORE
+    || type === SCORE_PART_TYPES.PERCUSSION_PART
+    || type === SCORE_PART_TYPES.VOICE_PART;
+
   const handleRowDrop = (e: React.DragEvent, scorePartType: string, instrumentId: number | null) => {
     e.preventDefault();
     setDragOverRow(null);
@@ -167,14 +172,15 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
     if (!file) return;
 
     if (instrumentId !== null) {
-      // Add this instrument without removing others
+      // Adding to an instrument: preserve any existing generic section assignment
       const newIds = file.instrumentIds.includes(instrumentId)
         ? file.instrumentIds
         : [...file.instrumentIds, instrumentId];
-      reassignMutation.mutate({ fileId, scorePartType, instrumentIds: newIds });
+      const newType = isNamedSection(file.scorePartType) ? file.scorePartType : SCORE_PART_TYPES.INSTRUMENT_PART;
+      reassignMutation.mutate({ fileId, scorePartType: newType, instrumentIds: newIds });
     } else {
-      // Non-instrument row: clear all instrument links
-      reassignMutation.mutate({ fileId, scorePartType, instrumentIds: [] });
+      // Adding to a generic section: preserve existing instrument assignments
+      reassignMutation.mutate({ fileId, scorePartType, instrumentIds: file.instrumentIds });
     }
   };
 
@@ -182,8 +188,21 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
     const file = renderedScoreFiles.find((f) => f.id === fileId);
     if (!file) return;
     const newIds = file.instrumentIds.filter((id) => id !== instrumentId);
-    const newType = newIds.length === 0 ? SCORE_PART_TYPES.UNLISTED_PART : (file.scorePartType ?? SCORE_PART_TYPES.INSTRUMENT_PART);
+    // If still in a named generic section, keep that type; otherwise fall back to unlisted
+    const newType = (newIds.length === 0 && !isNamedSection(file.scorePartType))
+      ? SCORE_PART_TYPES.UNLISTED_PART
+      : (file.scorePartType ?? SCORE_PART_TYPES.INSTRUMENT_PART);
     reassignMutation.mutate({ fileId, scorePartType: newType, instrumentIds: newIds });
+  };
+
+  const handleRemoveFromSection = (fileId: number) => {
+    const file = renderedScoreFiles.find((f) => f.id === fileId);
+    if (!file) return;
+    // Keep any instrument assignments; only clear the generic section type
+    const newType = file.instrumentIds.length > 0
+      ? SCORE_PART_TYPES.INSTRUMENT_PART
+      : SCORE_PART_TYPES.UNLISTED_PART;
+    reassignMutation.mutate({ fileId, scorePartType: newType, instrumentIds: file.instrumentIds });
   };
 
   const handleAutoSort = async () => {
@@ -265,7 +284,6 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
       result.push({ type: 'row', key: 'voice_part', label: 'Voice (Generic)', files: grouped.voice, scorePartType: SCORE_PART_TYPES.VOICE_PART, instrumentId: null, indented: true });
     }
 
-    result.push({ type: 'row', key: 'unlisted_part', label: 'Unlisted Parts', files: grouped.unlisted, scorePartType: SCORE_PART_TYPES.UNLISTED_PART, instrumentId: null });
     return result;
   })();
 
@@ -354,15 +372,18 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
                           className="d-flex justify-content-between align-items-center px-2 py-1 mb-1 rounded border bg-white"
                           style={{ fontSize: '0.8rem' }}
                         >
-                          <span className="text-truncate me-1">{f.fileName}</span>
-                          {editable && instrumentId !== null && (
+                          <span className="me-1" style={{ wordBreak: 'break-word', minWidth: 0 }}>{f.fileName}</span>
+                          {editable && (
                             <Button
                               size="sm"
                               variant="link"
                               className="p-0 text-danger flex-shrink-0"
                               style={{ fontSize: '0.75rem', lineHeight: 1 }}
-                              onClick={() => handleRemoveFromInstrument(f.id, instrumentId)}
-                              title="Remove from this instrument"
+                              onClick={() => instrumentId !== null
+                                ? handleRemoveFromInstrument(f.id, instrumentId)
+                                : handleRemoveFromSection(f.id)
+                              }
+                              title="Remove from this section"
                             >
                               ×
                             </Button>
@@ -375,15 +396,15 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
               })}
             </Col>
 
-            {/* Right column: all files */}
+            {/* Right column: files split by sort status */}
             <Col md={6}>
-              <div className="small fw-semibold text-muted text-uppercase mb-2" style={{ letterSpacing: '0.05em' }}>
-                All Files {renderedScoreFiles.length > 0 && <span className="fw-normal">({renderedScoreFiles.length})</span>}
-              </div>
               {renderedScoreFiles.length === 0 ? (
                 <div className="text-muted small fst-italic">No files uploaded yet</div>
-              ) : (
-                renderedScoreFiles.map((f) => {
+              ) : (() => {
+                const unlistedFiles = renderedScoreFiles.filter((f) => f.scorePartType === SCORE_PART_TYPES.UNLISTED_PART || !f.scorePartType);
+                const assignedFiles = renderedScoreFiles.filter((f) => f.scorePartType && f.scorePartType !== SCORE_PART_TYPES.UNLISTED_PART);
+
+                const renderFileCard = (f: ArrangementFile) => {
                   const assignmentLabel = getFileAssignmentLabel(f);
                   const assignedInstrumentIds = f.instrumentIds.filter((id) => instrumentIds.has(id));
                   return (
@@ -395,7 +416,7 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
                       style={editable ? { cursor: 'grab' } : undefined}
                     >
                       <div className="d-flex justify-content-between align-items-start">
-                        <span className="small me-2 text-truncate">
+                        <span className="small me-2" style={{ wordBreak: 'break-word', minWidth: 0 }}>
                           {f.fileName}
                           <span className="text-muted ms-1">({formatFileSize(f.fileSize)})</span>
                         </span>
@@ -426,8 +447,30 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
                       )}
                     </div>
                   );
-                })
-              )}
+                };
+
+                return (
+                  <>
+                    {unlistedFiles.length > 0 && (
+                      <>
+                        <div className="small fw-semibold text-muted text-uppercase mb-2" style={{ letterSpacing: '0.05em' }}>
+                          Needs Sorting <span className="fw-normal">({unlistedFiles.length})</span>
+                        </div>
+                        {unlistedFiles.map(renderFileCard)}
+                        {assignedFiles.length > 0 && <hr className="my-2" />}
+                      </>
+                    )}
+                    {assignedFiles.length > 0 && (
+                      <>
+                        <div className="small fw-semibold text-muted text-uppercase mb-2" style={{ letterSpacing: '0.05em' }}>
+                          Sorted <span className="fw-normal">({assignedFiles.length})</span>
+                        </div>
+                        {assignedFiles.map(renderFileCard)}
+                      </>
+                    )}
+                  </>
+                );
+              })()}
 
               {editable && (
                 <div className="mt-2">

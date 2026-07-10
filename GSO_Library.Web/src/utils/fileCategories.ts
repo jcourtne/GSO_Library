@@ -58,29 +58,31 @@ export function groupScoreFiles(
     unlisted: [],
   };
   for (const f of renderedFiles) {
+    let categorized = false;
+
     if (f.scorePartType === SCORE_PART_TYPES.CONDUCTOR_SCORE) {
       result.conductorScore.push(f);
-    } else if (
-      f.scorePartType === SCORE_PART_TYPES.INSTRUMENT_PART &&
-      f.instrumentIds.length > 0
-    ) {
-      let assigned = false;
-      for (const instId of f.instrumentIds) {
-        if (arrangementInstrumentIds.has(instId)) {
-          const list = result.byInstrument.get(instId) ?? [];
-          list.push(f);
-          result.byInstrument.set(instId, list);
-          assigned = true;
-        }
-      }
-      if (!assigned) result.unlisted.push(f);
-    } else if (f.scorePartType === SCORE_PART_TYPES.PERCUSSION_PART) {
-      result.percussion.push(f);
-    } else if (f.scorePartType === SCORE_PART_TYPES.VOICE_PART) {
-      result.voice.push(f);
-    } else {
-      result.unlisted.push(f);
+      categorized = true;
     }
+    if (f.scorePartType === SCORE_PART_TYPES.PERCUSSION_PART) {
+      result.percussion.push(f);
+      categorized = true;
+    }
+    if (f.scorePartType === SCORE_PART_TYPES.VOICE_PART) {
+      result.voice.push(f);
+      categorized = true;
+    }
+
+    for (const instId of f.instrumentIds) {
+      if (arrangementInstrumentIds.has(instId)) {
+        const list = result.byInstrument.get(instId) ?? [];
+        list.push(f);
+        result.byInstrument.set(instId, list);
+        categorized = true;
+      }
+    }
+
+    if (!categorized) result.unlisted.push(f);
   }
   return result;
 }
