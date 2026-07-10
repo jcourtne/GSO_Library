@@ -102,28 +102,36 @@ public class SeasonZipCacheService(
                 .Where(x => MatchesTypeConfig(x.File, season) && MatchesFilter(x.File, scorePartType, instrumentId, validInstrumentIds, familyInstrumentIds, familyExtraTypes))
                 .ToList();
 
-            var ms = new MemoryStream();
-            using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
-            {
-                foreach (var (arrName, file) in entries)
-                {
-                    var entry = archive.CreateEntry(
-                        $"{Sanitize(arrName)}/{Sanitize(file.FileName)}",
-                        CompressionLevel.Fastest);
-                    using var entryStream = entry.Open();
-                    using var src = await fileStorage.GetFileAsync(
-                        $"arrangements/{file.ArrangementId}", file.StoredFileName);
-                    await src.CopyToAsync(entryStream);
-                }
-            }
-
             var folderPath = $"shares/{season.Id}";
             var storedFileName = $"{zipKey}.zip";
-            ms.Position = 0;
-            await fileStorage.SaveFileAsync(folderPath, storedFileName, ms);
-            await zipRepo.UpsertAsync(season.Id, zipKey, folderPath, storedFileName);
-            ms.Position = 0;
-            return (ms, BuildZipFileName(season, zipKey, instrumentId, familyId));
+            var tempPath = Path.GetTempFileName();
+            try
+            {
+                using (var fs = new FileStream(tempPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None, 65536, useAsync: true))
+                {
+                    using (var archive = new ZipArchive(fs, ZipArchiveMode.Create, leaveOpen: true))
+                    {
+                        foreach (var (arrName, file) in entries)
+                        {
+                            var entry = archive.CreateEntry(
+                                $"{Sanitize(arrName)}/{Sanitize(file.FileName)}",
+                                CompressionLevel.Fastest);
+                            using var entryStream = entry.Open();
+                            await using var src = await fileStorage.GetFileAsync(
+                                $"arrangements/{file.ArrangementId}", file.StoredFileName);
+                            await src.CopyToAsync(entryStream);
+                        }
+                    }
+                    fs.Position = 0;
+                    await fileStorage.SaveFileAsync(folderPath, storedFileName, fs);
+                }
+                await zipRepo.UpsertAsync(season.Id, zipKey, folderPath, storedFileName);
+            }
+            finally
+            {
+                try { File.Delete(tempPath); } catch { /* best effort */ }
+            }
+            return (await fileStorage.GetFileAsync(folderPath, storedFileName), BuildZipFileName(season, zipKey, instrumentId, familyId));
         }
         finally
         {
