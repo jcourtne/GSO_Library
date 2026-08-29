@@ -8,7 +8,8 @@ namespace GSO_Library.Services;
 public class SeasonZipCacheService(
     SeasonShareZipRepository zipRepo,
     IFileStorageService fileStorage,
-    SeasonRepository seasonRepo) : ISeasonZipCacheService
+    SeasonRepository seasonRepo,
+    ILogger<SeasonZipCacheService> logger) : ISeasonZipCacheService
 {
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _generateLocks = new();
 
@@ -221,10 +222,45 @@ public class SeasonZipCacheService(
         var zips = await zipRepo.GetAllForSeasonAsync(seasonId);
         foreach (var zip in zips)
         {
-            try { await fileStorage.DeleteFileAsync(zip.FolderPath, zip.StoredFileName); }
-            catch { /* best effort */ }
+            // Delete the DB row only if the storage object is gone — otherwise a transient
+            // storage failure would orphan the object with no record to ever find it again.
+            // A retained row is retried by the next invalidation or the periodic age sweep.
+            try
+            {
+                await fileStorage.DeleteFileAsync(zip.FolderPath, zip.StoredFileName);
+                await zipRepo.DeleteByIdAsync(zip.Id);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Failed to delete cached season zip {FolderPath}/{StoredFileName}; leaving row {Id} for retry",
+                    zip.FolderPath, zip.StoredFileName, zip.Id);
+            }
         }
-        await zipRepo.DeleteForSeasonAsync(seasonId);
+    }
+
+    public async Task<int> PurgeExpiredAsync(TimeSpan maxAge, CancellationToken ct = default)
+    {
+        var cutoff = DateTime.UtcNow - maxAge;
+        var expired = await zipRepo.GetExpiredAsync(cutoff);
+        var deleted = 0;
+        foreach (var zip in expired)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                await fileStorage.DeleteFileAsync(zip.FolderPath, zip.StoredFileName);
+                await zipRepo.DeleteByIdAsync(zip.Id);
+                deleted++;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Failed to purge expired season zip {FolderPath}/{StoredFileName}; leaving row {Id} for retry",
+                    zip.FolderPath, zip.StoredFileName, zip.Id);
+            }
+        }
+        return deleted;
     }
 
     public async Task InvalidateForArrangementAsync(int arrangementId)

@@ -11,4 +11,5 @@ public interface ISeasonZipCacheService
     Task InvalidateForSeasonAsync(int seasonId);
     Task InvalidateForArrangementAsync(int arrangementId);
     string BuildZipKey(string? scorePartType, int? instrumentId, int? familyId = null, int? arrangementId = null);
+    Task<int> PurgeExpiredAsync(TimeSpan maxAge, CancellationToken ct = default);
 }
