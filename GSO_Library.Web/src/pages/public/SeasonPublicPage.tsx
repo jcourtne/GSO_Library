@@ -256,26 +256,34 @@ export default function SeasonPublicPage() {
                           return renderSectionRow(item.section, String(i), false);
                         }
 
-                        // Family group
-                        const familySection: DownloadSection = { label: item.familyName, familyId: item.familyId, fileCount: 0 };
+                        // Family group. A family download filters by familyId server-side, so only
+                        // offer the group-level button when we actually have one — a null familyId
+                        // (a generic Percussion/Voice section with no instrument in that family)
+                        // would otherwise fall through to downloading the entire season. Those
+                        // groups hold a single generic row, which keeps its own Download button.
+                        const familySection: DownloadSection | null = item.familyId != null
+                          ? { label: item.familyName, familyId: item.familyId, fileCount: 0 }
+                          : null;
                         return (
                           <Fragment key={i}>
                             <tr style={{ background: '#dee2e6' }}>
-                              <td colSpan={3} className="fw-semibold py-2" style={{ fontSize: '1rem', color: '#212529' }}>
+                              <td colSpan={familySection ? 3 : 4} className="fw-semibold py-2" style={{ fontSize: '1rem', color: '#212529' }}>
                                 {item.familyName}
                               </td>
-                              <td className="py-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline-secondary"
-                                  onClick={() => handleDownload(familySection, sel)}
-                                  disabled={preparingKey !== null}
-                                >
-                                  {preparingKey === keyFor(familySection, sel)
-                                    ? <Spinner size="sm" animation="border" />
-                                    : 'Download'}
-                                </Button>
-                              </td>
+                              {familySection && (
+                                <td className="py-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline-secondary"
+                                    onClick={() => handleDownload(familySection, sel)}
+                                    disabled={preparingKey !== null}
+                                  >
+                                    {preparingKey === keyFor(familySection, sel)
+                                      ? <Spinner size="sm" animation="border" />
+                                      : 'Download'}
+                                  </Button>
+                                </td>
+                              )}
                             </tr>
                             {item.sections.map((s, j) => renderSectionRow(s, `${i}-${j}`, true))}
                           </Fragment>

@@ -46,6 +46,21 @@ public class GcsFileStorageService : IFileStorageService
         return Task.FromResult<Stream>(pipe.Reader.AsStream());
     }
 
+    public async Task<bool> ExistsAsync(string folderPath, string storedFileName)
+    {
+        var objectName = $"{folderPath}/{storedFileName}";
+        try
+        {
+            // Metadata-only lookup — does not download the object's content.
+            await _storageClient.GetObjectAsync(_bucketName, objectName);
+            return true;
+        }
+        catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return false;
+        }
+    }
+
     public async Task DeleteFileAsync(string folderPath, string storedFileName)
     {
         var objectName = $"{folderPath}/{storedFileName}";

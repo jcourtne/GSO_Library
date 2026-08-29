@@ -50,7 +50,7 @@ public class SeasonZipCacheService(
         Season season, string zipKey, string? scorePartType, int? instrumentId, int? familyId = null, int? arrangementId = null)
     {
         var cached = await zipRepo.GetAsync(season.Id, zipKey);
-        if (cached != null && await FileExistsAsync(cached.FolderPath, cached.StoredFileName))
+        if (cached != null && await fileStorage.ExistsAsync(cached.FolderPath, cached.StoredFileName))
             return;
 
         var sem = GetGenerateLock(season.Id, zipKey);
@@ -58,7 +58,7 @@ public class SeasonZipCacheService(
         try
         {
             var rechecked = await zipRepo.GetAsync(season.Id, zipKey);
-            if (rechecked != null && await FileExistsAsync(rechecked.FolderPath, rechecked.StoredFileName))
+            if (rechecked != null && await fileStorage.ExistsAsync(rechecked.FolderPath, rechecked.StoredFileName))
                 return;
 
             await GenerateAndSaveAsync(season, zipKey, scorePartType, instrumentId, familyId, arrangementId);
@@ -74,7 +74,7 @@ public class SeasonZipCacheService(
     {
         // Fast path: check cache without acquiring the lock
         var cached = await zipRepo.GetAsync(season.Id, zipKey);
-        if (cached != null)
+        if (cached != null && await fileStorage.ExistsAsync(cached.FolderPath, cached.StoredFileName))
         {
             Stream? s = null;
             try
@@ -95,7 +95,7 @@ public class SeasonZipCacheService(
         {
             // Double-check after acquiring lock — another request may have generated it first
             var rechecked = await zipRepo.GetAsync(season.Id, zipKey);
-            if (rechecked != null)
+            if (rechecked != null && await fileStorage.ExistsAsync(rechecked.FolderPath, rechecked.StoredFileName))
             {
                 Stream? s = null;
                 try
@@ -115,19 +115,6 @@ public class SeasonZipCacheService(
         finally
         {
             sem.Release();
-        }
-    }
-
-    private async Task<bool> FileExistsAsync(string folderPath, string storedFileName)
-    {
-        try
-        {
-            await using var s = await fileStorage.GetFileAsync(folderPath, storedFileName);
-            return true;
-        }
-        catch
-        {
-            return false;
         }
     }
 

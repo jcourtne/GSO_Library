@@ -149,6 +149,29 @@ public class SeasonZipWarmupTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task EnsureGeneratedAsync_RegeneratesZip_WhenStorageObjectIsMissing()
+    {
+        var (seasonId, _) = await CreateSharedSeasonWithPdfAsync();
+        await WarmAsync(seasonId);
+        Assert.True(await RowExistsAsync(seasonId, "all"));
+
+        // Storage object vanishes (bucket lifecycle, failed revoke, etc.) but the DB row survives.
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var storage = scope.ServiceProvider.GetRequiredService<IFileStorageService>();
+            await storage.DeleteFileAsync($"shares/{seasonId}", "all.zip");
+        }
+        Assert.Null(await AllZipEntryNamesAsync(seasonId));
+
+        // Next request must rebuild the zip rather than trust the stale row.
+        await WarmAsync(seasonId);
+
+        var entries = await AllZipEntryNamesAsync(seasonId);
+        Assert.NotNull(entries);
+        Assert.Contains(entries!, e => e.EndsWith("score.pdf"));
+    }
+
+    [Fact]
     public async Task WarmSeasonAsync_NoOpAfterShareRevoked()
     {
         var (seasonId, _) = await CreateSharedSeasonWithPdfAsync();
