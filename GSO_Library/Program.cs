@@ -143,6 +143,10 @@ builder.Services.AddScoped<AuditEventRepository>();
 
 builder.Services.AddScoped<ISeasonZipCacheService, SeasonZipCacheService>();
 
+// Periodic cleanup of stale cached season-share zips
+builder.Services.Configure<SeasonZipCacheOptions>(builder.Configuration.GetSection("SeasonZipCache"));
+builder.Services.AddHostedService<SeasonZipCleanupService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

@@ -45,11 +45,19 @@ public class SeasonShareZipRepository(IDbConnectionFactory connectionFactory)
             new { SeasonId = seasonId });
     }
 
-    public async Task DeleteForSeasonAsync(int seasonId)
+    public async Task<IEnumerable<SeasonShareZip>> GetExpiredAsync(DateTime cutoffUtc)
+    {
+        using var connection = connectionFactory.CreateConnection();
+        return await connection.QueryAsync<SeasonShareZip>(
+            "SELECT id, season_id, zip_key, folder_path, stored_file_name, created_at FROM season_share_zips WHERE created_at < @Cutoff",
+            new { Cutoff = cutoffUtc });
+    }
+
+    public async Task DeleteByIdAsync(int id)
     {
         using var connection = connectionFactory.CreateConnection();
         await connection.ExecuteAsync(
-            "DELETE FROM season_share_zips WHERE season_id = @SeasonId",
-            new { SeasonId = seasonId });
+            "DELETE FROM season_share_zips WHERE id = @Id",
+            new { Id = id });
     }
 }

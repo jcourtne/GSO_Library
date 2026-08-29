@@ -261,6 +261,10 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll(typeof(IFileStorageService));
             services.RemoveAll(typeof(IDbConnectionFactory));
 
+            // Drop hosted services (currently only SeasonZipCleanupService) so background
+            // sweeps never run during tests — cleanup is exercised directly instead.
+            services.RemoveAll(typeof(IHostedService));
+
             // Re-register GSOLibraryContext with the shared SQLite connection
             services.AddDbContext<GSOLibraryContext>(options =>
                 options.UseSqlite($"DataSource={_dbName}"));
