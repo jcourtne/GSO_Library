@@ -22,7 +22,13 @@ public class SeasonZipCacheService(
     private static readonly HashSet<string> PlaybackExtensions =
         new(StringComparer.OrdinalIgnoreCase) { ".mid", ".midi", ".mp3", ".wav", ".flac", ".ogg" };
 
-    public string BuildZipKey(string? scorePartType, int? instrumentId, int? familyId = null)
+    public string BuildZipKey(string? scorePartType, int? instrumentId, int? familyId = null, int? arrangementId = null)
+    {
+        var baseKey = BuildBaseZipKey(scorePartType, instrumentId, familyId);
+        return arrangementId.HasValue ? $"arr_{arrangementId.Value}_{baseKey}" : baseKey;
+    }
+
+    private static string BuildBaseZipKey(string? scorePartType, int? instrumentId, int? familyId)
     {
         if (familyId.HasValue) return $"family_{familyId}";
         if (scorePartType == null && instrumentId == null) return "all";
@@ -40,7 +46,7 @@ public class SeasonZipCacheService(
     }
 
     public async Task EnsureGeneratedAsync(
-        Season season, string zipKey, string? scorePartType, int? instrumentId, int? familyId = null)
+        Season season, string zipKey, string? scorePartType, int? instrumentId, int? familyId = null, int? arrangementId = null)
     {
         var cached = await zipRepo.GetAsync(season.Id, zipKey);
         if (cached != null && await FileExistsAsync(cached.FolderPath, cached.StoredFileName))
@@ -54,7 +60,7 @@ public class SeasonZipCacheService(
             if (rechecked != null && await FileExistsAsync(rechecked.FolderPath, rechecked.StoredFileName))
                 return;
 
-            await GenerateAndSaveAsync(season, zipKey, scorePartType, instrumentId, familyId);
+            await GenerateAndSaveAsync(season, zipKey, scorePartType, instrumentId, familyId, arrangementId);
         }
         finally
         {
@@ -63,7 +69,7 @@ public class SeasonZipCacheService(
     }
 
     public async Task<(Stream stream, string zipFileName)> GetOrGenerateAsync(
-        Season season, string zipKey, string? scorePartType, int? instrumentId, int? familyId = null)
+        Season season, string zipKey, string? scorePartType, int? instrumentId, int? familyId = null, int? arrangementId = null)
     {
         // Fast path: check cache without acquiring the lock
         var cached = await zipRepo.GetAsync(season.Id, zipKey);
@@ -73,7 +79,7 @@ public class SeasonZipCacheService(
             try
             {
                 s = await fileStorage.GetFileAsync(cached.FolderPath, cached.StoredFileName);
-                return (s, BuildZipFileName(season, zipKey, instrumentId, familyId));
+                return (s, BuildZipFileName(season, zipKey, instrumentId, familyId, arrangementId));
             }
             catch
             {
@@ -94,7 +100,7 @@ public class SeasonZipCacheService(
                 try
                 {
                     s = await fileStorage.GetFileAsync(rechecked.FolderPath, rechecked.StoredFileName);
-                    return (s, BuildZipFileName(season, zipKey, instrumentId, familyId));
+                    return (s, BuildZipFileName(season, zipKey, instrumentId, familyId, arrangementId));
                 }
                 catch
                 {
@@ -102,8 +108,8 @@ public class SeasonZipCacheService(
                 }
             }
 
-            var (folderPath, storedFileName) = await GenerateAndSaveAsync(season, zipKey, scorePartType, instrumentId, familyId);
-            return (await fileStorage.GetFileAsync(folderPath, storedFileName), BuildZipFileName(season, zipKey, instrumentId, familyId));
+            var (folderPath, storedFileName) = await GenerateAndSaveAsync(season, zipKey, scorePartType, instrumentId, familyId, arrangementId);
+            return (await fileStorage.GetFileAsync(folderPath, storedFileName), BuildZipFileName(season, zipKey, instrumentId, familyId, arrangementId));
         }
         finally
         {
@@ -125,8 +131,10 @@ public class SeasonZipCacheService(
     }
 
     private async Task<(string folderPath, string storedFileName)> GenerateAndSaveAsync(
-        Season season, string zipKey, string? scorePartType, int? instrumentId, int? familyId)
+        Season season, string zipKey, string? scorePartType, int? instrumentId, int? familyId, int? arrangementId = null)
     {
+        // Family/unlisted semantics are computed from the whole season so they match what the
+        // public DTO displayed; only the source file enumeration is narrowed to one arrangement.
         var validInstrumentIds = new HashSet<int>(
             season.Arrangements.SelectMany(a => a.Instruments.Select(i => i.Id)));
 
@@ -148,10 +156,32 @@ public class SeasonZipCacheService(
             };
         }
 
-        var entries = season.Arrangements
+        var arrangements = arrangementId.HasValue
+            ? season.Arrangements.Where(a => a.Id == arrangementId.Value)
+            : season.Arrangements;
+
+        var entries = arrangements
             .SelectMany(a => a.Files.Select(f => (ArrName: a.Name, File: f)))
             .Where(x => MatchesTypeConfig(x.File, season) && MatchesFilter(x.File, scorePartType, instrumentId, validInstrumentIds, familyInstrumentIds, familyExtraTypes))
             .ToList();
+
+        // When scoped to a single arrangement, drop the arrangement-name folder — every file
+        // shares it — and guard against rare same-name collisions within that one arrangement.
+        var usedEntryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string EntryName(string arrName, string fileName)
+        {
+            if (!arrangementId.HasValue)
+                return $"{Sanitize(arrName)}/{Sanitize(fileName)}";
+            var name = Sanitize(fileName);
+            if (usedEntryNames.Add(name)) return name;
+            var stem = Path.GetFileNameWithoutExtension(name);
+            var ext = Path.GetExtension(name);
+            for (var n = 2; ; n++)
+            {
+                var candidate = $"{stem} ({n}){ext}";
+                if (usedEntryNames.Add(candidate)) return candidate;
+            }
+        }
 
         var folderPath = $"shares/{season.Id}";
         var storedFileName = $"{zipKey}.zip";
@@ -165,7 +195,7 @@ public class SeasonZipCacheService(
                     foreach (var (arrName, file) in entries)
                     {
                         var entry = archive.CreateEntry(
-                            $"{Sanitize(arrName)}/{Sanitize(file.FileName)}",
+                            EntryName(arrName, file.FileName),
                             CompressionLevel.Fastest);
                         using var entryStream = entry.Open();
                         await using var src = await fileStorage.GetFileAsync(
@@ -243,28 +273,48 @@ public class SeasonZipCacheService(
         return file.ScorePartType == scorePartType;
     }
 
-    private string BuildZipFileName(Season season, string zipKey, int? instrumentId, int? familyId = null)
+    private string BuildZipFileName(Season season, string zipKey, int? instrumentId, int? familyId = null, int? arrangementId = null)
     {
-        var baseName = Sanitize(season.Name);
+        var parts = new List<string> { Sanitize(season.Name) };
+
+        if (arrangementId.HasValue)
+        {
+            var arrName = season.Arrangements
+                .FirstOrDefault(a => a.Id == arrangementId.Value)?.Name ?? $"Arrangement {arrangementId}";
+            parts.Add(Sanitize(arrName));
+
+            // Strip the "arr_{id}_" prefix so the section label logic below sees the base key.
+            var prefix = $"arr_{arrangementId.Value}_";
+            if (zipKey.StartsWith(prefix, StringComparison.Ordinal))
+                zipKey = zipKey[prefix.Length..];
+        }
+
+        var label = SectionLabelForKey(season, zipKey, instrumentId, familyId);
+        if (label != null) parts.Add(label);
+
+        return $"{string.Join(" - ", parts)}.zip";
+    }
+
+    private static string? SectionLabelForKey(Season season, string baseKey, int? instrumentId, int? familyId)
+    {
         if (familyId.HasValue)
         {
             var familyName = season.Arrangements
                 .SelectMany(a => a.Instruments)
                 .FirstOrDefault(i => i.FamilyId == familyId)?.FamilyName ?? $"Family {familyId}";
-            return $"{baseName} - {Sanitize(familyName)}.zip";
+            return Sanitize(familyName);
         }
-        return zipKey switch
+        return baseKey switch
         {
-            "all"        => $"{baseName}.zip",
-            "conductor"  => $"{baseName} - Conductor's Score.zip",
-            "percussion" => $"{baseName} - Percussion (Generic).zip",
-            "voice"      => $"{baseName} - Voice (Generic).zip",
-            "unlisted"   => $"{baseName} - Unlisted Parts.zip",
-            "notation"   => $"{baseName} - Notation Files.zip",
-            "playback"   => $"{baseName} - Playback Files.zip",
-            _ when instrumentId.HasValue =>
-                $"{baseName} - {Sanitize(GetInstrumentName(season, instrumentId.Value))}.zip",
-            _ => $"{baseName}.zip",
+            "all"        => null,
+            "conductor"  => "Conductor's Score",
+            "percussion" => "Percussion (Generic)",
+            "voice"      => "Voice (Generic)",
+            "unlisted"   => "Unlisted Parts",
+            "notation"   => "Notation Files",
+            "playback"   => "Playback Files",
+            _ when instrumentId.HasValue => Sanitize(GetInstrumentName(season, instrumentId.Value)),
+            _ => null,
         };
     }
 

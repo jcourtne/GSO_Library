@@ -22,6 +22,7 @@ public class SeasonPublicDto
 
 public class ArrangementSummaryDto
 {
+    public int Id { get; set; }
     public string Name { get; set; } = "";
     public List<string> Composers { get; set; } = [];
     public List<string> Arrangers { get; set; } = [];
@@ -36,4 +37,7 @@ public class DownloadSectionDto
     public string? FamilyName { get; set; }
     public DateTime? LastUpdated { get; set; }
     public int FileCount { get; set; }
+
+    /// <summary>Arrangement id → number of files in this section belonging to that arrangement (count &gt; 0 only).</summary>
+    public Dictionary<int, int> ArrangementFileCounts { get; set; } = [];
 }

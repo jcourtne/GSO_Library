@@ -9,6 +9,7 @@ export interface SeasonPublicData {
 }
 
 export interface ArrangementSummary {
+  id: number;
   name: string;
   composers: string[];
   arrangers: string[];
@@ -22,4 +23,5 @@ export interface DownloadSection {
   familyName?: string | null;
   lastUpdated?: string | null;
   fileCount: number;
+  arrangementFileCounts?: Record<number, number>;
 }

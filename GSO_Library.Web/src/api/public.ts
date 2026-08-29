@@ -1,12 +1,13 @@
 import apiClient from './client';
 import type { SeasonPublicData, DownloadSection } from '../types/public';
 
-function buildDownloadParams(section: DownloadSection | null): URLSearchParams {
+function buildDownloadParams(section: DownloadSection | null, arrangementId?: number | null): URLSearchParams {
   const params = new URLSearchParams();
   if (section?.scorePartType) params.set('scorePartType', section.scorePartType);
   if (section?.instrumentId != null) params.set('instrumentId', String(section.instrumentId));
   if (section?.familyId != null && !section.scorePartType && section.instrumentId == null)
     params.set('familyId', String(section.familyId));
+  if (arrangementId != null) params.set('arrangementId', String(arrangementId));
   return params;
 }
 
@@ -16,8 +17,8 @@ export const publicApi = {
       headers: password ? { 'X-Share-Password': password } : undefined,
     }).then((r) => r.data),
 
-  prepareDownload: async (token: string, section: DownloadSection | null, password?: string) => {
-    const params = buildDownloadParams(section);
+  prepareDownload: async (token: string, section: DownloadSection | null, password?: string, arrangementId?: number | null) => {
+    const params = buildDownloadParams(section, arrangementId);
     const qs = params.size ? `?${params}` : '';
     const response = await fetch(`/api/public/seasons/${token}/prepare-download${qs}`, {
       method: 'POST',
@@ -26,8 +27,8 @@ export const publicApi = {
     if (!response.ok) throw new Error('Preparation failed');
   },
 
-  downloadZip: async (token: string, section: DownloadSection | null, password?: string) => {
-    const params = buildDownloadParams(section);
+  downloadZip: async (token: string, section: DownloadSection | null, password?: string, arrangementId?: number | null) => {
+    const params = buildDownloadParams(section, arrangementId);
     const qs = params.size ? `?${params}` : '';
     const response = await fetch(`/api/public/seasons/${token}/download${qs}`, {
       headers: password ? { 'X-Share-Password': password } : {},

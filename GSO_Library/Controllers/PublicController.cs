@@ -40,7 +40,8 @@ public class PublicController(
 
     [HttpPost("seasons/{token}/prepare-download")]
     public async Task<IActionResult> PrepareDownload(string token,
-        [FromQuery] string? scorePartType = null, [FromQuery] int? instrumentId = null, [FromQuery] int? familyId = null)
+        [FromQuery] string? scorePartType = null, [FromQuery] int? instrumentId = null,
+        [FromQuery] int? familyId = null, [FromQuery] int? arrangementId = null)
     {
         if (scorePartType != null && !ScorePartType.All.Contains(scorePartType))
             return BadRequest("Invalid scorePartType");
@@ -51,14 +52,18 @@ public class PublicController(
         var pw = Request.Headers["X-Share-Password"].FirstOrDefault();
         if (!ValidatePassword(season, pw)) return Unauthorized();
 
-        var zipKey = zipCache.BuildZipKey(scorePartType, instrumentId, familyId);
-        await zipCache.EnsureGeneratedAsync(season, zipKey, scorePartType, instrumentId, familyId);
+        if (arrangementId.HasValue && season.Arrangements.All(a => a.Id != arrangementId.Value))
+            return BadRequest("Invalid arrangementId");
+
+        var zipKey = zipCache.BuildZipKey(scorePartType, instrumentId, familyId, arrangementId);
+        await zipCache.EnsureGeneratedAsync(season, zipKey, scorePartType, instrumentId, familyId, arrangementId);
         return NoContent();
     }
 
     [HttpGet("seasons/{token}/download")]
     public async Task<IActionResult> Download(string token,
-        [FromQuery] string? scorePartType = null, [FromQuery] int? instrumentId = null, [FromQuery] int? familyId = null)
+        [FromQuery] string? scorePartType = null, [FromQuery] int? instrumentId = null,
+        [FromQuery] int? familyId = null, [FromQuery] int? arrangementId = null)
     {
         if (scorePartType != null && !ScorePartType.All.Contains(scorePartType))
             return BadRequest("Invalid scorePartType");
@@ -69,8 +74,11 @@ public class PublicController(
         var pw = Request.Headers["X-Share-Password"].FirstOrDefault();
         if (!ValidatePassword(season, pw)) return Unauthorized();
 
-        var zipKey = zipCache.BuildZipKey(scorePartType, instrumentId, familyId);
-        var (stream, zipFileName) = await zipCache.GetOrGenerateAsync(season, zipKey, scorePartType, instrumentId, familyId);
+        if (arrangementId.HasValue && season.Arrangements.All(a => a.Id != arrangementId.Value))
+            return BadRequest("Invalid arrangementId");
+
+        var zipKey = zipCache.BuildZipKey(scorePartType, instrumentId, familyId, arrangementId);
+        var (stream, zipFileName) = await zipCache.GetOrGenerateAsync(season, zipKey, scorePartType, instrumentId, familyId, arrangementId);
         return File(stream, "application/zip", zipFileName);
     }
 
@@ -95,6 +103,9 @@ public class PublicController(
 
         var sections = new List<DownloadSectionDto>();
 
+        static Dictionary<int, int> CountByArrangement<T>(IEnumerable<T> items, Func<T, int> arrangementId)
+            => items.GroupBy(arrangementId).ToDictionary(g => g.Key, g => g.Count());
+
         // Conductor
         var conductorFiles = filteredFiles.Where(x => x.File.ScorePartType == ScorePartType.ConductorScore).ToList();
         if (conductorFiles.Count > 0)
@@ -104,6 +115,7 @@ public class PublicController(
                 ScorePartType = ScorePartType.ConductorScore,
                 FileCount = conductorFiles.Count,
                 LastUpdated = conductorFiles.Max(x => (DateTime?)x.File.UploadedAt),
+                ArrangementFileCounts = CountByArrangement(conductorFiles, x => x.Arr.Id),
             });
 
         // Per-instrument, sorted by default score order then alphabetically
@@ -137,6 +149,7 @@ public class PublicController(
                 FamilyName = familyName,
                 FileCount = group.Count(),
                 LastUpdated = group.Max(x => (DateTime?)x.File.UploadedAt),
+                ArrangementFileCounts = CountByArrangement(group, x => x.Arr.Id),
             });
         }
 
@@ -166,6 +179,7 @@ public class PublicController(
                 FamilyId = percFamilyId,
                 FileCount = percussionFiles.Count,
                 LastUpdated = percussionFiles.Max(x => (DateTime?)x.File.UploadedAt),
+                ArrangementFileCounts = CountByArrangement(percussionFiles, x => x.Arr.Id),
             });
         }
 
@@ -182,6 +196,7 @@ public class PublicController(
                 FamilyId = voiceFamilyId,
                 FileCount = voiceFiles.Count,
                 LastUpdated = voiceFiles.Max(x => (DateTime?)x.File.UploadedAt),
+                ArrangementFileCounts = CountByArrangement(voiceFiles, x => x.Arr.Id),
             });
         }
 
@@ -196,6 +211,7 @@ public class PublicController(
                 ScorePartType = ScorePartType.NotationFiles,
                 FileCount = notationSectionFiles.Count,
                 LastUpdated = notationSectionFiles.Max(x => (DateTime?)x.File.UploadedAt),
+                ArrangementFileCounts = CountByArrangement(notationSectionFiles, x => x.Arr.Id),
             });
 
         // Playback Files
@@ -209,6 +225,7 @@ public class PublicController(
                 ScorePartType = ScorePartType.PlaybackFiles,
                 FileCount = playbackSectionFiles.Count,
                 LastUpdated = playbackSectionFiles.Max(x => (DateTime?)x.File.UploadedAt),
+                ArrangementFileCounts = CountByArrangement(playbackSectionFiles, x => x.Arr.Id),
             });
 
         return new SeasonPublicDto
@@ -220,6 +237,7 @@ public class PublicController(
             RequiresPassword = false,
             Arrangements = season.Arrangements.Select(a => new ArrangementSummaryDto
             {
+                Id = a.Id,
                 Name = a.Name,
                 Composers = a.Composers.ToList(),
                 Arrangers = a.Arrangers.ToList(),

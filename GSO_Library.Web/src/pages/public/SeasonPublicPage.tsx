@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Alert, Badge, Button, Card, Col, Container, Form, ListGroup, Row, Spinner, Table } from 'react-bootstrap';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -43,6 +43,7 @@ export default function SeasonPublicPage() {
   const [submittedPassword, setSubmittedPassword] = useState<string | undefined>(undefined);
   const [downloadError, setDownloadError] = useState('');
   const [preparingKey, setPreparingKey] = useState<string | null>(null);
+  const [selectedArrangementId, setSelectedArrangementId] = useState<number | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['public-season', token, submittedPassword],
@@ -51,15 +52,23 @@ export default function SeasonPublicPage() {
     retry: false,
   });
 
-  const sectionKey = (section: DownloadSection | null) => section?.label ?? '__all__';
+  // Drop the selection if the arrangement is no longer part of the season (e.g. after a refetch).
+  useEffect(() => {
+    if (data && selectedArrangementId != null && !data.arrangements.some((a) => a.id === selectedArrangementId)) {
+      setSelectedArrangementId(null);
+    }
+  }, [data, selectedArrangementId]);
 
-  const handleDownload = async (section: DownloadSection | null) => {
-    const key = sectionKey(section);
+  const keyFor = (section: DownloadSection | null, arrId: number | null) =>
+    `${arrId ?? 'season'}::${section?.label ?? '__all__'}`;
+
+  const handleDownload = async (section: DownloadSection | null, arrangementId: number | null) => {
+    const key = keyFor(section, arrangementId);
     setPreparingKey(key);
     setDownloadError('');
     try {
-      await publicApi.prepareDownload(token!, section, submittedPassword);
-      await publicApi.downloadZip(token!, section, submittedPassword);
+      await publicApi.prepareDownload(token!, section, submittedPassword, arrangementId);
+      await publicApi.downloadZip(token!, section, submittedPassword, arrangementId);
     } catch {
       setDownloadError('Download failed. Please try again.');
     } finally {
@@ -115,7 +124,34 @@ export default function SeasonPublicPage() {
   }
 
   const dateRange = formatDateRange(data.startDate, data.endDate);
-  const renderItems = buildRenderItems(data.downloadSections);
+  const sel = selectedArrangementId;
+  const selectedArrangement = sel == null ? undefined : data.arrangements.find((a) => a.id === sel);
+  const effectiveCount = (s: DownloadSection) =>
+    sel == null ? s.fileCount : (s.arrangementFileCounts?.[sel] ?? 0);
+  const visibleSections = sel == null
+    ? data.downloadSections
+    : data.downloadSections.filter((s) => effectiveCount(s) > 0);
+  const renderItems = buildRenderItems(visibleSections);
+  const arrangementTotal = sel == null
+    ? 0
+    : data.downloadSections.reduce((sum, s) => sum + effectiveCount(s), 0);
+
+  const renderSectionRow = (s: DownloadSection, key: string, indent: boolean) => (
+    <tr key={key}>
+      <td className={indent ? 'ps-3' : undefined}>{s.label}</td>
+      <td><Badge bg="secondary">{effectiveCount(s)}</Badge></td>
+      <td className="text-muted small">
+        {sel != null ? '—' : (s.lastUpdated ? new Date(s.lastUpdated).toLocaleDateString() : '—')}
+      </td>
+      <td>
+        <Button size="sm" variant="outline-primary" onClick={() => handleDownload(s, sel)} disabled={preparingKey !== null}>
+          {preparingKey === keyFor(s, sel)
+            ? <Spinner size="sm" animation="border" />
+            : 'Download'}
+        </Button>
+      </td>
+    </tr>
+  );
 
   return (
     <Container className="py-4">
@@ -125,8 +161,8 @@ export default function SeasonPublicPage() {
           {data.ensembleName && <p className="text-muted mb-1">{data.ensembleName}</p>}
           {dateRange && <p className="text-muted mb-0">{dateRange}</p>}
         </div>
-        <Button variant="primary" onClick={() => handleDownload(null)} disabled={preparingKey !== null}>
-          {preparingKey === '__all__'
+        <Button variant="primary" onClick={() => handleDownload(null, null)} disabled={preparingKey !== null}>
+          {preparingKey === keyFor(null, null)
             ? <><Spinner size="sm" animation="border" className="me-2" />Preparing…</>
             : 'Download All Files'}
         </Button>
@@ -145,10 +181,16 @@ export default function SeasonPublicPage() {
               <Card.Title>Arrangements</Card.Title>
               {data.arrangements.length > 0 ? (
                 <ListGroup variant="flush">
-                  {data.arrangements.map((a, i) => (
-                    <ListGroup.Item key={i} className="px-0">
+                  {data.arrangements.map((a) => (
+                    <ListGroup.Item
+                      key={a.id}
+                      action
+                      active={sel === a.id}
+                      onClick={() => setSelectedArrangementId((prev) => (prev === a.id ? null : a.id))}
+                      className="px-0"
+                    >
                       <div className="fw-semibold">{a.name}</div>
-                      <div className="text-muted small">
+                      <div className={sel === a.id ? 'small' : 'text-muted small'}>
                         {[
                           a.composers.length > 0 && `Composed by ${a.composers.join(', ')}`,
                           a.arrangers.length > 0 && `Arranged by ${a.arrangers.join(', ')}`,
@@ -165,86 +207,85 @@ export default function SeasonPublicPage() {
         </Col>
 
         <Col md={7}>
-          {data.downloadSections.length > 0 ? (
+          {data.downloadSections.length === 0 ? (
+            <Alert variant="info">No downloadable files are available for this season.</Alert>
+          ) : (
             <Card>
               <Card.Body>
-                <Card.Title>Parts</Card.Title>
-                <Table size="sm" className="mb-0">
-                  <thead>
-                    <tr>
-                      <th>Part</th>
-                      <th>Files</th>
-                      <th>Last Updated</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {renderItems.map((item, i) => {
-                      if (item.type === 'section') {
-                        const s = item.section;
-                        return (
-                          <tr key={i}>
-                            <td>{s.label}</td>
-                            <td><Badge bg="secondary">{s.fileCount}</Badge></td>
-                            <td className="text-muted small">
-                              {s.lastUpdated ? new Date(s.lastUpdated).toLocaleDateString() : '—'}
-                            </td>
-                            <td>
-                              <Button size="sm" variant="outline-primary" onClick={() => handleDownload(s)} disabled={preparingKey !== null}>
-                                {preparingKey === sectionKey(s)
-                                  ? <Spinner size="sm" animation="border" />
-                                  : 'Download'}
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      }
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <Card.Title className="mb-0">Parts</Card.Title>
+                  {sel != null && (
+                    <div className="small">
+                      <span className="text-muted me-2">{selectedArrangement?.name}</span>
+                      <Button variant="link" size="sm" className="p-0" onClick={() => setSelectedArrangementId(null)}>
+                        Show all parts
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
-                      // Family group
-                      return (
-                        <Fragment key={i}>
-                          <tr style={{ background: '#dee2e6' }}>
-                            <td colSpan={3} className="fw-semibold py-2" style={{ fontSize: '1rem', color: '#212529' }}>
-                              {item.familyName}
-                            </td>
-                            <td className="py-2">
-                              <Button
-                                size="sm"
-                                variant="outline-secondary"
-                                onClick={() => handleDownload({ label: item.familyName, familyId: item.familyId, fileCount: 0 })}
-                                disabled={preparingKey !== null}
-                              >
-                                {preparingKey === item.familyName
-                                  ? <Spinner size="sm" animation="border" />
-                                  : 'Download'}
-                              </Button>
-                            </td>
-                          </tr>
-                          {item.sections.map((s, j) => (
-                            <tr key={`${i}-${j}`}>
-                              <td className="ps-3">{s.label}</td>
-                              <td><Badge bg="secondary">{s.fileCount}</Badge></td>
-                              <td className="text-muted small">
-                                {s.lastUpdated ? new Date(s.lastUpdated).toLocaleDateString() : '—'}
+                {sel != null && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="mb-3"
+                    disabled={preparingKey !== null || arrangementTotal === 0}
+                    onClick={() => handleDownload(null, sel)}
+                  >
+                    {preparingKey === keyFor(null, sel)
+                      ? <><Spinner size="sm" animation="border" className="me-2" />Preparing…</>
+                      : `Download all parts for this arrangement (${arrangementTotal})`}
+                  </Button>
+                )}
+
+                {sel != null && arrangementTotal === 0 ? (
+                  <Alert variant="info" className="mb-0">No downloadable files for this arrangement.</Alert>
+                ) : (
+                  <Table size="sm" className="mb-0">
+                    <thead>
+                      <tr>
+                        <th>Part</th>
+                        <th>Files</th>
+                        <th>Last Updated</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {renderItems.map((item, i) => {
+                        if (item.type === 'section') {
+                          return renderSectionRow(item.section, String(i), false);
+                        }
+
+                        // Family group
+                        const familySection: DownloadSection = { label: item.familyName, familyId: item.familyId, fileCount: 0 };
+                        return (
+                          <Fragment key={i}>
+                            <tr style={{ background: '#dee2e6' }}>
+                              <td colSpan={3} className="fw-semibold py-2" style={{ fontSize: '1rem', color: '#212529' }}>
+                                {item.familyName}
                               </td>
-                              <td>
-                                <Button size="sm" variant="outline-primary" onClick={() => handleDownload(s)} disabled={preparingKey !== null}>
-                                  {preparingKey === sectionKey(s)
+                              <td className="py-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline-secondary"
+                                  onClick={() => handleDownload(familySection, sel)}
+                                  disabled={preparingKey !== null}
+                                >
+                                  {preparingKey === keyFor(familySection, sel)
                                     ? <Spinner size="sm" animation="border" />
                                     : 'Download'}
                                 </Button>
                               </td>
                             </tr>
-                          ))}
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                </Table>
+                            {item.sections.map((s, j) => renderSectionRow(s, `${i}-${j}`, true))}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </Table>
+                )}
               </Card.Body>
             </Card>
-          ) : (
-            <Alert variant="info">No downloadable files are available for this season.</Alert>
           )}
         </Col>
       </Row>
