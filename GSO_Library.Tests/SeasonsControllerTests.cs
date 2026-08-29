@@ -423,6 +423,47 @@ public class SeasonsControllerTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task GetSeason_AfterConfiguringShareWithPassword_ReportsHasSharePassword()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync(client, "Ens_SharePwFlag");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_SharePwFlag");
+
+        // No share configured yet → no password
+        var before = await (await client.GetAsync($"/api/seasons/{season.Id}"))
+            .Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
+        Assert.False(before.GetProperty("hasSharePassword").GetBoolean());
+
+        // Configure share with a password
+        var shareResponse = await client.PostAsJsonAsync($"/api/seasons/{season.Id}/share", new
+        {
+            IncludePdf = true,
+            IncludeNotation = false,
+            IncludePlayback = false,
+            Password = "secret123",
+        });
+        shareResponse.EnsureSuccessStatusCode();
+
+        var withPw = await (await client.GetAsync($"/api/seasons/{season.Id}"))
+            .Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
+        Assert.True(withPw.GetProperty("hasSharePassword").GetBoolean());
+
+        // Clear the password
+        var clearResponse = await client.PostAsJsonAsync($"/api/seasons/{season.Id}/share", new
+        {
+            IncludePdf = true,
+            IncludeNotation = false,
+            IncludePlayback = false,
+            ClearPassword = true,
+        });
+        clearResponse.EnsureSuccessStatusCode();
+
+        var cleared = await (await client.GetAsync($"/api/seasons/{season.Id}"))
+            .Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
+        Assert.False(cleared.GetProperty("hasSharePassword").GetBoolean());
+    }
+
+    [Fact]
     public async Task GetPublicSeason_WithValidToken_Returns200()
     {
         var client = await GetLibrarianClientAsync();

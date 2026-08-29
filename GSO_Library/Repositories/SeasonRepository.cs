@@ -48,7 +48,7 @@ public class SeasonRepository
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
 
         var items = (await connection.QueryInListAsync<Season>(
-            $"SELECT id, name, ensemble_id, start_date, end_date, notes, created_at, updated_at, created_by, share_token, share_include_pdf, share_include_notation, share_include_playback FROM seasons{whereClause} ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
+            $"SELECT id, name, ensemble_id, start_date, end_date, notes, created_at, updated_at, created_by, share_token, share_include_pdf, share_include_notation, share_include_playback, share_password_hash FROM seasons{whereClause} ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
             new { Limit = pageSize, Offset = (page - 1) * pageSize, Search = searchParam, EnsembleIds = ensembleIds, DateFrom = dateFrom, DateTo = dateTo })).ToList();
 
         if (items.Count > 0)
@@ -70,7 +70,7 @@ public class SeasonRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var season = await connection.QuerySingleOrDefaultAsync<Season>(
-            "SELECT id, name, ensemble_id, start_date, end_date, notes, created_at, updated_at, created_by, share_token, share_include_pdf, share_include_notation, share_include_playback FROM seasons WHERE id = @Id",
+            "SELECT id, name, ensemble_id, start_date, end_date, notes, created_at, updated_at, created_by, share_token, share_include_pdf, share_include_notation, share_include_playback, share_password_hash FROM seasons WHERE id = @Id",
             new { Id = id });
         if (season == null) return null;
 
