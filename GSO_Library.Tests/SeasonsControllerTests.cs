@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using GSO_Library.Dtos;
 using GSO_Library.Models;
 using Xunit;
 
@@ -571,6 +572,66 @@ public class SeasonsControllerTests : IntegrationTestBase
         Assert.True(bytes.Length > 0);
         Assert.Equal(0x50, bytes[0]); // 'P' — zip PK signature
         Assert.Equal(0x4B, bytes[1]); // 'K'
+    }
+
+    [Fact]
+    public async Task Download_FileTaggedWithInstrumentAndGenericSection_IncludedInBoth()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync(client, "Ens_DLDual");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLDual");
+
+        var arrangementId = await CreateArrangementAsync(client, "Arr_DLDual");
+
+        var instrumentResponse = await client.PostAsJsonAsync("/api/instruments", new { Name = "DLDual_Trumpet" });
+        instrumentResponse.EnsureSuccessStatusCode();
+        var instrument = await instrumentResponse.Content.ReadFromJsonAsync<Instrument>(JsonOpts);
+        var instrumentId = instrument!.Id;
+
+        var addInstrumentResponse = await client.PostAsync(
+            $"/api/arrangements/{arrangementId}/instruments/{instrumentId}", null);
+        addInstrumentResponse.EnsureSuccessStatusCode();
+
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("pdf content"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(fileContent, "file", "trumpet_and_voice.pdf");
+        var uploadResponse = await client.PostAsync($"/api/arrangements/{arrangementId}/files", content);
+        uploadResponse.EnsureSuccessStatusCode();
+        var file = await uploadResponse.Content.ReadFromJsonAsync<ArrangementFile>(JsonOpts);
+
+        // Dual-tag: filed under the generic "Voice (Generic)" section AND assigned to the Trumpet instrument.
+        var patchResponse = await client.PatchAsJsonAsync(
+            $"/api/arrangements/{arrangementId}/files/{file!.Id}",
+            new { ScorePartType = "voice_part", InstrumentIds = new[] { instrumentId } });
+        Assert.Equal(HttpStatusCode.NoContent, patchResponse.StatusCode);
+
+        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arrangementId}", null);
+
+        var token = await ConfigureShareAsync(client, season.Id);
+        var anon = GetUnauthenticatedClient();
+
+        var publicResponse = await anon.GetAsync($"/api/public/seasons/{token}");
+        publicResponse.EnsureSuccessStatusCode();
+        var publicDto = await publicResponse.Content.ReadFromJsonAsync<SeasonPublicDto>(JsonOpts);
+        Assert.Contains(publicDto!.DownloadSections, s => s.InstrumentId == instrumentId && s.FileCount == 1);
+        Assert.Contains(publicDto.DownloadSections, s => s.ScorePartType == "voice_part" && s.FileCount == 1);
+
+        var instrumentZipResponse = await anon.GetAsync($"/api/public/seasons/{token}/download?instrumentId={instrumentId}");
+        Assert.Equal(HttpStatusCode.OK, instrumentZipResponse.StatusCode);
+        using (var archive = new System.IO.Compression.ZipArchive(
+            new MemoryStream(await instrumentZipResponse.Content.ReadAsByteArrayAsync())))
+        {
+            Assert.Single(archive.Entries);
+        }
+
+        var voiceZipResponse = await anon.GetAsync($"/api/public/seasons/{token}/download?scorePartType=voice_part");
+        Assert.Equal(HttpStatusCode.OK, voiceZipResponse.StatusCode);
+        using (var archive = new System.IO.Compression.ZipArchive(
+            new MemoryStream(await voiceZipResponse.Content.ReadAsByteArrayAsync())))
+        {
+            Assert.Single(archive.Entries);
+        }
     }
 
     [Fact]

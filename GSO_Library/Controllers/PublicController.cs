@@ -129,7 +129,7 @@ public class PublicController(
             }
 
         var instrumentGroups = filteredFiles
-            .Where(x => x.File.ScorePartType == ScorePartType.InstrumentPart && x.File.InstrumentIds.Count > 0)
+            .Where(x => x.File.InstrumentIds.Count > 0)
             .SelectMany(x => x.File.InstrumentIds
                 .Where(id => validInstrumentIds.Contains(id))
                 .Select(id => (x.Arr, x.File, InstrumentId: id)))

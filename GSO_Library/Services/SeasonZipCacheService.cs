@@ -248,15 +248,14 @@ public class SeasonZipCacheService(
         HashSet<int>? familyInstrumentIds = null, HashSet<string>? familyExtraTypes = null)
     {
         if (familyInstrumentIds != null)
-            return (file.ScorePartType == ScorePartType.InstrumentPart &&
-                    file.InstrumentIds.Any(id => familyInstrumentIds.Contains(id)))
+            return file.InstrumentIds.Any(id => familyInstrumentIds.Contains(id))
                 || (familyExtraTypes != null && familyExtraTypes.Contains(file.ScorePartType ?? ""));
 
         if (scorePartType == null && instrumentId == null)
             return true;
 
         if (instrumentId.HasValue)
-            return file.ScorePartType == ScorePartType.InstrumentPart && file.InstrumentIds.Contains(instrumentId.Value);
+            return file.InstrumentIds.Contains(instrumentId.Value);
 
         if (scorePartType == ScorePartType.UnlistedPart)
             return file.ScorePartType == null ||
