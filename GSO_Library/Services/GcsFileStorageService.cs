@@ -1,3 +1,4 @@
+using System.IO.Pipelines;
 using Google.Cloud.Storage.V1;
 
 namespace GSO_Library.Services;
@@ -22,13 +23,42 @@ public class GcsFileStorageService : IFileStorageService
         return objectName;
     }
 
-    public async Task<Stream> GetFileAsync(string folderPath, string storedFileName)
+    public Task<Stream> GetFileAsync(string folderPath, string storedFileName)
     {
         var objectName = $"{folderPath}/{storedFileName}";
-        var ms = new MemoryStream();
-        await _storageClient.DownloadObjectAsync(_bucketName, objectName, ms);
-        ms.Position = 0;
-        return ms;
+        var pipe = new Pipe();
+        _ = Task.Run(async () =>
+        {
+            Exception? error = null;
+            try
+            {
+                await _storageClient.DownloadObjectAsync(_bucketName, objectName, pipe.Writer.AsStream());
+            }
+            catch (Exception ex)
+            {
+                error = ex;
+            }
+            finally
+            {
+                await pipe.Writer.CompleteAsync(error);
+            }
+        });
+        return Task.FromResult<Stream>(pipe.Reader.AsStream());
+    }
+
+    public async Task<bool> ExistsAsync(string folderPath, string storedFileName)
+    {
+        var objectName = $"{folderPath}/{storedFileName}";
+        try
+        {
+            // Metadata-only lookup — does not download the object's content.
+            await _storageClient.GetObjectAsync(_bucketName, objectName);
+            return true;
+        }
+        catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return false;
+        }
     }
 
     public async Task DeleteFileAsync(string folderPath, string storedFileName)

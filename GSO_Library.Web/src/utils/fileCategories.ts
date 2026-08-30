@@ -42,6 +42,7 @@ export interface GroupedScoreFiles {
   conductorScore: ArrangementFile[];
   byInstrument: Map<number, ArrangementFile[]>;
   percussion: ArrangementFile[];
+  voice: ArrangementFile[];
   unlisted: ArrangementFile[];
 }
 
@@ -53,24 +54,35 @@ export function groupScoreFiles(
     conductorScore: [],
     byInstrument: new Map(),
     percussion: [],
+    voice: [],
     unlisted: [],
   };
   for (const f of renderedFiles) {
+    let categorized = false;
+
     if (f.scorePartType === SCORE_PART_TYPES.CONDUCTOR_SCORE) {
       result.conductorScore.push(f);
-    } else if (
-      f.scorePartType === SCORE_PART_TYPES.INSTRUMENT_PART &&
-      f.instrumentId != null &&
-      arrangementInstrumentIds.has(f.instrumentId)
-    ) {
-      const list = result.byInstrument.get(f.instrumentId) ?? [];
-      list.push(f);
-      result.byInstrument.set(f.instrumentId, list);
-    } else if (f.scorePartType === SCORE_PART_TYPES.PERCUSSION_PART) {
-      result.percussion.push(f);
-    } else {
-      result.unlisted.push(f);
+      categorized = true;
     }
+    if (f.scorePartType === SCORE_PART_TYPES.PERCUSSION_PART) {
+      result.percussion.push(f);
+      categorized = true;
+    }
+    if (f.scorePartType === SCORE_PART_TYPES.VOICE_PART) {
+      result.voice.push(f);
+      categorized = true;
+    }
+
+    for (const instId of f.instrumentIds) {
+      if (arrangementInstrumentIds.has(instId)) {
+        const list = result.byInstrument.get(instId) ?? [];
+        list.push(f);
+        result.byInstrument.set(instId, list);
+        categorized = true;
+      }
+    }
+
+    if (!categorized) result.unlisted.push(f);
   }
   return result;
 }

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using GSO_Library.Dtos;
 using GSO_Library.Models;
 using Xunit;
 
@@ -423,6 +424,47 @@ public class SeasonsControllerTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task GetSeason_AfterConfiguringShareWithPassword_ReportsHasSharePassword()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync(client, "Ens_SharePwFlag");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_SharePwFlag");
+
+        // No share configured yet → no password
+        var before = await (await client.GetAsync($"/api/seasons/{season.Id}"))
+            .Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
+        Assert.False(before.GetProperty("hasSharePassword").GetBoolean());
+
+        // Configure share with a password
+        var shareResponse = await client.PostAsJsonAsync($"/api/seasons/{season.Id}/share", new
+        {
+            IncludePdf = true,
+            IncludeNotation = false,
+            IncludePlayback = false,
+            Password = "secret123",
+        });
+        shareResponse.EnsureSuccessStatusCode();
+
+        var withPw = await (await client.GetAsync($"/api/seasons/{season.Id}"))
+            .Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
+        Assert.True(withPw.GetProperty("hasSharePassword").GetBoolean());
+
+        // Clear the password
+        var clearResponse = await client.PostAsJsonAsync($"/api/seasons/{season.Id}/share", new
+        {
+            IncludePdf = true,
+            IncludeNotation = false,
+            IncludePlayback = false,
+            ClearPassword = true,
+        });
+        clearResponse.EnsureSuccessStatusCode();
+
+        var cleared = await (await client.GetAsync($"/api/seasons/{season.Id}"))
+            .Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
+        Assert.False(cleared.GetProperty("hasSharePassword").GetBoolean());
+    }
+
+    [Fact]
     public async Task GetPublicSeason_WithValidToken_Returns200()
     {
         var client = await GetLibrarianClientAsync();
@@ -575,6 +617,66 @@ public class SeasonsControllerTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Download_FileTaggedWithInstrumentAndGenericSection_IncludedInBoth()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync(client, "Ens_DLDual");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLDual");
+
+        var arrangementId = await CreateArrangementAsync(client, "Arr_DLDual");
+
+        var instrumentResponse = await client.PostAsJsonAsync("/api/instruments", new { Name = "DLDual_Trumpet" });
+        instrumentResponse.EnsureSuccessStatusCode();
+        var instrument = await instrumentResponse.Content.ReadFromJsonAsync<Instrument>(JsonOpts);
+        var instrumentId = instrument!.Id;
+
+        var addInstrumentResponse = await client.PostAsync(
+            $"/api/arrangements/{arrangementId}/instruments/{instrumentId}", null);
+        addInstrumentResponse.EnsureSuccessStatusCode();
+
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("pdf content"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(fileContent, "file", "trumpet_and_voice.pdf");
+        var uploadResponse = await client.PostAsync($"/api/arrangements/{arrangementId}/files", content);
+        uploadResponse.EnsureSuccessStatusCode();
+        var file = await uploadResponse.Content.ReadFromJsonAsync<ArrangementFile>(JsonOpts);
+
+        // Dual-tag: filed under the generic "Voice (Generic)" section AND assigned to the Trumpet instrument.
+        var patchResponse = await client.PatchAsJsonAsync(
+            $"/api/arrangements/{arrangementId}/files/{file!.Id}",
+            new { ScorePartType = "voice_part", InstrumentIds = new[] { instrumentId } });
+        Assert.Equal(HttpStatusCode.NoContent, patchResponse.StatusCode);
+
+        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arrangementId}", null);
+
+        var token = await ConfigureShareAsync(client, season.Id);
+        var anon = GetUnauthenticatedClient();
+
+        var publicResponse = await anon.GetAsync($"/api/public/seasons/{token}");
+        publicResponse.EnsureSuccessStatusCode();
+        var publicDto = await publicResponse.Content.ReadFromJsonAsync<SeasonPublicDto>(JsonOpts);
+        Assert.Contains(publicDto!.DownloadSections, s => s.InstrumentId == instrumentId && s.FileCount == 1);
+        Assert.Contains(publicDto.DownloadSections, s => s.ScorePartType == "voice_part" && s.FileCount == 1);
+
+        var instrumentZipResponse = await anon.GetAsync($"/api/public/seasons/{token}/download?instrumentId={instrumentId}");
+        Assert.Equal(HttpStatusCode.OK, instrumentZipResponse.StatusCode);
+        using (var archive = new System.IO.Compression.ZipArchive(
+            new MemoryStream(await instrumentZipResponse.Content.ReadAsByteArrayAsync())))
+        {
+            Assert.Single(archive.Entries);
+        }
+
+        var voiceZipResponse = await anon.GetAsync($"/api/public/seasons/{token}/download?scorePartType=voice_part");
+        Assert.Equal(HttpStatusCode.OK, voiceZipResponse.StatusCode);
+        using (var archive = new System.IO.Compression.ZipArchive(
+            new MemoryStream(await voiceZipResponse.Content.ReadAsByteArrayAsync())))
+        {
+            Assert.Single(archive.Entries);
+        }
+    }
+
+    [Fact]
     public async Task Download_FilterByScorePartType_ReturnsZip()
     {
         var client = await GetLibrarianClientAsync();
@@ -632,5 +734,179 @@ public class SeasonsControllerTests : IntegrationTestBase
         var anon = GetUnauthenticatedClient();
         var response = await anon.GetAsync($"/api/public/seasons/{token}/download?scorePartType=malicious_injection");
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    // ───── Per-arrangement download ─────
+
+    private async Task UploadPdfAsync(HttpClient client, int arrangementId, string fileName, string? scorePartType = null)
+    {
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes($"pdf-{fileName}"));
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(fileContent, "file", fileName);
+        if (scorePartType != null)
+            content.Add(new StringContent(scorePartType), "scorePartType");
+        var response = await client.PostAsync($"/api/arrangements/{arrangementId}/files", content);
+        response.EnsureSuccessStatusCode();
+    }
+
+    private static List<string> ZipEntryNames(byte[] zipBytes)
+    {
+        using var archive = new System.IO.Compression.ZipArchive(new MemoryStream(zipBytes));
+        return archive.Entries.Select(e => e.FullName).ToList();
+    }
+
+    [Fact]
+    public async Task Download_ByArrangement_ReturnsOnlyThatArrangementsFiles()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync(client, "Ens_DLByArr");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLByArr");
+
+        var arr1 = await CreateArrangementAsync(client, "Arr_One");
+        var arr2 = await CreateArrangementAsync(client, "Arr_Two");
+        await UploadPdfAsync(client, arr1, "one.pdf");
+        await UploadPdfAsync(client, arr2, "two.pdf");
+        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr1}", null);
+        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr2}", null);
+
+        var token = await ConfigureShareAsync(client, season.Id);
+        var anon = GetUnauthenticatedClient();
+        var response = await anon.GetAsync($"/api/public/seasons/{token}/download?arrangementId={arr1}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var entries = ZipEntryNames(await response.Content.ReadAsByteArrayAsync());
+        Assert.Equal(new[] { "one.pdf" }, entries);
+        Assert.DoesNotContain(entries, e => e.Contains('/'));
+    }
+
+    [Fact]
+    public async Task Download_ByArrangement_InvalidArrangementId_Returns400()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync(client, "Ens_DLBadArr");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLBadArr");
+        var token = await ConfigureShareAsync(client, season.Id);
+
+        var anon = GetUnauthenticatedClient();
+        var response = await anon.GetAsync($"/api/public/seasons/{token}/download?arrangementId=999999");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Download_ByArrangementAndScorePartType_ReturnsZip()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync(client, "Ens_DLArrType");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLArrType");
+
+        var arr = await CreateArrangementAsync(client, "Arr_Conductor");
+        await UploadPdfAsync(client, arr, "score.pdf", "conductor_score");
+        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr}", null);
+
+        var token = await ConfigureShareAsync(client, season.Id);
+        var anon = GetUnauthenticatedClient();
+        var response = await anon.GetAsync($"/api/public/seasons/{token}/download?scorePartType=conductor_score&arrangementId={arr}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/zip", response.Content.Headers.ContentType?.MediaType);
+        var entries = ZipEntryNames(await response.Content.ReadAsByteArrayAsync());
+        Assert.Equal(new[] { "score.pdf" }, entries);
+    }
+
+    [Fact]
+    public async Task PrepareDownload_ByArrangement_ThenDownload()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync(client, "Ens_DLArrPrep");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLArrPrep");
+
+        var arr = await CreateArrangementAsync(client, "Arr_Prep");
+        await UploadPdfAsync(client, arr, "prep.pdf");
+        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr}", null);
+
+        var token = await ConfigureShareAsync(client, season.Id);
+        var anon = GetUnauthenticatedClient();
+
+        var prepare = await anon.PostAsync($"/api/public/seasons/{token}/prepare-download?arrangementId={arr}", null);
+        Assert.Equal(HttpStatusCode.NoContent, prepare.StatusCode);
+
+        var download = await anon.GetAsync($"/api/public/seasons/{token}/download?arrangementId={arr}");
+        Assert.Equal(HttpStatusCode.OK, download.StatusCode);
+        Assert.Equal(new[] { "prep.pdf" }, ZipEntryNames(await download.Content.ReadAsByteArrayAsync()));
+    }
+
+    [Fact]
+    public async Task GetPublicSeason_IncludesArrangementIdAndCounts()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync(client, "Ens_ArrCounts");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_ArrCounts");
+
+        var arr = await CreateArrangementAsync(client, "Arr_Counts");
+        await UploadPdfAsync(client, arr, "a.pdf", "conductor_score");
+        await UploadPdfAsync(client, arr, "b.pdf", "conductor_score");
+        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr}", null);
+
+        var token = await ConfigureShareAsync(client, season.Id);
+        var anon = GetUnauthenticatedClient();
+        var body = await (await anon.GetAsync($"/api/public/seasons/{token}")).Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
+
+        var arrangements = body.GetProperty("arrangements").EnumerateArray().ToList();
+        Assert.Equal(arr, arrangements[0].GetProperty("id").GetInt32());
+
+        var conductor = body.GetProperty("downloadSections").EnumerateArray()
+            .First(s => s.GetProperty("label").GetString() == "Conductor's Score");
+        Assert.Equal(2, conductor.GetProperty("arrangementFileCounts").GetProperty(arr.ToString()).GetInt32());
+    }
+
+    [Fact]
+    public async Task GetPublicSeason_IncludesPerArrangementLastUpdated()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync(client, "Ens_ArrLastUpd");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_ArrLastUpd");
+
+        var arr1 = await CreateArrangementAsync(client, "Arr_LU_One");
+        var arr2 = await CreateArrangementAsync(client, "Arr_LU_Two");
+        await UploadPdfAsync(client, arr1, "one.pdf", "conductor_score");
+        await UploadPdfAsync(client, arr2, "two.pdf", "conductor_score");
+        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr1}", null);
+        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr2}", null);
+
+        var token = await ConfigureShareAsync(client, season.Id);
+        var anon = GetUnauthenticatedClient();
+        var body = await (await anon.GetAsync($"/api/public/seasons/{token}")).Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
+
+        var conductor = body.GetProperty("downloadSections").EnumerateArray()
+            .First(s => s.GetProperty("label").GetString() == "Conductor's Score");
+        var perArrangement = conductor.GetProperty("arrangementLastUpdated");
+
+        foreach (var arr in new[] { arr1, arr2 })
+        {
+            var updated = perArrangement.GetProperty(arr.ToString()).GetDateTime();
+            Assert.True(updated > DateTime.UtcNow.AddMinutes(-5) && updated <= DateTime.UtcNow.AddMinutes(1));
+        }
+    }
+
+    [Fact]
+    public async Task Download_ByArrangement_NoFiles_ReturnsValidEmptyZip()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync(client, "Ens_DLArrEmpty");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLArrEmpty");
+
+        var arr = await CreateArrangementAsync(client, "Arr_Empty");
+        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr}", null);
+
+        var token = await ConfigureShareAsync(client, season.Id);
+        var anon = GetUnauthenticatedClient();
+        var response = await anon.GetAsync($"/api/public/seasons/{token}/download?arrangementId={arr}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        Assert.Equal(0x50, bytes[0]);
+        Assert.Equal(0x4B, bytes[1]);
+        Assert.Empty(ZipEntryNames(bytes));
     }
 }

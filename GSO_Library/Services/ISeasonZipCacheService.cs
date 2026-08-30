@@ -5,8 +5,11 @@ namespace GSO_Library.Services;
 public interface ISeasonZipCacheService
 {
     Task<(Stream stream, string zipFileName)> GetOrGenerateAsync(
-        Season season, string zipKey, string? scorePartType, int? instrumentId);
+        Season season, string zipKey, string? scorePartType, int? instrumentId, int? familyId = null, int? arrangementId = null);
+    Task EnsureGeneratedAsync(
+        Season season, string zipKey, string? scorePartType, int? instrumentId, int? familyId = null, int? arrangementId = null);
     Task InvalidateForSeasonAsync(int seasonId);
     Task InvalidateForArrangementAsync(int arrangementId);
-    string BuildZipKey(string? scorePartType, int? instrumentId);
+    string BuildZipKey(string? scorePartType, int? instrumentId, int? familyId = null, int? arrangementId = null);
+    Task<int> PurgeExpiredAsync(TimeSpan maxAge, CancellationToken ct = default);
 }

@@ -26,19 +26,22 @@ public class InstrumentRepository
     public async Task<IEnumerable<Instrument>> GetAllInstrumentsAsync()
     {
         using var connection = _connectionFactory.CreateConnection();
-        return await connection.QueryAsync<Instrument>("SELECT id, name, created_at, updated_at, created_by FROM instruments");
+        return await connection.QueryAsync<Instrument>(
+            "SELECT i.id, i.name, i.family_id, i.created_at, i.updated_at, i.created_by, f.name as family_name " +
+            "FROM instruments i LEFT JOIN instrument_families f ON i.family_id = f.id");
     }
 
     public async Task<PaginatedResult<Instrument>> GetAllInstrumentsAsync(int page, int pageSize, string? sortBy = null, string? sortDirection = null, string? search = null)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var whereClause = string.IsNullOrWhiteSpace(search) ? "" : " WHERE LOWER(name) LIKE @Search";
+        var whereClause = string.IsNullOrWhiteSpace(search) ? "" : " WHERE LOWER(i.name) LIKE @Search";
         var searchParam = string.IsNullOrWhiteSpace(search) ? null : $"%{search.ToLower()}%";
-        var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM instruments{whereClause}", new { Search = searchParam });
+        var totalCount = await connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM instruments i{whereClause}", new { Search = searchParam });
         var orderColumn = _sortColumns.GetValueOrDefault(sortBy ?? "", "id");
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
         var items = await connection.QueryAsync<Instrument>(
-            $"SELECT id, name, created_at, updated_at, created_by FROM instruments{whereClause} ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
+            $"SELECT i.id, i.name, i.family_id, i.created_at, i.updated_at, i.created_by, f.name as family_name " +
+            $"FROM instruments i LEFT JOIN instrument_families f ON i.family_id = f.id{whereClause} ORDER BY i.{orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
             new { Limit = pageSize, Offset = (page - 1) * pageSize, Search = searchParam });
         return new PaginatedResult<Instrument> { Items = items.ToList(), Page = page, PageSize = pageSize, TotalCount = totalCount };
     }
@@ -47,15 +50,17 @@ public class InstrumentRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QuerySingleOrDefaultAsync<Instrument>(
-            "SELECT id, name, created_at, updated_at, created_by FROM instruments WHERE id = @Id", new { Id = id });
+            "SELECT i.id, i.name, i.family_id, i.created_at, i.updated_at, i.created_by, f.name as family_name " +
+            "FROM instruments i LEFT JOIN instrument_families f ON i.family_id = f.id WHERE i.id = @Id",
+            new { Id = id });
     }
 
     public async Task<Instrument> AddInstrumentAsync(Instrument instrument)
     {
         using var connection = _connectionFactory.CreateConnection();
         var id = await connection.InsertReturningIdAsync(
-            "INSERT INTO instruments (name, created_at, updated_at, created_by) VALUES (@Name, @CreatedAt, @UpdatedAt, @CreatedBy)",
-            new { instrument.Name, instrument.CreatedAt, instrument.UpdatedAt, instrument.CreatedBy });
+            "INSERT INTO instruments (name, family_id, created_at, updated_at, created_by) VALUES (@Name, @FamilyId, @CreatedAt, @UpdatedAt, @CreatedBy)",
+            new { instrument.Name, instrument.FamilyId, instrument.CreatedAt, instrument.UpdatedAt, instrument.CreatedBy });
         instrument.Id = id;
         InvalidateArrangementCache();
         return instrument;
@@ -65,8 +70,8 @@ public class InstrumentRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var rows = await connection.ExecuteAsync(
-            "UPDATE instruments SET name = @Name, updated_at = @UpdatedAt WHERE id = @Id",
-            new { instrument.Name, instrument.UpdatedAt, Id = id });
+            "UPDATE instruments SET name = @Name, family_id = @FamilyId, updated_at = @UpdatedAt WHERE id = @Id",
+            new { instrument.Name, instrument.FamilyId, instrument.UpdatedAt, Id = id });
         if (rows == 0) return null;
         instrument.Id = id;
         InvalidateArrangementCache();

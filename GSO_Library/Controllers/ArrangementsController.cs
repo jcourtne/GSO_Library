@@ -376,8 +376,7 @@ public class ArrangementsController : ControllerBase
     [HttpPost("{id}/files")]
     [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
     public async Task<ActionResult<ArrangementFile>> UploadFile(int id, IFormFile file,
-        [FromForm] string? scorePartType = null,
-        [FromForm] int? instrumentId = null)
+        [FromForm] string? scorePartType = null)
     {
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
         if (arrangement == null) return NotFound();
@@ -415,7 +414,6 @@ public class ArrangementsController : ControllerBase
             ArrangementId = id,
             CreatedBy = User.Identity?.Name,
             ScorePartType = isPdf ? (scorePartType ?? ScorePartType.UnlistedPart) : null,
-            InstrumentId = isPdf ? instrumentId : null,
         };
 
         await _fileRepository.AddFileAsync(arrangementFile);
@@ -537,7 +535,7 @@ public class ArrangementsController : ControllerBase
         if (file == null)
             return NotFound();
 
-        var updated = await _fileRepository.UpdateFileMetadataAsync(id, fileId, request.ScorePartType, request.InstrumentId);
+        var updated = await _fileRepository.UpdateFileMetadataAsync(id, fileId, request.ScorePartType, request.InstrumentIds);
         if (!updated)
             return NotFound();
 

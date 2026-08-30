@@ -131,6 +131,7 @@ builder.Services.AddScoped<ArrangementFileRepository>();
 builder.Services.AddScoped<GameRepository>();
 builder.Services.AddScoped<SeriesRepository>();
 builder.Services.AddScoped<InstrumentRepository>();
+builder.Services.AddScoped<InstrumentFamilyRepository>();
 builder.Services.AddScoped<PerformanceRepository>();
 builder.Services.AddScoped<PerformanceFileRepository>();
 builder.Services.AddScoped<EnsembleRepository>();
@@ -141,6 +142,15 @@ builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<AuditEventRepository>();
 
 builder.Services.AddScoped<ISeasonZipCacheService, SeasonZipCacheService>();
+
+// Pre-generate the "download all" share zip when a season share link is configured
+builder.Services.AddSingleton<ISeasonZipWarmupQueue, SeasonZipWarmupQueue>();
+builder.Services.AddScoped<ISeasonZipWarmupService, SeasonZipWarmupService>();
+builder.Services.AddHostedService<SeasonZipWarmupBackgroundService>();
+
+// Periodic cleanup of stale cached season-share zips
+builder.Services.Configure<SeasonZipCacheOptions>(builder.Configuration.GetSection("SeasonZipCache"));
+builder.Services.AddHostedService<SeasonZipCleanupService>();
 
 var app = builder.Build();
 

@@ -610,7 +610,7 @@ public class ArrangementsControllerTests : IntegrationTestBase
 
         var patchResponse = await client.PatchAsJsonAsync(
             $"/api/arrangements/{arrangement.Id}/files/{file!.Id}",
-            new { ScorePartType = "conductor_score", InstrumentId = (int?)null });
+            new { ScorePartType = "conductor_score", InstrumentIds = Array.Empty<int>() });
 
         Assert.Equal(HttpStatusCode.NoContent, patchResponse.StatusCode);
 
@@ -628,7 +628,7 @@ public class ArrangementsControllerTests : IntegrationTestBase
 
         var response = await client.PatchAsJsonAsync(
             $"/api/arrangements/{arrangement.Id}/files/99999",
-            new { ScorePartType = "conductor_score", InstrumentId = (int?)null });
+            new { ScorePartType = "conductor_score", InstrumentIds = Array.Empty<int>() });
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }

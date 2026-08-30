@@ -33,6 +33,12 @@ public class LocalFileStorageService : IFileStorageService
         return Task.FromResult(stream);
     }
 
+    public Task<bool> ExistsAsync(string folderPath, string storedFileName)
+    {
+        var filePath = Path.Combine(_basePath, folderPath, storedFileName);
+        return Task.FromResult(File.Exists(filePath));
+    }
+
     public Task DeleteFileAsync(string folderPath, string storedFileName)
     {
         var filePath = Path.Combine(_basePath, folderPath, storedFileName);

@@ -12,7 +12,7 @@ public class ArrangementFile
     public string? CreatedBy { get; set; }
 
     public string? ScorePartType { get; set; }
-    public int? InstrumentId { get; set; }
+    public List<int> InstrumentIds { get; set; } = new();
 
     // Foreign key
     public int ArrangementId { get; set; }

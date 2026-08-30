@@ -5,10 +5,14 @@ public static class ScorePartType
     public const string ConductorScore = "conductor_score";
     public const string InstrumentPart = "instrument_part";
     public const string PercussionPart = "percussion_part";
+    public const string VoicePart      = "voice_part";
     public const string UnlistedPart   = "unlisted_part";
+    public const string NotationFiles  = "notation_files";
+    public const string PlaybackFiles  = "playback_files";
 
     public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
     {
-        ConductorScore, InstrumentPart, PercussionPart, UnlistedPart
+        ConductorScore, InstrumentPart, PercussionPart, VoicePart, UnlistedPart,
+        NotationFiles, PlaybackFiles
     };
 }

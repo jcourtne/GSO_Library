@@ -9,6 +9,7 @@ export interface SeasonPublicData {
 }
 
 export interface ArrangementSummary {
+  id: number;
   name: string;
   composers: string[];
   arrangers: string[];
@@ -18,6 +19,10 @@ export interface DownloadSection {
   label: string;
   scorePartType?: string | null;
   instrumentId?: number | null;
+  familyId?: number | null;
+  familyName?: string | null;
   lastUpdated?: string | null;
   fileCount: number;
+  arrangementFileCounts?: Record<number, number>;
+  arrangementLastUpdated?: Record<number, string>;
 }

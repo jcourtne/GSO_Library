@@ -16,7 +16,21 @@ import QuickCreateGameModal from '../../components/common/QuickCreateGameModal';
 import QuickCreateInstrumentModal from '../../components/common/QuickCreateInstrumentModal';
 import { categorizeFiles, NOTATION_ACCEPT, PLAYBACK_ACCEPT } from '../../utils/fileCategories';
 import { useDragAutoScroll } from '../../hooks/useDragAutoScroll';
-import type { ArrangementRequest } from '../../types';
+import type { ArrangementRequest, Instrument } from '../../types';
+
+function buildInstrumentGroups(instruments: Instrument[]) {
+  const seen = new Map<string, Instrument[]>();
+  for (const i of instruments) {
+    const key = i.familyName ?? '';
+    if (!seen.has(key)) seen.set(key, []);
+    seen.get(key)!.push(i);
+  }
+  const groups: { label: string; items: Instrument[] }[] = [];
+  seen.forEach((items, key) => { if (key !== '') groups.push({ label: key, items }); });
+  const unassigned = seen.get('');
+  if (unassigned?.length) groups.push({ label: 'Other', items: unassigned });
+  return groups;
+}
 
 export default function ArrangementForm() {
   const { id } = useParams<{ id: string }>();
@@ -372,28 +386,44 @@ export default function ArrangementForm() {
             <Card className="mb-3">
               <Card.Body>
                 <Card.Title>Instruments</Card.Title>
-                {linkedInstrumentIds.size > 0 ? (
-                  <ListGroup variant="flush" className="mb-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                    {allInstruments.data?.items
-                      .filter((i) => linkedInstrumentIds.has(i.id))
-                      .map((i) => (
-                        <ListGroup.Item key={i.id} className="d-flex justify-content-between align-items-center px-0">
-                          {i.name}
-                          <Button
-                            variant="outline-danger"
-                            size="sm"
-                            onClick={() => {
-                              const next = new Set(linkedInstrumentIds);
-                              next.delete(i.id);
-                              setLinkedInstrumentIds(next);
-                            }}
-                          >
-                            Remove
-                          </Button>
-                        </ListGroup.Item>
+                {linkedInstrumentIds.size > 0 ? (() => {
+                  const defaultSo = sortOrders.data?.find((so) => so.isDefault);
+                  const sortPositions = new Map(defaultSo?.instruments.map((i, idx) => [i.id, idx]) ?? []);
+                  const linkedSorted = (allInstruments.data?.items ?? [])
+                    .filter((i) => linkedInstrumentIds.has(i.id))
+                    .sort((a, b) => {
+                      const pa = sortPositions.get(a.id) ?? Infinity;
+                      const pb = sortPositions.get(b.id) ?? Infinity;
+                      return pa !== pb ? pa - pb : a.name.localeCompare(b.name);
+                    });
+                  return (
+                    <div className="mb-2" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                      {buildInstrumentGroups(linkedSorted).map(({ label, items }) => (
+                        <div key={label}>
+                          <div className="text-muted fw-semibold mt-2 mb-1 px-2 py-1 bg-light rounded-1">{label}</div>
+                          <ListGroup variant="flush">
+                            {items.map((i) => (
+                              <ListGroup.Item key={i.id} className="d-flex justify-content-between align-items-center px-0 ps-3">
+                                {i.name}
+                                <Button
+                                  variant="outline-danger"
+                                  size="sm"
+                                  onClick={() => {
+                                    const next = new Set(linkedInstrumentIds);
+                                    next.delete(i.id);
+                                    setLinkedInstrumentIds(next);
+                                  }}
+                                >
+                                  Remove
+                                </Button>
+                              </ListGroup.Item>
+                            ))}
+                          </ListGroup>
+                        </div>
                       ))}
-                  </ListGroup>
-                ) : (
+                    </div>
+                  );
+                })() : (
                   <p className="text-muted mb-2">No instruments selected</p>
                 )}
                 <Button variant="outline-primary" size="sm" onClick={() => {
@@ -433,21 +463,34 @@ export default function ArrangementForm() {
                   autoFocus
                 />
                 <ListGroup style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                  {(pickerSortOrderId !== null ? (pickerSortOrderInstruments.data ?? []) : (allInstruments.data?.items ?? []))
-                    .filter((i) => !linkedInstrumentIds.has(i.id) && i.name.toLowerCase().includes(instrumentSearch.toLowerCase()))
-                    .map((i) => (
-                      <ListGroup.Item
-                        key={i.id}
-                        action
-                        onClick={() => {
-                          const next = new Set(linkedInstrumentIds);
-                          next.add(i.id);
-                          setLinkedInstrumentIds(next);
-                        }}
-                      >
-                        {i.name}
-                      </ListGroup.Item>
-                    ))}
+                  {(() => {
+                    const filtered = (pickerSortOrderId !== null ? (pickerSortOrderInstruments.data ?? []) : (allInstruments.data?.items ?? []))
+                      .filter((i) => !linkedInstrumentIds.has(i.id) && i.name.toLowerCase().includes(instrumentSearch.toLowerCase()));
+                    return buildInstrumentGroups(filtered).map(({ label, items }) => (
+                      <div key={label}>
+                        <ListGroup.Item
+                          className="text-muted fw-semibold py-1 bg-light rounded-1"
+                          style={{ pointerEvents: 'none' }}
+                        >
+                          {label}
+                        </ListGroup.Item>
+                        {items.map((i) => (
+                          <ListGroup.Item
+                            key={i.id}
+                            action
+                            className="ps-4"
+                            onClick={() => {
+                              const next = new Set(linkedInstrumentIds);
+                              next.add(i.id);
+                              setLinkedInstrumentIds(next);
+                            }}
+                          >
+                            {i.name}
+                          </ListGroup.Item>
+                        ))}
+                      </div>
+                    ));
+                  })()}
                 </ListGroup>
               </Modal.Body>
               <Modal.Footer>

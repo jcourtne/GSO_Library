@@ -48,7 +48,7 @@ public class SeasonRepository
         var orderDir = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
 
         var items = (await connection.QueryInListAsync<Season>(
-            $"SELECT id, name, ensemble_id, start_date, end_date, notes, created_at, updated_at, created_by, share_token, share_include_pdf, share_include_notation, share_include_playback FROM seasons{whereClause} ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
+            $"SELECT id, name, ensemble_id, start_date, end_date, notes, created_at, updated_at, created_by, share_token, share_include_pdf, share_include_notation, share_include_playback, share_password_hash FROM seasons{whereClause} ORDER BY {orderColumn} {orderDir} LIMIT @Limit OFFSET @Offset",
             new { Limit = pageSize, Offset = (page - 1) * pageSize, Search = searchParam, EnsembleIds = ensembleIds, DateFrom = dateFrom, DateTo = dateTo })).ToList();
 
         if (items.Count > 0)
@@ -70,7 +70,7 @@ public class SeasonRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var season = await connection.QuerySingleOrDefaultAsync<Season>(
-            "SELECT id, name, ensemble_id, start_date, end_date, notes, created_at, updated_at, created_by, share_token, share_include_pdf, share_include_notation, share_include_playback FROM seasons WHERE id = @Id",
+            "SELECT id, name, ensemble_id, start_date, end_date, notes, created_at, updated_at, created_by, share_token, share_include_pdf, share_include_notation, share_include_playback, share_password_hash FROM seasons WHERE id = @Id",
             new { Id = id });
         if (season == null) return null;
 
@@ -104,21 +104,34 @@ public class SeasonRepository
             var arrangersByArr = arrangers.GroupBy(a => a.ArrangementId).ToDictionary(g => g.Key, g => g.Select(a => a.Name).ToList());
             var gamesByArr = games.GroupBy(g => g.ArrangementId).ToDictionary(g => g.Key, g => g.Select(x => new Game { Id = x.GameId, Name = x.GameName }).ToList<Game>());
 
-            var arrInstrumentRows = await connection.QueryInListAsync<(int ArrangementId, int Id, string Name)>(
-                @"SELECT ai.arrangement_id, i.id, i.name
+            var arrInstrumentRows = await connection.QueryInListAsync<(int ArrangementId, int Id, string Name, int? FamilyId, string? FamilyName)>(
+                @"SELECT ai.arrangement_id, i.id, i.name, i.family_id, f.name as family_name
                   FROM instruments i
+                  LEFT JOIN instrument_families f ON i.family_id = f.id
                   INNER JOIN arrangement_instruments ai ON i.id = ai.instrument_id
                   WHERE ai.arrangement_id = ANY(@Ids)
                   ORDER BY i.name",
                 new { Ids = arrIds });
             var instrumentsByArr = arrInstrumentRows.GroupBy(x => x.ArrangementId)
-                .ToDictionary(g => g.Key, g => (ICollection<Instrument>)g.Select(x => new Instrument { Id = x.Id, Name = x.Name }).ToList());
+                .ToDictionary(g => g.Key, g => (ICollection<Instrument>)g.Select(x => new Instrument { Id = x.Id, Name = x.Name, FamilyId = x.FamilyId, FamilyName = x.FamilyName }).ToList());
 
-            var arrFiles = await connection.QueryInListAsync<ArrangementFile>(
+            var arrFiles = (await connection.QueryInListAsync<ArrangementFile>(
                 @"SELECT id, arrangement_id, file_name, stored_file_name, content_type, file_size,
-                         score_part_type, instrument_id, uploaded_at, created_by
+                         score_part_type, uploaded_at, created_by
                   FROM arrangement_files WHERE arrangement_id = ANY(@Ids)",
-                new { Ids = arrIds });
+                new { Ids = arrIds })).ToList();
+            var fileIds = arrFiles.Select(f => f.Id).ToArray();
+            if (fileIds.Length > 0)
+            {
+                var fileInstrumentLinks = await connection.QueryInListAsync<(int FileId, int InstrumentId)>(
+                    "SELECT file_id, instrument_id FROM arrangement_file_instruments WHERE file_id = ANY(@Ids)",
+                    new { Ids = fileIds });
+                var fileInstrumentMap = fileInstrumentLinks.GroupBy(l => l.FileId)
+                    .ToDictionary(g => g.Key, g => g.Select(l => l.InstrumentId).ToList());
+                foreach (var f in arrFiles)
+                    if (fileInstrumentMap.TryGetValue(f.Id, out var instIds))
+                        f.InstrumentIds = instIds;
+            }
             var filesByArr = arrFiles.GroupBy(f => f.ArrangementId)
                 .ToDictionary(g => g.Key, g => (ICollection<ArrangementFile>)g.ToList());
 

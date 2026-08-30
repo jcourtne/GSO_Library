@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Alert, Button, Card, Form, Spinner, Table } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Col, Form, Row, Spinner } from 'react-bootstrap';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
 import { instrumentSortOrdersApi } from '../../api/instrumentSortOrders';
@@ -47,11 +47,27 @@ interface Props {
 }
 
 interface Section {
+  type: 'row' | 'header';
   key: string;
   label: string;
   files: ArrangementFile[];
   scorePartType: string;
   instrumentId: number | null;
+  indented?: boolean;
+}
+
+function filterVisible(sections: Section[]): Section[] {
+  const out: Section[] = [];
+  let pending: Section | null = null;
+  for (const s of sections) {
+    if (s.type === 'header') {
+      pending = s;
+    } else if (s.files.length > 0) {
+      if (pending) { out.push(pending); pending = null; }
+      out.push(s);
+    }
+  }
+  return out;
 }
 
 export default function RenderedScoreGrid({ arrangement, files, editable, canDownload }: Props) {
@@ -62,19 +78,18 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
   const [deleteTarget, setDeleteTarget] = useState<ArrangementFile | null>(null);
   const [dragOverRow, setDragOverRow] = useState<string | null>(null);
   const [autoSorting, setAutoSorting] = useState(false);
-  // undefined = not yet overridden by user; null = user chose Alphabetical; number = user chose a sort order
   const [selectedSortOrderId, setSelectedSortOrderId] = useState<number | null | undefined>(undefined);
   const arrangementIdStr = String(arrangement.id);
 
   const instruments: Instrument[] = arrangement.instruments ?? [];
   const instrumentIds = new Set(instruments.map((i) => i.id));
+  const instrumentNameMap = new Map(instruments.map((i) => [i.id, i.name]));
 
   const { data: sortOrders } = useQuery({
     queryKey: ['instrument-sort-orders'],
     queryFn: instrumentSortOrdersApi.list,
   });
 
-  // Effective sort order: user's choice if set, otherwise the default, otherwise null (alphabetical)
   const effectiveSortOrderId = selectedSortOrderId !== undefined
     ? selectedSortOrderId
     : (sortOrders?.find((so) => so.isDefault)?.id ?? null);
@@ -93,7 +108,8 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
     });
   }, [instruments, sortOrders, effectiveSortOrderId]);
 
-  const { renderedScoreFiles } = categorizeFiles(files);
+  const { renderedScoreFiles: rawRenderedScoreFiles } = categorizeFiles(files);
+  const renderedScoreFiles = [...rawRenderedScoreFiles].sort((a, b) => a.fileName.localeCompare(b.fileName));
   const grouped = groupScoreFiles(renderedScoreFiles, instrumentIds);
 
   const invalidate = () => {
@@ -112,8 +128,8 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
   });
 
   const reassignMutation = useMutation({
-    mutationFn: ({ fileId, scorePartType, instrumentId }: { fileId: number; scorePartType: string; instrumentId: number | null }) =>
-      arrangementsApi.updateFileMetadata(arrangement.id, fileId, scorePartType, instrumentId),
+    mutationFn: ({ fileId, scorePartType, instrumentIds: ids }: { fileId: number; scorePartType: string; instrumentIds: number[] }) =>
+      arrangementsApi.updateFileMetadata(arrangement.id, fileId, scorePartType, ids),
     onSuccess: () => invalidate(),
     onError: () => setError('Failed to move file'),
   });
@@ -141,12 +157,52 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
     if (e.dataTransfer.files.length > 0) uploadFiles(Array.from(e.dataTransfer.files));
   };
 
+  const isNamedSection = (type: string | null | undefined) =>
+    type === SCORE_PART_TYPES.CONDUCTOR_SCORE
+    || type === SCORE_PART_TYPES.PERCUSSION_PART
+    || type === SCORE_PART_TYPES.VOICE_PART;
+
   const handleRowDrop = (e: React.DragEvent, scorePartType: string, instrumentId: number | null) => {
     e.preventDefault();
     setDragOverRow(null);
     const fileIdStr = e.dataTransfer.getData('fileId');
     if (!fileIdStr) return;
-    reassignMutation.mutate({ fileId: parseInt(fileIdStr, 10), scorePartType, instrumentId });
+    const fileId = parseInt(fileIdStr, 10);
+    const file = renderedScoreFiles.find((f) => f.id === fileId);
+    if (!file) return;
+
+    if (instrumentId !== null) {
+      // Adding to an instrument: preserve any existing generic section assignment
+      const newIds = file.instrumentIds.includes(instrumentId)
+        ? file.instrumentIds
+        : [...file.instrumentIds, instrumentId];
+      const newType = isNamedSection(file.scorePartType) ? file.scorePartType : SCORE_PART_TYPES.INSTRUMENT_PART;
+      reassignMutation.mutate({ fileId, scorePartType: newType, instrumentIds: newIds });
+    } else {
+      // Adding to a generic section: preserve existing instrument assignments
+      reassignMutation.mutate({ fileId, scorePartType, instrumentIds: file.instrumentIds });
+    }
+  };
+
+  const handleRemoveFromInstrument = (fileId: number, instrumentId: number) => {
+    const file = renderedScoreFiles.find((f) => f.id === fileId);
+    if (!file) return;
+    const newIds = file.instrumentIds.filter((id) => id !== instrumentId);
+    // If still in a named generic section, keep that type; otherwise fall back to unlisted
+    const newType = (newIds.length === 0 && !isNamedSection(file.scorePartType))
+      ? SCORE_PART_TYPES.UNLISTED_PART
+      : (file.scorePartType ?? SCORE_PART_TYPES.INSTRUMENT_PART);
+    reassignMutation.mutate({ fileId, scorePartType: newType, instrumentIds: newIds });
+  };
+
+  const handleRemoveFromSection = (fileId: number) => {
+    const file = renderedScoreFiles.find((f) => f.id === fileId);
+    if (!file) return;
+    // Keep any instrument assignments; only clear the generic section type
+    const newType = file.instrumentIds.length > 0
+      ? SCORE_PART_TYPES.INSTRUMENT_PART
+      : SCORE_PART_TYPES.UNLISTED_PART;
+    reassignMutation.mutate({ fileId, scorePartType: newType, instrumentIds: file.instrumentIds });
   };
 
   const handleAutoSort = async () => {
@@ -156,7 +212,7 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
     try {
       await Promise.all(
         matches.map(({ fileId, instrumentId }) =>
-          arrangementsApi.updateFileMetadata(arrangement.id, fileId, SCORE_PART_TYPES.INSTRUMENT_PART, instrumentId),
+          arrangementsApi.updateFileMetadata(arrangement.id, fileId, SCORE_PART_TYPES.INSTRUMENT_PART, [instrumentId]),
         ),
       );
       invalidate();
@@ -181,22 +237,66 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
     }
   };
 
-  const sections: Section[] = [
-    { key: SCORE_PART_TYPES.CONDUCTOR_SCORE, label: "Conductor's Score", files: grouped.conductorScore, scorePartType: SCORE_PART_TYPES.CONDUCTOR_SCORE, instrumentId: null },
-    ...sortedInstruments.map((inst) => ({
-      key: `instrument_${inst.id}`,
-      label: inst.name,
-      files: grouped.byInstrument.get(inst.id) ?? [],
-      scorePartType: SCORE_PART_TYPES.INSTRUMENT_PART,
-      instrumentId: inst.id,
-    })),
-    { key: SCORE_PART_TYPES.PERCUSSION_PART, label: 'Percussion (Generic)', files: grouped.percussion, scorePartType: SCORE_PART_TYPES.PERCUSSION_PART, instrumentId: null },
-    { key: SCORE_PART_TYPES.UNLISTED_PART, label: 'Unlisted Parts', files: grouped.unlisted, scorePartType: SCORE_PART_TYPES.UNLISTED_PART, instrumentId: null },
-  ];
+  const sections: Section[] = (() => {
+    const result: Section[] = [
+      { type: 'row', key: 'conductor_score', label: "Conductor's Score", files: grouped.conductorScore, scorePartType: SCORE_PART_TYPES.CONDUCTOR_SCORE, instrumentId: null },
+    ];
 
-  const visibleSections = editable ? sections : sections.filter((s) => s.files.length > 0);
+    const familyGroups = new Map<string, Instrument[]>();
+    const noFamilyInstruments: Instrument[] = [];
+    for (const inst of sortedInstruments) {
+      if (inst.familyName) {
+        if (!familyGroups.has(inst.familyName)) familyGroups.set(inst.familyName, []);
+        familyGroups.get(inst.familyName)!.push(inst);
+      } else {
+        noFamilyInstruments.push(inst);
+      }
+    }
+
+    let percussionHandled = false;
+    let voiceHandled = false;
+
+    for (const [familyName, familyInstruments] of familyGroups) {
+      result.push({ type: 'header', key: `family_${familyName}`, label: familyName, files: [], scorePartType: '', instrumentId: null });
+      for (const inst of familyInstruments) {
+        result.push({ type: 'row', key: `instrument_${inst.id}`, label: inst.name, files: grouped.byInstrument.get(inst.id) ?? [], scorePartType: SCORE_PART_TYPES.INSTRUMENT_PART, instrumentId: inst.id });
+      }
+      if (familyName === 'Percussion') {
+        result.push({ type: 'row', key: 'percussion_part', label: 'Percussion (Generic)', files: grouped.percussion, scorePartType: SCORE_PART_TYPES.PERCUSSION_PART, instrumentId: null, indented: true });
+        percussionHandled = true;
+      }
+      if (familyName === 'Voice') {
+        result.push({ type: 'row', key: 'voice_part', label: 'Voice (Generic)', files: grouped.voice, scorePartType: SCORE_PART_TYPES.VOICE_PART, instrumentId: null, indented: true });
+        voiceHandled = true;
+      }
+    }
+
+    for (const inst of noFamilyInstruments) {
+      result.push({ type: 'row', key: `instrument_${inst.id}`, label: inst.name, files: grouped.byInstrument.get(inst.id) ?? [], scorePartType: SCORE_PART_TYPES.INSTRUMENT_PART, instrumentId: inst.id });
+    }
+
+    if (!percussionHandled) {
+      result.push({ type: 'header', key: 'family_Percussion', label: 'Percussion', files: [], scorePartType: '', instrumentId: null });
+      result.push({ type: 'row', key: 'percussion_part', label: 'Percussion (Generic)', files: grouped.percussion, scorePartType: SCORE_PART_TYPES.PERCUSSION_PART, instrumentId: null, indented: true });
+    }
+    if (!voiceHandled) {
+      result.push({ type: 'header', key: 'family_Voice', label: 'Voice', files: [], scorePartType: '', instrumentId: null });
+      result.push({ type: 'row', key: 'voice_part', label: 'Voice (Generic)', files: grouped.voice, scorePartType: SCORE_PART_TYPES.VOICE_PART, instrumentId: null, indented: true });
+    }
+
+    return result;
+  })();
+
+  const visibleSections = editable ? sections : filterVisible(sections);
 
   if (renderedScoreFiles.length === 0 && !editable) return null;
+
+  const getFileAssignmentLabel = (file: ArrangementFile): string | null => {
+    if (file.scorePartType === SCORE_PART_TYPES.CONDUCTOR_SCORE) return "Conductor's Score";
+    if (file.scorePartType === SCORE_PART_TYPES.PERCUSSION_PART) return 'Percussion';
+    if (file.scorePartType === SCORE_PART_TYPES.VOICE_PART) return 'Voice';
+    return null;
+  };
 
   return (
     <>
@@ -204,7 +304,7 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
 
       <Card className="mb-3">
         <Card.Body>
-          <div className="d-flex justify-content-between align-items-center mb-2">
+          <div className="d-flex justify-content-between align-items-center mb-3">
             <Card.Title className="mb-0">Rendered Score/Parts</Card.Title>
             <div className="d-flex align-items-center gap-2">
               {editable && sortOrders && sortOrders.length > 0 && (
@@ -230,93 +330,178 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
             </div>
           </div>
 
-          <Table bordered size="sm" className="mb-0">
-            <tbody>
-              {visibleSections.map(({ key, label, files: sectionFiles, scorePartType, instrumentId }) => (
-                <tr
-                  key={key}
-                  onDragOver={editable ? (e) => { e.preventDefault(); setDragOverRow(key); } : undefined}
-                  onDragLeave={editable ? () => setDragOverRow(null) : undefined}
-                  onDrop={editable ? (e) => handleRowDrop(e, scorePartType, instrumentId) : undefined}
-                >
-                  <td
+          <Row>
+            {/* Left column: instrument sections */}
+            <Col md={6} style={{ borderRight: '1px solid var(--bs-border-color)' }}>
+              <div className="small fw-semibold text-muted text-uppercase mb-2" style={{ letterSpacing: '0.05em' }}>Sections</div>
+              {visibleSections.map((section) => {
+                if (section.type === 'header') {
+                  return (
+                    <div key={section.key} className="fw-semibold py-1 px-2 mb-1 rounded" style={{ background: 'var(--bs-light)', fontSize: '0.95rem', color: '#495057' }}>
+                      {section.label}
+                    </div>
+                  );
+                }
+                const { key, label, files: sectionFiles, scorePartType, instrumentId } = section;
+                const isOver = dragOverRow === key;
+                return (
+                  <div
+                    key={key}
+                    className={`mb-1 rounded px-2 py-1${(instrumentId !== null || section.indented) ? ' ms-3' : ''}`}
                     style={{
-                      width: '25%', verticalAlign: 'top', whiteSpace: 'nowrap',
-                      fontWeight: dragOverRow === key ? 700 : 500,
-                      backgroundColor: dragOverRow === key ? '#cfe2ff' : undefined,
-                      transition: 'background-color 0.1s ease',
+                      border: `1px solid ${isOver ? '#86b7fe' : 'var(--bs-border-color)'}`,
+                      backgroundColor: isOver ? '#cfe2ff' : undefined,
+                      transition: 'background-color 0.1s ease, border-color 0.1s ease',
+                      minHeight: 36,
                     }}
-                    className="py-2 px-3"
+                    onDragOver={editable ? (e) => { e.preventDefault(); setDragOverRow(key); } : undefined}
+                    onDragLeave={editable ? () => setDragOverRow(null) : undefined}
+                    onDrop={editable ? (e) => handleRowDrop(e, scorePartType, instrumentId) : undefined}
                   >
-                    {label}
-                  </td>
-                  <td className="py-1 px-2">
+                    <div className="small fw-medium mb-1" style={{ color: isOver ? '#084298' : undefined }}>
+                      {label}
+                    </div>
                     {sectionFiles.length === 0 ? (
-                      <span className="text-muted small fst-italic">
+                      <div className="text-muted" style={{ fontSize: '0.75rem', fontStyle: 'italic' }}>
                         {editable ? 'Drop files here' : '—'}
-                      </span>
+                      </div>
                     ) : (
                       sectionFiles.map((f) => (
                         <div
                           key={f.id}
-                          draggable={editable}
-                          onDragStart={editable ? (e) => e.dataTransfer.setData('fileId', String(f.id)) : undefined}
-                          className="d-flex justify-content-between align-items-center px-2 py-1 mb-1 rounded border bg-light"
-                          style={editable ? { cursor: 'grab' } : undefined}
+                          className="d-flex justify-content-between align-items-center px-2 py-1 mb-1 rounded border bg-white"
+                          style={{ fontSize: '0.8rem' }}
                         >
-                          <span className="small me-2">
-                            {f.fileName}
-                            <span className="text-muted ms-1">({formatFileSize(f.fileSize)})</span>
-                          </span>
-                          <div className="d-flex gap-1 flex-shrink-0">
-                            {canDownload && !editable && (
-                              <Button size="sm" variant="outline-primary" onClick={() => handleDownload(f)}>
-                                Download
-                              </Button>
-                            )}
-                            {editable && (
-                              <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(f)}>
-                                Delete
-                              </Button>
-                            )}
-                          </div>
+                          <span className="me-1" style={{ wordBreak: 'break-word', minWidth: 0 }}>{f.fileName}</span>
+                          {editable && (
+                            <Button
+                              size="sm"
+                              variant="link"
+                              className="p-0 text-danger flex-shrink-0"
+                              style={{ fontSize: '0.75rem', lineHeight: 1 }}
+                              onClick={() => instrumentId !== null
+                                ? handleRemoveFromInstrument(f.id, instrumentId)
+                                : handleRemoveFromSection(f.id)
+                              }
+                              title="Remove from this section"
+                            >
+                              ×
+                            </Button>
+                          )}
                         </div>
                       ))
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+                  </div>
+                );
+              })}
+            </Col>
 
-          {editable && (
-            <div className="mt-3">
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="d-none"
-                accept={RENDERED_SCORE_ACCEPT}
-                multiple
-                onChange={handleFileSelect}
-              />
-              <Card
-                className="text-center p-3"
-                style={{ border: '2px dashed #ccc', cursor: 'pointer' }}
-                onDrop={handleUploadDrop}
-                onDragOver={(e) => e.preventDefault()}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {uploading ? (
+            {/* Right column: files split by sort status */}
+            <Col md={6}>
+              {renderedScoreFiles.length === 0 ? (
+                <div className="text-muted small fst-italic">No files uploaded yet</div>
+              ) : (() => {
+                const unlistedFiles = renderedScoreFiles.filter((f) => f.scorePartType === SCORE_PART_TYPES.UNLISTED_PART || !f.scorePartType);
+                const assignedFiles = renderedScoreFiles.filter((f) => f.scorePartType && f.scorePartType !== SCORE_PART_TYPES.UNLISTED_PART);
+
+                const renderFileCard = (f: ArrangementFile) => {
+                  const assignmentLabel = getFileAssignmentLabel(f);
+                  const assignedInstrumentIds = f.instrumentIds.filter((id) => instrumentIds.has(id));
+                  return (
+                    <div
+                      key={f.id}
+                      draggable={editable}
+                      onDragStart={editable ? (e) => e.dataTransfer.setData('fileId', String(f.id)) : undefined}
+                      className="d-flex flex-column px-2 py-1 mb-1 rounded border bg-light"
+                      style={editable ? { cursor: 'grab' } : undefined}
+                    >
+                      <div className="d-flex justify-content-between align-items-start">
+                        <span className="small me-2" style={{ wordBreak: 'break-word', minWidth: 0 }}>
+                          {f.fileName}
+                          <span className="text-muted ms-1">({formatFileSize(f.fileSize)})</span>
+                        </span>
+                        <div className="d-flex gap-1 flex-shrink-0">
+                          {canDownload && !editable && (
+                            <Button size="sm" variant="outline-primary" onClick={() => handleDownload(f)}>
+                              Download
+                            </Button>
+                          )}
+                          {editable && (
+                            <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(f)}>
+                              Delete
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      {(assignmentLabel || assignedInstrumentIds.length > 0) && (
+                        <div className="d-flex flex-wrap gap-1 mt-1">
+                          {assignmentLabel && (
+                            <Badge bg="secondary" style={{ fontSize: '0.7rem' }}>{assignmentLabel}</Badge>
+                          )}
+                          {assignedInstrumentIds.map((id) => (
+                            <Badge key={id} bg="primary" style={{ fontSize: '0.7rem' }}>
+                              {instrumentNameMap.get(id) ?? `Instrument ${id}`}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                };
+
+                return (
                   <>
-                    <Spinner animation="border" size="sm" className="mb-1" />
-                    <div><small className="text-muted">Uploading...</small></div>
+                    {unlistedFiles.length > 0 && (
+                      <>
+                        <div className="small fw-semibold text-muted text-uppercase mb-2" style={{ letterSpacing: '0.05em' }}>
+                          Needs Sorting <span className="fw-normal">({unlistedFiles.length})</span>
+                        </div>
+                        {unlistedFiles.map(renderFileCard)}
+                        {assignedFiles.length > 0 && <hr className="my-2" />}
+                      </>
+                    )}
+                    {assignedFiles.length > 0 && (
+                      <>
+                        <div className="small fw-semibold text-muted text-uppercase mb-2" style={{ letterSpacing: '0.05em' }}>
+                          Sorted <span className="fw-normal">({assignedFiles.length})</span>
+                        </div>
+                        {assignedFiles.map(renderFileCard)}
+                      </>
+                    )}
                   </>
-                ) : (
-                  <small className="text-muted">Drag & drop or click to upload new files</small>
-                )}
-              </Card>
-            </div>
-          )}
+                );
+              })()}
+
+              {editable && (
+                <div className="mt-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="d-none"
+                    accept={RENDERED_SCORE_ACCEPT}
+                    multiple
+                    onChange={handleFileSelect}
+                  />
+                  <Card
+                    className="text-center p-3"
+                    style={{ border: '2px dashed #ccc', cursor: 'pointer' }}
+                    onDrop={handleUploadDrop}
+                    onDragOver={(e) => e.preventDefault()}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploading ? (
+                      <>
+                        <Spinner animation="border" size="sm" className="mb-1" />
+                        <div><small className="text-muted">Uploading...</small></div>
+                      </>
+                    ) : (
+                      <small className="text-muted">Drag & drop or click to upload new files</small>
+                    )}
+                  </Card>
+                </div>
+              )}
+            </Col>
+          </Row>
         </Card.Body>
       </Card>
 

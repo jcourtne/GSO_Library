@@ -15,12 +15,15 @@ public class SeasonsController : ControllerBase
     private readonly SeasonRepository _seasonRepository;
     private readonly IAuditService _auditService;
     private readonly ISeasonZipCacheService _zipCacheService;
+    private readonly ISeasonZipWarmupQueue _zipWarmupQueue;
 
-    public SeasonsController(SeasonRepository seasonRepository, IAuditService auditService, ISeasonZipCacheService zipCacheService)
+    public SeasonsController(SeasonRepository seasonRepository, IAuditService auditService,
+        ISeasonZipCacheService zipCacheService, ISeasonZipWarmupQueue zipWarmupQueue)
     {
         _seasonRepository = seasonRepository;
         _auditService = auditService;
         _zipCacheService = zipCacheService;
+        _zipWarmupQueue = zipWarmupQueue;
     }
 
     [HttpGet]
@@ -135,6 +138,9 @@ public class SeasonsController : ControllerBase
             id, request.IncludePdf, request.IncludeNotation, request.IncludePlayback,
             hash, request.ClearPassword);
         await _zipCacheService.InvalidateForSeasonAsync(id);
+        // Pre-build the "download all" zip in the background so the first public visitor
+        // gets a cache hit. Enqueue strictly after invalidation so it isn't deleted.
+        _zipWarmupQueue.Enqueue(new SeasonZipWarmupRequest(id));
         return Ok(new { token });
     }
 
