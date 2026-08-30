@@ -860,6 +860,35 @@ public class SeasonsControllerTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task GetPublicSeason_IncludesPerArrangementLastUpdated()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync(client, "Ens_ArrLastUpd");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_ArrLastUpd");
+
+        var arr1 = await CreateArrangementAsync(client, "Arr_LU_One");
+        var arr2 = await CreateArrangementAsync(client, "Arr_LU_Two");
+        await UploadPdfAsync(client, arr1, "one.pdf", "conductor_score");
+        await UploadPdfAsync(client, arr2, "two.pdf", "conductor_score");
+        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr1}", null);
+        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr2}", null);
+
+        var token = await ConfigureShareAsync(client, season.Id);
+        var anon = GetUnauthenticatedClient();
+        var body = await (await anon.GetAsync($"/api/public/seasons/{token}")).Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
+
+        var conductor = body.GetProperty("downloadSections").EnumerateArray()
+            .First(s => s.GetProperty("label").GetString() == "Conductor's Score");
+        var perArrangement = conductor.GetProperty("arrangementLastUpdated");
+
+        foreach (var arr in new[] { arr1, arr2 })
+        {
+            var updated = perArrangement.GetProperty(arr.ToString()).GetDateTime();
+            Assert.True(updated > DateTime.UtcNow.AddMinutes(-5) && updated <= DateTime.UtcNow.AddMinutes(1));
+        }
+    }
+
+    [Fact]
     public async Task Download_ByArrangement_NoFiles_ReturnsValidEmptyZip()
     {
         var client = await GetLibrarianClientAsync();

@@ -128,6 +128,8 @@ export default function SeasonPublicPage() {
   const selectedArrangement = sel == null ? undefined : data.arrangements.find((a) => a.id === sel);
   const effectiveCount = (s: DownloadSection) =>
     sel == null ? s.fileCount : (s.arrangementFileCounts?.[sel] ?? 0);
+  const effectiveLastUpdated = (s: DownloadSection) =>
+    sel == null ? s.lastUpdated : s.arrangementLastUpdated?.[sel];
   const visibleSections = sel == null
     ? data.downloadSections
     : data.downloadSections.filter((s) => effectiveCount(s) > 0);
@@ -141,7 +143,10 @@ export default function SeasonPublicPage() {
       <td className={indent ? 'ps-3' : undefined}>{s.label}</td>
       <td><Badge bg="secondary">{effectiveCount(s)}</Badge></td>
       <td className="text-muted small">
-        {sel != null ? '—' : (s.lastUpdated ? new Date(s.lastUpdated).toLocaleDateString() : '—')}
+        {(() => {
+          const d = effectiveLastUpdated(s);
+          return d ? new Date(d).toLocaleDateString() : '—';
+        })()}
       </td>
       <td>
         <Button size="sm" variant="outline-primary" onClick={() => handleDownload(s, sel)} disabled={preparingKey !== null}>

@@ -40,4 +40,7 @@ public class DownloadSectionDto
 
     /// <summary>Arrangement id → number of files in this section belonging to that arrangement (count &gt; 0 only).</summary>
     public Dictionary<int, int> ArrangementFileCounts { get; set; } = [];
+
+    /// <summary>Arrangement id → most recent UploadedAt among that arrangement's files in this section.</summary>
+    public Dictionary<int, DateTime> ArrangementLastUpdated { get; set; } = [];
 }

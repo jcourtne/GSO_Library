@@ -24,4 +24,5 @@ export interface DownloadSection {
   lastUpdated?: string | null;
   fileCount: number;
   arrangementFileCounts?: Record<number, number>;
+  arrangementLastUpdated?: Record<number, string>;
 }

@@ -106,6 +106,10 @@ public class PublicController(
         static Dictionary<int, int> CountByArrangement<T>(IEnumerable<T> items, Func<T, int> arrangementId)
             => items.GroupBy(arrangementId).ToDictionary(g => g.Key, g => g.Count());
 
+        static Dictionary<int, DateTime> MaxUploadedByArrangement<T>(
+            IEnumerable<T> items, Func<T, int> arrangementId, Func<T, DateTime> uploadedAt)
+            => items.GroupBy(arrangementId).ToDictionary(g => g.Key, g => g.Max(uploadedAt));
+
         // Conductor
         var conductorFiles = filteredFiles.Where(x => x.File.ScorePartType == ScorePartType.ConductorScore).ToList();
         if (conductorFiles.Count > 0)
@@ -116,6 +120,7 @@ public class PublicController(
                 FileCount = conductorFiles.Count,
                 LastUpdated = conductorFiles.Max(x => (DateTime?)x.File.UploadedAt),
                 ArrangementFileCounts = CountByArrangement(conductorFiles, x => x.Arr.Id),
+                ArrangementLastUpdated = MaxUploadedByArrangement(conductorFiles, x => x.Arr.Id, x => x.File.UploadedAt),
             });
 
         // Per-instrument, sorted by default score order then alphabetically
@@ -150,6 +155,7 @@ public class PublicController(
                 FileCount = group.Count(),
                 LastUpdated = group.Max(x => (DateTime?)x.File.UploadedAt),
                 ArrangementFileCounts = CountByArrangement(group, x => x.Arr.Id),
+                ArrangementLastUpdated = MaxUploadedByArrangement(group, x => x.Arr.Id, x => x.File.UploadedAt),
             });
         }
 
@@ -180,6 +186,7 @@ public class PublicController(
                 FileCount = percussionFiles.Count,
                 LastUpdated = percussionFiles.Max(x => (DateTime?)x.File.UploadedAt),
                 ArrangementFileCounts = CountByArrangement(percussionFiles, x => x.Arr.Id),
+                ArrangementLastUpdated = MaxUploadedByArrangement(percussionFiles, x => x.Arr.Id, x => x.File.UploadedAt),
             });
         }
 
@@ -197,6 +204,7 @@ public class PublicController(
                 FileCount = voiceFiles.Count,
                 LastUpdated = voiceFiles.Max(x => (DateTime?)x.File.UploadedAt),
                 ArrangementFileCounts = CountByArrangement(voiceFiles, x => x.Arr.Id),
+                ArrangementLastUpdated = MaxUploadedByArrangement(voiceFiles, x => x.Arr.Id, x => x.File.UploadedAt),
             });
         }
 
@@ -212,6 +220,7 @@ public class PublicController(
                 FileCount = notationSectionFiles.Count,
                 LastUpdated = notationSectionFiles.Max(x => (DateTime?)x.File.UploadedAt),
                 ArrangementFileCounts = CountByArrangement(notationSectionFiles, x => x.Arr.Id),
+                ArrangementLastUpdated = MaxUploadedByArrangement(notationSectionFiles, x => x.Arr.Id, x => x.File.UploadedAt),
             });
 
         // Playback Files
@@ -226,6 +235,7 @@ public class PublicController(
                 FileCount = playbackSectionFiles.Count,
                 LastUpdated = playbackSectionFiles.Max(x => (DateTime?)x.File.UploadedAt),
                 ArrangementFileCounts = CountByArrangement(playbackSectionFiles, x => x.Arr.Id),
+                ArrangementLastUpdated = MaxUploadedByArrangement(playbackSectionFiles, x => x.Arr.Id, x => x.File.UploadedAt),
             });
 
         return new SeasonPublicDto
