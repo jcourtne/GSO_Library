@@ -1,0 +1,170 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using GSO_Library.Dtos;
+using GSO_Library.Models;
+using Xunit;
+
+namespace GSO_Library.Tests;
+
+/// <summary>
+/// An Ensemble Librarian may create/update/delete seasons and performances, but only those
+/// tied to an ensemble they are a member of.
+/// </summary>
+public class EnsembleLibrarianScopedWriteTests : IntegrationTestBase
+{
+    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
+
+    public EnsembleLibrarianScopedWriteTests(CustomWebApplicationFactory factory) : base(factory) { }
+
+    private async Task<Ensemble> CreateEnsembleAsync(HttpClient admin, string name)
+    {
+        var resp = await admin.PostAsJsonAsync("/api/ensembles", new { Name = name });
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<Ensemble>(JsonOpts))!;
+    }
+
+    private async Task<string> GetUserIdAsync(HttpClient admin, string username)
+    {
+        var resp = await admin.GetAsync("/api/auth/users");
+        resp.EnsureSuccessStatusCode();
+        var users = await resp.Content.ReadFromJsonAsync<List<UserResponse>>(JsonOpts);
+        return users!.First(u => u.UserName == username).Id;
+    }
+
+    /// <summary>Creates an ensemble and adds the ensemble-librarian test user as a member.</summary>
+    private async Task<Ensemble> CreateEnsembleWithLibrarianAsync(HttpClient admin, string name)
+    {
+        var ensemble = await CreateEnsembleAsync(admin, name);
+        var ensLibId = await GetUserIdAsync(admin, "testensemblelibrarian");
+        (await admin.PostAsync($"/api/ensembles/{ensemble.Id}/members/{ensLibId}", null)).EnsureSuccessStatusCode();
+        return ensemble;
+    }
+
+    // ───── Seasons ─────
+
+    [Fact]
+    public async Task Season_FullLifecycle_InOwnEnsemble_Succeeds()
+    {
+        var admin = await GetAdminClientAsync();
+        var ensemble = await CreateEnsembleWithLibrarianAsync(admin, "EnsLibSeasonOwn");
+        var client = await GetEnsembleLibrarianClientAsync();
+
+        var createResp = await client.PostAsJsonAsync("/api/seasons",
+            new { Name = "EnsLib Season", EnsembleId = ensemble.Id });
+        Assert.Equal(HttpStatusCode.Created, createResp.StatusCode);
+        var season = await createResp.Content.ReadFromJsonAsync<Season>(JsonOpts);
+
+        var updateResp = await client.PutAsJsonAsync($"/api/seasons/{season!.Id}",
+            new { Name = "EnsLib Season Renamed", EnsembleId = ensemble.Id });
+        Assert.Equal(HttpStatusCode.OK, updateResp.StatusCode);
+
+        var shareResp = await client.PostAsJsonAsync($"/api/seasons/{season.Id}/share",
+            new { IncludePdf = true, IncludeNotation = false, IncludePlayback = false });
+        Assert.Equal(HttpStatusCode.OK, shareResp.StatusCode);
+
+        var deleteResp = await client.DeleteAsync($"/api/seasons/{season.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Season_Create_ForOtherEnsemble_Returns403()
+    {
+        var admin = await GetAdminClientAsync();
+        var otherEnsemble = await CreateEnsembleAsync(admin, "EnsLibSeasonOther");
+        var client = await GetEnsembleLibrarianClientAsync();
+
+        var resp = await client.PostAsJsonAsync("/api/seasons",
+            new { Name = "ShouldFail", EnsembleId = otherEnsemble.Id });
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Season_Update_InOtherEnsemble_Returns403()
+    {
+        var admin = await GetAdminClientAsync();
+        var otherEnsemble = await CreateEnsembleAsync(admin, "EnsLibSeasonUpdOther");
+        var createResp = await admin.PostAsJsonAsync("/api/seasons",
+            new { Name = "AdminSeason", EnsembleId = otherEnsemble.Id });
+        var season = await createResp.Content.ReadFromJsonAsync<Season>(JsonOpts);
+
+        var client = await GetEnsembleLibrarianClientAsync();
+        var resp = await client.PutAsJsonAsync($"/api/seasons/{season!.Id}",
+            new { Name = "ShouldFail", EnsembleId = otherEnsemble.Id });
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Season_Update_MovingIntoOtherEnsemble_Returns403()
+    {
+        var admin = await GetAdminClientAsync();
+        var ownEnsemble = await CreateEnsembleWithLibrarianAsync(admin, "EnsLibSeasonMoveOwn");
+        var otherEnsemble = await CreateEnsembleAsync(admin, "EnsLibSeasonMoveOther");
+        var client = await GetEnsembleLibrarianClientAsync();
+
+        var createResp = await client.PostAsJsonAsync("/api/seasons",
+            new { Name = "MoveMe", EnsembleId = ownEnsemble.Id });
+        var season = await createResp.Content.ReadFromJsonAsync<Season>(JsonOpts);
+
+        var resp = await client.PutAsJsonAsync($"/api/seasons/{season!.Id}",
+            new { Name = "MoveMe", EnsembleId = otherEnsemble.Id });
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    // ───── Performances ─────
+
+    [Fact]
+    public async Task Performance_FullLifecycle_InOwnEnsemble_Succeeds()
+    {
+        var admin = await GetAdminClientAsync();
+        var ensemble = await CreateEnsembleWithLibrarianAsync(admin, "EnsLibPerfOwn");
+        var client = await GetEnsembleLibrarianClientAsync();
+
+        var createResp = await client.PostAsJsonAsync("/api/performances",
+            new { Name = "EnsLib Perf", Link = "https://example.com/p", EnsembleId = ensemble.Id });
+        Assert.Equal(HttpStatusCode.Created, createResp.StatusCode);
+        var performance = await createResp.Content.ReadFromJsonAsync<Performance>(JsonOpts);
+
+        var updateResp = await client.PutAsJsonAsync($"/api/performances/{performance!.Id}",
+            new { Name = "EnsLib Perf Renamed", Link = "https://example.com/p", EnsembleId = ensemble.Id });
+        Assert.Equal(HttpStatusCode.OK, updateResp.StatusCode);
+
+        var deleteResp = await client.DeleteAsync($"/api/performances/{performance.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteResp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Performance_Create_ForOtherEnsemble_Returns403()
+    {
+        var admin = await GetAdminClientAsync();
+        var otherEnsemble = await CreateEnsembleAsync(admin, "EnsLibPerfOther");
+        var client = await GetEnsembleLibrarianClientAsync();
+
+        var resp = await client.PostAsJsonAsync("/api/performances",
+            new { Name = "ShouldFail", EnsembleId = otherEnsemble.Id });
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Performance_Create_WithNoEnsemble_Returns403()
+    {
+        var client = await GetEnsembleLibrarianClientAsync();
+
+        var resp = await client.PostAsJsonAsync("/api/performances", new { Name = "ShouldFail", Link = "https://example.com/p" });
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Performance_Delete_InOtherEnsemble_Returns403()
+    {
+        var admin = await GetAdminClientAsync();
+        var otherEnsemble = await CreateEnsembleAsync(admin, "EnsLibPerfDelOther");
+        var createResp = await admin.PostAsJsonAsync("/api/performances",
+            new { Name = "AdminPerf", Link = "https://example.com/p", EnsembleId = otherEnsemble.Id });
+        var performance = await createResp.Content.ReadFromJsonAsync<Performance>(JsonOpts);
+
+        var client = await GetEnsembleLibrarianClientAsync();
+        var resp = await client.DeleteAsync($"/api/performances/{performance!.Id}");
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+}

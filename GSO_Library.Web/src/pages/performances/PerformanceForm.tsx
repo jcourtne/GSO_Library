@@ -9,6 +9,7 @@ import { seasonsApi } from '../../api/seasons';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import ProgramSection from '../../components/performances/ProgramSection';
 import ArrangementPickerModal from '../../components/arrangements/ArrangementPickerModal';
+import { useMyEnsembles } from '../../hooks/useMyEnsembles';
 import type { Arrangement } from '../../types';
 
 export default function PerformanceForm() {
@@ -37,10 +38,16 @@ export default function PerformanceForm() {
     enabled: isEdit,
   });
 
+  const { myEnsembles, canEditAllEnsembles } = useMyEnsembles();
+
   const { data: ensembles } = useQuery({
     queryKey: ['ensembles-all'],
     queryFn: () => ensemblesApi.getAll(),
+    enabled: canEditAllEnsembles,
   });
+
+  // Ensemble Librarians may only tie a performance to one of their own ensembles.
+  const ensembleOptions = (canEditAllEnsembles ? ensembles : myEnsembles) ?? [];
 
   const { data: seasonsAll } = useQuery({
     queryKey: ['seasons-all'],
@@ -139,7 +146,7 @@ export default function PerformanceForm() {
               <Form.Label>Ensemble</Form.Label>
               <SearchableSelect
                 placeholder="No Ensemble"
-                options={ensembles?.map((ens) => ({ value: ens.id, label: ens.name })) ?? []}
+                options={ensembleOptions.map((ens) => ({ value: ens.id, label: ens.name }))}
                 value={ensembleId}
                 onChange={(v) => setEnsembleId(v)}
               />

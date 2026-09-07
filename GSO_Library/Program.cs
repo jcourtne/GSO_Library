@@ -188,9 +188,7 @@ app.MapFallbackToFile("index.html");
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    var roles = new[] { "Admin", "Librarian", "Submitter", "Downloader", "User", "Ensemble Downloader", "Ensemble Librarian" };
-
-    foreach (var role in roles)
+    foreach (var role in GSO_Library.Models.Roles.All)
     {
         if (!await roleManager.RoleExistsAsync(role))
         {

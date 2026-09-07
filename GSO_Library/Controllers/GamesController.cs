@@ -35,7 +35,7 @@ public class GamesController(GameRepository gameRepository, IAuditService auditS
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Librarian,Ensemble Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<ActionResult<Game>> AddGame([FromBody] Game game)
     {
         var now = DateTime.UtcNow;
@@ -49,7 +49,7 @@ public class GamesController(GameRepository gameRepository, IAuditService auditS
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin,Librarian,Ensemble Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<ActionResult<Game>> UpdateGame(int id, [FromBody] Game game)
     {
         game.UpdatedAt = DateTime.UtcNow;
@@ -61,7 +61,7 @@ public class GamesController(GameRepository gameRepository, IAuditService auditS
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin,Librarian,Ensemble Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<IActionResult> DeleteGame(int id)
     {
         var game = await gameRepository.GetGameByIdAsync(id);

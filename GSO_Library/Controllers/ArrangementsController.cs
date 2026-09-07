@@ -99,11 +99,11 @@ public class ArrangementsController : ControllerBase
     // ForbidResult (not IActionResult) so callers returning ActionResult<T> can `return deny;`.
     private async Task<ForbidResult?> EnforceWriteAccessAsync(Arrangement arrangement)
     {
-        if (User.IsInRole("Admin") || User.IsInRole("Librarian"))
+        if (User.IsInRole(Roles.Admin) || User.IsInRole(Roles.Librarian))
             return null;
 
-        bool isSubmitter = User.IsInRole("Submitter");
-        bool isEnsembleLibrarian = User.IsInRole("Ensemble Librarian");
+        bool isSubmitter = User.IsInRole(Roles.Submitter);
+        bool isEnsembleLibrarian = User.IsInRole(Roles.EnsembleLibrarian);
 
         bool ownerOk = isSubmitter && IsOwner(arrangement, User.Identity?.Name);
         bool ensembleOk = isEnsembleLibrarian && await IsInUserEnsemblesAsync(arrangement);
@@ -112,7 +112,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<ActionResult<Arrangement>> AddArrangement([FromBody] ArrangementRequest request)
     {
         var createdArrangement = await _arrangementRepository.AddArrangementAsync(request, User.Identity?.Name);
@@ -167,7 +167,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPut("{id}/details")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<ActionResult<Arrangement>> UpdateArrangementDetails(int id, [FromBody] ArrangementRequest request)
     {
         var existing = await _arrangementRepository.GetArrangementByIdAsync(id);
@@ -184,7 +184,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<IActionResult> DeleteArrangement(int id)
     {
         // Get arrangement with files first (before DB deletion)
@@ -213,7 +213,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPost("{arrangementId}/games/{gameId}")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<IActionResult> AddGame(int arrangementId, int gameId)
     {
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
@@ -231,7 +231,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpDelete("{arrangementId}/games/{gameId}")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<IActionResult> RemoveGame(int arrangementId, int gameId)
     {
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
@@ -249,7 +249,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPost("{arrangementId}/instruments/{instrumentId}")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<IActionResult> AddInstrument(int arrangementId, int instrumentId)
     {
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
@@ -267,7 +267,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpDelete("{arrangementId}/instruments/{instrumentId}")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<IActionResult> RemoveInstrument(int arrangementId, int instrumentId)
     {
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
@@ -285,7 +285,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPost("{arrangementId}/performances/{performanceId}")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<IActionResult> AddPerformance(int arrangementId, int performanceId)
     {
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
@@ -303,7 +303,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpDelete("{arrangementId}/performances/{performanceId}")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<IActionResult> RemovePerformance(int arrangementId, int performanceId)
     {
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
@@ -321,7 +321,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPost("{arrangementId}/ensembles/{ensembleId}")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<IActionResult> AddEnsemble(int arrangementId, int ensembleId)
     {
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
@@ -330,7 +330,7 @@ public class ArrangementsController : ControllerBase
         if (deny != null) return deny;
 
         // Non-admin/librarian users can only link an ensemble they are a member of
-        if (!User.IsInRole("Admin") && !User.IsInRole("Librarian"))
+        if (!User.IsInRole(Roles.Admin) && !User.IsInRole(Roles.Librarian))
         {
             if (!await IsEnsembleMemberAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), ensembleId))
                 return Forbid();
@@ -348,7 +348,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpDelete("{arrangementId}/ensembles/{ensembleId}")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<IActionResult> RemoveEnsemble(int arrangementId, int ensembleId)
     {
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
@@ -357,7 +357,7 @@ public class ArrangementsController : ControllerBase
         if (deny != null) return deny;
 
         // Non-admin/librarian users can only unlink an ensemble they are a member of
-        if (!User.IsInRole("Admin") && !User.IsInRole("Librarian"))
+        if (!User.IsInRole(Roles.Admin) && !User.IsInRole(Roles.Librarian))
         {
             if (!await IsEnsembleMemberAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), ensembleId))
                 return Forbid();
@@ -375,7 +375,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPost("{id}/files")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<ActionResult<ArrangementFile>> UploadFile(int id, IFormFile file,
         [FromForm] string? scorePartType = null)
     {
@@ -459,19 +459,19 @@ public class ArrangementsController : ControllerBase
         if (arrangementFile == null)
             return NotFound();
 
-        if (!User.IsInRole("Admin") && !User.IsInRole("Librarian") && !User.IsInRole("Downloader"))
+        if (!User.IsInRole(Roles.Admin) && !User.IsInRole(Roles.Librarian) && !User.IsInRole(Roles.Downloader))
         {
             var ext = Path.GetExtension(arrangementFile.FileName);
             if (!PlaybackExtensions.Contains(ext ?? ""))
             {
                 var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
 
-                if (User.IsInRole("Ensemble Librarian") || User.IsInRole("Ensemble Downloader"))
+                if (User.IsInRole(Roles.EnsembleLibrarian) || User.IsInRole(Roles.EnsembleDownloader))
                 {
                     if (arrangement == null) return NotFound();
                     if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
                 }
-                else if (User.IsInRole("Submitter"))
+                else if (User.IsInRole(Roles.Submitter))
                 {
                     if (arrangement == null || !IsOwner(arrangement, User.Identity?.Name))
                         return Forbid();
@@ -498,7 +498,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpDelete("{id}/files/{fileId}")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<IActionResult> DeleteFile(int id, int fileId)
     {
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
@@ -521,7 +521,7 @@ public class ArrangementsController : ControllerBase
     }
 
     [HttpPatch("{id}/files/{fileId}")]
-    [Authorize(Roles = "Admin,Librarian,Submitter,Ensemble Librarian")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
     public async Task<IActionResult> UpdateFileMetadata(int id, int fileId, [FromBody] UpdateFileMetadataRequest request)
     {
         if (request.ScorePartType != null && !ScorePartType.All.Contains(request.ScorePartType))

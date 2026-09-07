@@ -308,7 +308,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         RoleManager<IdentityRole> roleManager)
     {
         // Ensure roles (in case Program.cs seeding somehow didn't run)
-        foreach (var role in new[] { "Admin", "Librarian", "Submitter", "Downloader", "User", "Ensemble Downloader", "Ensemble Librarian" })
+        foreach (var role in GSO_Library.Models.Roles.All)
         {
             if (!await roleManager.RoleExistsAsync(role))
                 await roleManager.CreateAsync(new IdentityRole(role));

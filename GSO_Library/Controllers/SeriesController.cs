@@ -35,7 +35,7 @@ public class SeriesController(SeriesRepository seriesRepository, IAuditService a
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Librarian,Ensemble Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<ActionResult<Series>> AddSeries([FromBody] Series series)
     {
         var now = DateTime.UtcNow;
@@ -49,7 +49,7 @@ public class SeriesController(SeriesRepository seriesRepository, IAuditService a
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin,Librarian,Ensemble Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<ActionResult<Series>> UpdateSeries(int id, [FromBody] Series series)
     {
         series.UpdatedAt = DateTime.UtcNow;
@@ -61,7 +61,7 @@ public class SeriesController(SeriesRepository seriesRepository, IAuditService a
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin,Librarian,Ensemble Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<IActionResult> DeleteSeries(int id)
     {
         var series = await seriesRepository.GetSeriesByIdAsync(id);

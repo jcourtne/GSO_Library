@@ -8,7 +8,7 @@ import DataTable from '../../components/common/DataTable';
 import Pagination from '../../components/common/Pagination';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import FilterPanelSection from '../../components/common/FilterPanel';
-import { useAuth } from '../../hooks/useAuth';
+import { useMyEnsembles } from '../../hooks/useMyEnsembles';
 import type { Season } from '../../types';
 
 function formatDateRange(startDate?: string, endDate?: string) {
@@ -21,7 +21,7 @@ function formatDateRange(startDate?: string, endDate?: string) {
 
 export default function SeasonList() {
   const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { canEditForEnsemble, canCreateForEnsemble } = useMyEnsembles();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -90,15 +90,15 @@ export default function SeasonList() {
       render: (s: Season) => formatDateRange(s.startDate, s.endDate),
     },
     { key: 'notes', label: 'Notes', render: (s: Season) => s.notes ? s.notes.slice(0, 60) + (s.notes.length > 60 ? '…' : '') : '-' },
-    ...(canEdit() ? [{
+    ...(canCreateForEnsemble ? [{
       key: 'actions',
       label: '',
-      render: (s: Season) => (
+      render: (s: Season) => canEditForEnsemble(s.ensembleId) ? (
         <div className="d-flex gap-1" onClick={(e) => e.stopPropagation()}>
           <Link to={`/seasons/${s.id}/edit`} className="btn btn-sm btn-outline-primary">Edit</Link>
           <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(s)}>Delete</Button>
         </div>
-      ),
+      ) : null,
     }] : []),
   ];
 
@@ -106,7 +106,7 @@ export default function SeasonList() {
     <>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h2>Seasons</h2>
-        {canEdit() && <Link to="/seasons/new" className="btn btn-primary">New Season</Link>}
+        {canCreateForEnsemble && <Link to="/seasons/new" className="btn btn-primary">New Season</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
 

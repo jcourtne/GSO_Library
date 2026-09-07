@@ -47,7 +47,7 @@ public class EnsemblesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<Ensemble>> AddEnsemble([FromBody] Ensemble ensemble)
     {
         var now = DateTime.UtcNow;
@@ -61,7 +61,7 @@ public class EnsemblesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<Ensemble>> UpdateEnsemble(int id, [FromBody] Ensemble ensemble)
     {
         ensemble.UpdatedAt = DateTime.UtcNow;
@@ -73,7 +73,7 @@ public class EnsemblesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<IActionResult> DeleteEnsemble(int id)
     {
         var ensemble = await _ensembleRepository.GetEnsembleByIdAsync(id);
@@ -90,7 +90,7 @@ public class EnsemblesController : ControllerBase
     }
 
     [HttpGet("{id}/members")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<IActionResult> GetMembers(int id)
     {
         var ensemble = await _ensembleRepository.GetEnsembleByIdAsync(id);
@@ -102,7 +102,7 @@ public class EnsemblesController : ControllerBase
     }
 
     [HttpPost("{id}/members/{userId}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<IActionResult> AddMember(int id, string userId)
     {
         var user = await _userManager.FindByIdAsync(userId);
@@ -121,7 +121,7 @@ public class EnsemblesController : ControllerBase
     }
 
     [HttpDelete("{id}/members/{userId}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<IActionResult> RemoveMember(int id, string userId)
     {
         var result = await _ensembleRepository.RemoveMemberAsync(id, userId);
