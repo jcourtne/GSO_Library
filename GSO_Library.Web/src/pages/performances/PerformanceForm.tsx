@@ -50,9 +50,9 @@ export default function PerformanceForm() {
   const ensembleOptions = (canEditAllEnsembles ? ensembles : myEnsembles) ?? [];
 
   const { data: seasonsAll } = useQuery({
-    queryKey: ['seasons-all'],
-    queryFn: () => seasonsApi.list({ pageSize: 100 }),
-    enabled: !isEdit,
+    queryKey: ['seasons-all', ensembleId],
+    queryFn: () => seasonsApi.list({ pageSize: 100, ensembleIds: [ensembleId!] }),
+    enabled: !isEdit && ensembleId !== null,
   });
 
   const { data: selectedSeason, isLoading: seasonLoading } = useQuery({
@@ -148,14 +148,15 @@ export default function PerformanceForm() {
                 placeholder="No Ensemble"
                 options={ensembleOptions.map((ens) => ({ value: ens.id, label: ens.name }))}
                 value={ensembleId}
-                onChange={(v) => setEnsembleId(v)}
+                onChange={(v) => { setEnsembleId(v); setSeasonId(null); }}
               />
             </Form.Group>
             {!isEdit && (
               <Form.Group className="mb-3">
                 <Form.Label>Season</Form.Label>
                 <SearchableSelect
-                  placeholder="No Season"
+                  placeholder={ensembleId === null ? 'Select an ensemble first' : 'No Season'}
+                  disabled={ensembleId === null}
                   options={seasonsAll?.items.map((s) => ({ value: s.id, label: s.name })) ?? []}
                   value={seasonId}
                   onChange={(v) => setSeasonId(v)}
