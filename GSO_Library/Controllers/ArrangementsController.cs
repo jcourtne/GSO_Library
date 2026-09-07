@@ -96,7 +96,8 @@ public class ArrangementsController : ControllerBase
 
     // Returns null (allow) or a Forbid result. Handles Submitter, Ensemble Librarian, and dual-role
     // users correctly. Admin and Librarian always get null (full access).
-    private async Task<IActionResult?> EnforceWriteAccessAsync(Arrangement arrangement)
+    // ForbidResult (not IActionResult) so callers returning ActionResult<T> can `return deny;`.
+    private async Task<ForbidResult?> EnforceWriteAccessAsync(Arrangement arrangement)
     {
         if (User.IsInRole("Admin") || User.IsInRole("Librarian"))
             return null;

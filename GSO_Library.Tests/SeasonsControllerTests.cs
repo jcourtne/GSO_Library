@@ -427,7 +427,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task GetSeason_AfterConfiguringShareWithPassword_ReportsHasSharePassword()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_SharePwFlag");
+        var ensemble = await CreateEnsembleAsync("Ens_SharePwFlag");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_SharePwFlag");
 
         // No share configured yet → no password
@@ -620,7 +620,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task Download_FileTaggedWithInstrumentAndGenericSection_IncludedInBoth()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_DLDual");
+        var ensemble = await CreateEnsembleAsync("Ens_DLDual");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLDual");
 
         var arrangementId = await CreateArrangementAsync(client, "Arr_DLDual");
@@ -760,7 +760,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task Download_ByArrangement_ReturnsOnlyThatArrangementsFiles()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_DLByArr");
+        var ensemble = await CreateEnsembleAsync("Ens_DLByArr");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLByArr");
 
         var arr1 = await CreateArrangementAsync(client, "Arr_One");
@@ -784,7 +784,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task Download_ByArrangement_InvalidArrangementId_Returns400()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_DLBadArr");
+        var ensemble = await CreateEnsembleAsync("Ens_DLBadArr");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLBadArr");
         var token = await ConfigureShareAsync(client, season.Id);
 
@@ -797,7 +797,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task Download_ByArrangementAndScorePartType_ReturnsZip()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_DLArrType");
+        var ensemble = await CreateEnsembleAsync("Ens_DLArrType");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLArrType");
 
         var arr = await CreateArrangementAsync(client, "Arr_Conductor");
@@ -818,7 +818,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task PrepareDownload_ByArrangement_ThenDownload()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_DLArrPrep");
+        var ensemble = await CreateEnsembleAsync("Ens_DLArrPrep");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLArrPrep");
 
         var arr = await CreateArrangementAsync(client, "Arr_Prep");
@@ -840,7 +840,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task GetPublicSeason_IncludesArrangementIdAndCounts()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_ArrCounts");
+        var ensemble = await CreateEnsembleAsync("Ens_ArrCounts");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_ArrCounts");
 
         var arr = await CreateArrangementAsync(client, "Arr_Counts");
@@ -864,7 +864,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task GetPublicSeason_IncludesPerArrangementLastUpdated()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_ArrLastUpd");
+        var ensemble = await CreateEnsembleAsync("Ens_ArrLastUpd");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_ArrLastUpd");
 
         var arr1 = await CreateArrangementAsync(client, "Arr_LU_One");
@@ -893,7 +893,7 @@ public class SeasonsControllerTests : IntegrationTestBase
     public async Task Download_ByArrangement_NoFiles_ReturnsValidEmptyZip()
     {
         var client = await GetLibrarianClientAsync();
-        var ensemble = await CreateEnsembleAsync(client, "Ens_DLArrEmpty");
+        var ensemble = await CreateEnsembleAsync("Ens_DLArrEmpty");
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLArrEmpty");
 
         var arr = await CreateArrangementAsync(client, "Arr_Empty");
