@@ -23,6 +23,14 @@ public class SeasonsControllerTests : IntegrationTestBase
         return arr.GetProperty("id").GetInt32();
     }
 
+    private async Task<string> GetUserIdAsync(HttpClient admin, string username)
+    {
+        var resp = await admin.GetAsync("/api/auth/users");
+        resp.EnsureSuccessStatusCode();
+        var users = await resp.Content.ReadFromJsonAsync<List<UserResponse>>(JsonOpts);
+        return users!.First(u => u.UserName == username).Id;
+    }
+
     private async Task LinkArrangementToEnsembleAsync(int arrangementId, int ensembleId)
     {
         var admin = await GetAdminClientAsync();
@@ -363,6 +371,42 @@ public class SeasonsControllerTests : IntegrationTestBase
 
         var response = await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arrangementId}", null);
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddArrangement_PublicArrangement_Returns204_ForEnsembleLibrarian()
+    {
+        var admin = await GetAdminClientAsync();
+        var ensLibId = await GetUserIdAsync(admin, "testensemblelibrarian");
+        var ensemble = await CreateEnsembleAsync("Ens_PublicArrAdd");
+        (await admin.PostAsync($"/api/ensembles/{ensemble.Id}/members/{ensLibId}", null)).EnsureSuccessStatusCode();
+        var season = await CreateSeasonAsync(admin, ensemble.Id, "Season_PublicArrAdd");
+
+        // Public arrangement: created with no ensemble link.
+        var arrangementId = await CreateArrangementAsync(admin, "Arr_Public");
+
+        var client = await GetEnsembleLibrarianClientAsync();
+        var response = await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arrangementId}", null);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateSeason_MovedToOtherEnsemble_KeepsPublicArrangements()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensembleA = await CreateEnsembleAsync("Ens_KeepPublicA");
+        var ensembleB = await CreateEnsembleAsync("Ens_KeepPublicB");
+        var season = await CreateSeasonAsync(client, ensembleA.Id, "Season_KeepPublic");
+
+        var publicId = await CreateArrangementAsync(client, "Arr_PublicStays");
+        (await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{publicId}", null)).EnsureSuccessStatusCode();
+
+        var update = await client.PutAsJsonAsync($"/api/seasons/{season.Id}",
+            new { Name = "Season_KeepPublic", EnsembleId = ensembleB.Id });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+
+        var fetched = await (await client.GetAsync($"/api/seasons/{season.Id}")).Content.ReadFromJsonAsync<Season>(JsonOpts);
+        Assert.Contains(fetched!.Arrangements, a => a.Id == publicId);
     }
 
     [Fact]

@@ -22,14 +22,18 @@ export function useArrangementAccess() {
     enabled: ensembleScoped,
   });
 
+  // An arrangement with no ensemble is public: anyone with a download/ensemble-download role
+  // can get its files, and any ensemble can add it to a season.
+  const isPublic = (a: Arrangement) => (a.ensembles ?? []).length === 0;
+
   const inMyEnsembles = (a: Arrangement) =>
     (a.ensembles ?? []).some((e) => myEnsembles.some((me) => me.id === e.id));
 
   const canDownloadNonPlayback = (a: Arrangement) =>
-    canDownloadAll() || (ensembleScoped && inMyEnsembles(a));
+    canDownloadAll() || (ensembleScoped && (isPublic(a) || inMyEnsembles(a)));
 
   const canAddToSeason = (a: Arrangement, seasonEnsembleId: number) =>
-    (a.ensembles ?? []).some((e) => e.id === seasonEnsembleId);
+    isPublic(a) || (a.ensembles ?? []).some((e) => e.id === seasonEnsembleId);
 
   return { canDownloadNonPlayback, canAddToSeason };
 }

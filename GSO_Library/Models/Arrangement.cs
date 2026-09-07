@@ -19,4 +19,10 @@ public class Arrangement
     public virtual ICollection<Performance> Performances { get; set; } = [];
     public virtual ICollection<Season> Seasons { get; set; } = [];
     public virtual ICollection<Ensemble> Ensembles { get; set; } = [];
+
+    /// <summary>
+    /// An arrangement with no ensemble is public: any user with download or ensemble-download
+    /// permission may download all its files, and any ensemble may add it to a season.
+    /// </summary>
+    public bool IsPublic => Ensembles.Count == 0;
 }

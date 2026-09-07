@@ -117,14 +117,8 @@ public class ArrangementsController : ControllerBase
     {
         var createdArrangement = await _arrangementRepository.AddArrangementAsync(request, User.Identity?.Name);
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId != null)
-        {
-            var userEnsembles = await _ensembleRepository.GetEnsemblesForUserAsync(userId);
-            foreach (var ensemble in userEnsembles)
-                await _arrangementRepository.AddEnsembleAsync(createdArrangement.Id, ensemble.Id);
-        }
-
+        // New arrangements start with no ensembles (public). The creator can restrict access
+        // afterwards by linking one or more ensembles.
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(createdArrangement.Id);
         await _auditService.LogAsync(Models.AuditEventType.ArrangementCreate, User.Identity?.Name, null, null,
             $"arrangementId: {createdArrangement.Id} ({arrangement?.Name})");
@@ -469,7 +463,9 @@ public class ArrangementsController : ControllerBase
                 if (User.IsInRole(Roles.EnsembleLibrarian) || User.IsInRole(Roles.EnsembleDownloader))
                 {
                     if (arrangement == null) return NotFound();
-                    if (!await IsInUserEnsemblesAsync(arrangement)) return Forbid();
+                    // A public arrangement (no ensemble) is downloadable by anyone with an
+                    // ensemble-download role; otherwise the user must share an ensemble with it.
+                    if (!arrangement.IsPublic && !await IsInUserEnsemblesAsync(arrangement)) return Forbid();
                 }
                 else if (User.IsInRole(Roles.Submitter))
                 {

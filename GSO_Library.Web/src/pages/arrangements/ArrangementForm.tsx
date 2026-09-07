@@ -8,7 +8,6 @@ import { ensemblesApi } from '../../api/ensembles';
 import { gamesApi } from '../../api/games';
 import { instrumentsApi } from '../../api/instruments';
 import { instrumentSortOrdersApi } from '../../api/instrumentSortOrders';
-import axios from 'axios';
 import { useAuth } from '../../hooks/useAuth';
 import FileSection from '../../components/arrangements/FileSection';
 import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
@@ -113,12 +112,6 @@ export default function ArrangementForm() {
     }
   }, [existing]);
 
-  useEffect(() => {
-    if (!isEdit && myEnsembles.data) {
-      setLinkedEnsembleIds(new Set(myEnsembles.data.map((e) => e.id)));
-    }
-  }, [isEdit, myEnsembles.data]);
-
   const saveMutation = useMutation({
     mutationFn: async () => {
       const flushedForm = {
@@ -167,15 +160,11 @@ export default function ArrangementForm() {
           if (!linkedEnsembleIds.has(eid)) await arrangementsApi.removeEnsemble(arrangementId, eid);
         }
       } else if (!isEdit) {
-        // New arrangement - add all relationships; backend already auto-linked user's ensembles so ignore 400s
+        // New arrangement - add all selected relationships. A new arrangement starts with no
+        // ensembles (public) unless the user picked some here.
         for (const gid of linkedGameIds) await arrangementsApi.addGame(arrangementId, gid);
         for (const iid of linkedInstrumentIds) await arrangementsApi.addInstrument(arrangementId, iid);
-        for (const eid of linkedEnsembleIds) {
-          await arrangementsApi.addEnsemble(arrangementId, eid).catch((err: unknown) => {
-            // Backend auto-links the user's ensembles on create; ignore 400 "already linked" conflicts only.
-            if (!axios.isAxiosError(err) || err.response?.status !== 400) throw err;
-          });
-        }
+        for (const eid of linkedEnsembleIds) await arrangementsApi.addEnsemble(arrangementId, eid);
       }
 
       return arrangementId;
@@ -528,7 +517,11 @@ export default function ArrangementForm() {
                       ))}
                   </ListGroup>
                 ) : (
-                  <p className="text-muted mb-2">No ensembles selected</p>
+                  <p className="text-muted mb-2 small">
+                    No ensembles selected — this arrangement is <strong>public</strong>. Any user
+                    with download permission can access its files and any ensemble can add it to a
+                    season. Add an ensemble to restrict access to its members.
+                  </p>
                 )}
                 <Button variant="outline-primary" size="sm" onClick={() => { setEnsembleSearch(''); setShowEnsemblePicker(true); }}>
                   Add

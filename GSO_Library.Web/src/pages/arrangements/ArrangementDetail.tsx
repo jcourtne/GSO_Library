@@ -43,7 +43,11 @@ export default function ArrangementDetail() {
   const arrangementInMyEnsembles = isEnsembleScoped &&
     (arrangement?.ensembles ?? []).some(e => myEnsembles.some(me => me.id === e.id));
 
-  const canDownloadNonPlayback = canDownloadAll() || arrangementInMyEnsembles;
+  // An arrangement with no ensemble is public — any download/ensemble-download role can get its files.
+  const arrangementIsPublic = !!arrangement && (arrangement.ensembles ?? []).length === 0;
+
+  const canDownloadNonPlayback = canDownloadAll() || arrangementInMyEnsembles ||
+    (isEnsembleScoped && arrangementIsPublic);
 
   const deleteMutation = useMutation({
     mutationFn: () => arrangementsApi.delete(Number(id)),
@@ -177,7 +181,13 @@ export default function ArrangementDetail() {
                   ))}
                 </div>
               ) : (
-                <p className="text-muted mb-0">None</p>
+                <>
+                  <Badge bg="success">Public</Badge>
+                  <p className="text-muted mb-0 mt-2 small">
+                    This arrangement isn't restricted to an ensemble. Any user with download
+                    permission can access its files, and any ensemble can add it to a season.
+                  </p>
+                </>
               )}
             </Card.Body>
           </Card>

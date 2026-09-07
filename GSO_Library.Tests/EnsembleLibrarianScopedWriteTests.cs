@@ -202,6 +202,11 @@ public class EnsembleLibrarianScopedWriteTests : IntegrationTestBase
         var admin = await GetAdminClientAsync();
         var ensemble = await CreateEnsembleWithLibrarianAsync(admin, "EnsLibSeasonArrOther");
         var arrangementId = await CreateArrangementAsync(admin, "EnsLibSeasonArrOther_Arr");
+        // Link the arrangement to a different ensemble so it is not public.
+        var otherEnsembleResp = await admin.PostAsJsonAsync("/api/ensembles", new { Name = "EnsLibSeasonArrOther_Foreign" });
+        var otherEnsemble = await otherEnsembleResp.Content.ReadFromJsonAsync<Ensemble>(JsonOpts);
+        (await admin.PostAsync($"/api/arrangements/{arrangementId}/ensembles/{otherEnsemble!.Id}", null))
+            .EnsureSuccessStatusCode();
 
         var client = await GetEnsembleLibrarianClientAsync();
         var createResp = await client.PostAsJsonAsync("/api/seasons",

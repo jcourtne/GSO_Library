@@ -149,13 +149,14 @@ public class SeasonsController : ControllerBase
         var (season, error) = await LoadSeasonForWriteAsync(id);
         if (error != null) return error;
 
-        // A season may only contain arrangements linked to its own ensemble. This keeps the
-        // season zip / public share from exposing file types the season's ensemble members
+        // A season may only contain arrangements its ensemble is allowed to download: either a
+        // public arrangement (no ensemble) or one linked to this season's own ensemble. This keeps
+        // the season zip / public share from exposing file types the season's ensemble members
         // (and Ensemble Librarians) would not otherwise be able to download.
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
         if (arrangement == null)
             return BadRequest("Arrangement not found or already linked");
-        if (!arrangement.Ensembles.Any(e => e.Id == season!.EnsembleId))
+        if (!arrangement.IsPublic && !arrangement.Ensembles.Any(e => e.Id == season!.EnsembleId))
             return Forbid();
 
         var result = await _seasonRepository.AddArrangementAsync(id, arrangementId);

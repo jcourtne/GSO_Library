@@ -82,10 +82,25 @@ public class EnsembleRoleTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task EnsembleDownloader_PdfFile_ArrangementNotInEnsemble_Returns403()
+    public async Task EnsembleDownloader_PdfFile_PublicArrangement_Returns200()
+    {
+        // An arrangement with no ensemble is public — any ensemble-download role can get all its files.
+        var admin = await GetAdminClientAsync();
+        var arrangement = await CreateArrangementAsync(admin, "EnsDlPdfPublic");
+        var file = await UploadFileAsync(admin, arrangement.Id, "score.pdf", "application/pdf", "pdf"u8.ToArray());
+
+        var client = await GetEnsembleDownloaderClientAsync();
+        var resp = await client.GetAsync($"/api/arrangements/{arrangement.Id}/files/{file.Id}");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task EnsembleDownloader_PdfFile_ArrangementInOtherEnsemble_Returns403()
     {
         var admin = await GetAdminClientAsync();
-        var arrangement = await CreateArrangementAsync(admin, "EnsDlPdfNoEnsemble");
+        var ensemble = await CreateEnsembleAsync(admin, "EnsDlPdfOtherEnsemble");
+        var arrangement = await CreateArrangementAsync(admin, "EnsDlPdfOther");
+        await admin.PostAsync($"/api/arrangements/{arrangement.Id}/ensembles/{ensemble.Id}", null);
         var file = await UploadFileAsync(admin, arrangement.Id, "score.pdf", "application/pdf", "pdf"u8.ToArray());
 
         var client = await GetEnsembleDownloaderClientAsync();
@@ -111,10 +126,12 @@ public class EnsembleRoleTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task EnsembleDownloader_NotationFile_ArrangementNotInEnsemble_Returns403()
+    public async Task EnsembleDownloader_NotationFile_ArrangementInOtherEnsemble_Returns403()
     {
         var admin = await GetAdminClientAsync();
-        var arrangement = await CreateArrangementAsync(admin, "EnsDlMxlNoEnsemble");
+        var ensemble = await CreateEnsembleAsync(admin, "EnsDlMxlOtherEnsemble");
+        var arrangement = await CreateArrangementAsync(admin, "EnsDlMxlOther");
+        await admin.PostAsync($"/api/arrangements/{arrangement.Id}/ensembles/{ensemble.Id}", null);
         var file = await UploadFileAsync(admin, arrangement.Id, "score.mxl", "application/vnd.recordare.musicxml", "xml"u8.ToArray());
 
         var client = await GetEnsembleDownloaderClientAsync();
@@ -168,10 +185,24 @@ public class EnsembleRoleTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task EnsembleLibrarian_PdfFile_ArrangementNotInEnsemble_Returns403()
+    public async Task EnsembleLibrarian_PdfFile_PublicArrangement_Returns200()
     {
         var admin = await GetAdminClientAsync();
-        var arrangement = await CreateArrangementAsync(admin, "EnsLibPdfNoEnsemble");
+        var arrangement = await CreateArrangementAsync(admin, "EnsLibPdfPublic");
+        var file = await UploadFileAsync(admin, arrangement.Id, "score.pdf", "application/pdf", "pdf"u8.ToArray());
+
+        var client = await GetEnsembleLibrarianClientAsync();
+        var resp = await client.GetAsync($"/api/arrangements/{arrangement.Id}/files/{file.Id}");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task EnsembleLibrarian_PdfFile_ArrangementInOtherEnsemble_Returns403()
+    {
+        var admin = await GetAdminClientAsync();
+        var ensemble = await CreateEnsembleAsync(admin, "EnsLibPdfOtherEnsemble");
+        var arrangement = await CreateArrangementAsync(admin, "EnsLibPdfOther");
+        await admin.PostAsync($"/api/arrangements/{arrangement.Id}/ensembles/{ensemble.Id}", null);
         var file = await UploadFileAsync(admin, arrangement.Id, "score.pdf", "application/pdf", "pdf"u8.ToArray());
 
         var client = await GetEnsembleLibrarianClientAsync();
@@ -199,7 +230,7 @@ public class EnsembleRoleTests : IntegrationTestBase
     // ───── Ensemble Librarian — write access scoped to ensemble ─────
 
     [Fact]
-    public async Task EnsembleLibrarian_CreateArrangement_AutoLinksEnsemble_Returns201()
+    public async Task EnsembleLibrarian_CreateArrangement_StartsPublic_Returns201()
     {
         var admin = await GetAdminClientAsync();
         var ensLibId = await GetUserIdAsync(admin, "testensemblelibrarian");
@@ -210,10 +241,11 @@ public class EnsembleRoleTests : IntegrationTestBase
         var resp = await client.PostAsJsonAsync("/api/arrangements", new { Name = "EnsLibCreated" });
         Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
 
+        // Creation no longer auto-links the creator's ensembles; a new arrangement is public.
         var arrangement = (await resp.Content.ReadFromJsonAsync<Arrangement>(JsonOpts))!;
         var getResp = await client.GetAsync($"/api/arrangements/{arrangement.Id}");
         var returned = await getResp.Content.ReadFromJsonAsync<Arrangement>(JsonOpts);
-        Assert.Contains(returned!.Ensembles, e => e.Id == ensemble.Id);
+        Assert.Empty(returned!.Ensembles ?? []);
     }
 
     [Fact]

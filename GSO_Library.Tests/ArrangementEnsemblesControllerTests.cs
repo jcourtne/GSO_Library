@@ -68,7 +68,6 @@ public class ArrangementEnsemblesControllerTests : IntegrationTestBase
         var adminClient = await GetAdminClientAsync();
         var submitterId = await GetSubmitterUserIdAsync(adminClient);
 
-        // Create arrangement first (before adding ensemble membership, so auto-link won't fire for this ensemble)
         var submitterClient = await GetSubmitterClientAsync();
         var arrangement = await CreateArrangementAsync(submitterClient, "SubmitterOwnArrangement");
 
@@ -204,7 +203,6 @@ public class ArrangementEnsemblesControllerTests : IntegrationTestBase
         var adminClient = await GetAdminClientAsync();
         var submitterId = await GetSubmitterUserIdAsync(adminClient);
 
-        // Create arrangement first so auto-link doesn't fire for this ensemble
         var submitterClient = await GetSubmitterClientAsync();
         var arrangement = await CreateArrangementAsync(submitterClient, "SubmitterRemoveArrangement");
 
@@ -288,26 +286,25 @@ public class ArrangementEnsemblesControllerTests : IntegrationTestBase
         Assert.Contains(returned.Ensembles, e => e.Id == ensemble.Id);
     }
 
-    // ───── Auto-link on create ─────
+    // ───── Ensembles on create ─────
 
     [Fact]
-    public async Task CreateArrangement_SubmitterWithEnsembles_AutoLinksEnsembles()
+    public async Task CreateArrangement_SubmitterWithEnsembles_StartsPublic()
     {
         var adminClient = await GetAdminClientAsync();
         var submitterId = await GetSubmitterUserIdAsync(adminClient);
-        var ensemble1 = await CreateEnsembleAsync(adminClient, "AutoLink1");
-        var ensemble2 = await CreateEnsembleAsync(adminClient, "AutoLink2");
+        var ensemble1 = await CreateEnsembleAsync(adminClient, "NoAutoLink1");
+        var ensemble2 = await CreateEnsembleAsync(adminClient, "NoAutoLink2");
         await adminClient.PostAsync($"/api/ensembles/{ensemble1.Id}/members/{submitterId}", null);
         await adminClient.PostAsync($"/api/ensembles/{ensemble2.Id}/members/{submitterId}", null);
 
         var submitterClient = await GetSubmitterClientAsync();
-        var arrangement = await CreateArrangementAsync(submitterClient, "AutoLinkArrangement");
+        var arrangement = await CreateArrangementAsync(submitterClient, "NoAutoLinkArrangement");
 
         var resp = await submitterClient.GetAsync($"/api/arrangements/{arrangement.Id}");
         var returned = await resp.Content.ReadFromJsonAsync<Arrangement>(JsonOpts);
-        Assert.NotNull(returned?.Ensembles);
-        Assert.Contains(returned.Ensembles, e => e.Id == ensemble1.Id);
-        Assert.Contains(returned.Ensembles, e => e.Id == ensemble2.Id);
+        Assert.NotNull(returned);
+        Assert.Empty(returned.Ensembles ?? []);
     }
 
     [Fact]
