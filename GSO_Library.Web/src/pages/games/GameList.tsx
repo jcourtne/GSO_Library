@@ -13,7 +13,7 @@ import type { Game } from '../../types';
 
 export default function GameList() {
   const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { canEditReferenceData } = useAuth();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -56,7 +56,7 @@ export default function GameList() {
     { key: 'description', label: 'Description', render: (g: Game) => g.description || '-' },
     { key: 'releaseYear', label: 'Year', render: (g: Game) => g.releaseYear ?? '-' },
     { key: 'series', label: 'Series', render: (g: Game) => g.series?.name || '-' },
-    ...(canEdit() ? [{
+    ...(canEditReferenceData() ? [{
       key: 'actions',
       label: '',
       render: (g: Game) => (
@@ -72,7 +72,7 @@ export default function GameList() {
     <>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h2>Games</h2>
-        {canEdit() && <Link to="/games/new" className="btn btn-primary">New Game</Link>}
+        {canEditReferenceData() && <Link to="/games/new" className="btn btn-primary">New Game</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
 

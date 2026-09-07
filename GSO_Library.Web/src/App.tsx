@@ -40,6 +40,7 @@ const queryClient = new QueryClient({
 });
 
 const librarianRoles = ['Admin', 'Librarian'];
+const referenceDataRoles = ['Admin', 'Librarian', 'Ensemble Librarian'];
 const submitterRoles = ['Admin', 'Librarian', 'Submitter'];
 const adminRoles = ['Admin'];
 
@@ -63,18 +64,18 @@ export default function App() {
 
               {/* Series */}
               <Route path="series" element={<SeriesList />} />
-              <Route path="series/new" element={<ProtectedRoute requiredRoles={librarianRoles}><SeriesForm /></ProtectedRoute>} />
-              <Route path="series/:id/edit" element={<ProtectedRoute requiredRoles={librarianRoles}><SeriesForm /></ProtectedRoute>} />
+              <Route path="series/new" element={<ProtectedRoute requiredRoles={referenceDataRoles}><SeriesForm /></ProtectedRoute>} />
+              <Route path="series/:id/edit" element={<ProtectedRoute requiredRoles={referenceDataRoles}><SeriesForm /></ProtectedRoute>} />
 
               {/* Games */}
               <Route path="games" element={<GameList />} />
-              <Route path="games/new" element={<ProtectedRoute requiredRoles={librarianRoles}><GameForm /></ProtectedRoute>} />
-              <Route path="games/:id/edit" element={<ProtectedRoute requiredRoles={librarianRoles}><GameForm /></ProtectedRoute>} />
+              <Route path="games/new" element={<ProtectedRoute requiredRoles={referenceDataRoles}><GameForm /></ProtectedRoute>} />
+              <Route path="games/:id/edit" element={<ProtectedRoute requiredRoles={referenceDataRoles}><GameForm /></ProtectedRoute>} />
 
               {/* Instruments */}
               <Route path="instruments" element={<InstrumentList />} />
-              <Route path="instruments/new" element={<ProtectedRoute requiredRoles={librarianRoles}><InstrumentForm /></ProtectedRoute>} />
-              <Route path="instruments/:id/edit" element={<ProtectedRoute requiredRoles={librarianRoles}><InstrumentForm /></ProtectedRoute>} />
+              <Route path="instruments/new" element={<ProtectedRoute requiredRoles={referenceDataRoles}><InstrumentForm /></ProtectedRoute>} />
+              <Route path="instruments/:id/edit" element={<ProtectedRoute requiredRoles={referenceDataRoles}><InstrumentForm /></ProtectedRoute>} />
 
               {/* Performances */}
               <Route path="performances" element={<PerformanceList />} />

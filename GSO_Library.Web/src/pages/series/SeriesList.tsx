@@ -11,7 +11,7 @@ import type { Series } from '../../types';
 
 export default function SeriesList() {
   const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { canEditReferenceData } = useAuth();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -44,7 +44,7 @@ export default function SeriesList() {
   const columns = [
     { key: 'name', label: 'Name', sortable: true },
     { key: 'description', label: 'Description', render: (s: Series) => s.description || '-' },
-    ...(canEdit() ? [{
+    ...(canEditReferenceData() ? [{
       key: 'actions',
       label: '',
       render: (s: Series) => (
@@ -60,7 +60,7 @@ export default function SeriesList() {
     <>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h2>Series</h2>
-        {canEdit() && <Link to="/series/new" className="btn btn-primary">New Series</Link>}
+        {canEditReferenceData() && <Link to="/series/new" className="btn btn-primary">New Series</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
 
