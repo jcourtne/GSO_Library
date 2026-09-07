@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using GSO_Library.Models;
 using GSO_Library.Repositories;
 using GSO_Library.Services;
@@ -20,6 +21,15 @@ public class EnsemblesController : ControllerBase
         _ensembleRepository = ensembleRepository;
         _auditService = auditService;
         _userManager = userManager;
+    }
+
+    private async Task<bool> IsMemberAsync(int ensembleId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null)
+            return false;
+        var ensembles = await _ensembleRepository.GetEnsemblesForUserAsync(userId);
+        return ensembles.Any(e => e.Id == ensembleId);
     }
 
     [HttpGet]
@@ -61,9 +71,13 @@ public class EnsemblesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = Roles.Admin)]
+    [Authorize(Roles = Roles.AdminAndEnsembleLibrarian)]
     public async Task<ActionResult<Ensemble>> UpdateEnsemble(int id, [FromBody] Ensemble ensemble)
     {
+        // Admins may edit any ensemble; an Ensemble Librarian only their own.
+        if (!User.IsInRole(Roles.Admin) && !await IsMemberAsync(id))
+            return Forbid();
+
         ensemble.UpdatedAt = DateTime.UtcNow;
         var updated = await _ensembleRepository.UpdateEnsembleAsync(id, ensemble);
         if (updated == null)

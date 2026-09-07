@@ -167,4 +167,49 @@ public class EnsembleLibrarianScopedWriteTests : IntegrationTestBase
         var resp = await client.DeleteAsync($"/api/performances/{performance!.Id}");
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
+
+    // ───── Ensembles ─────
+
+    [Fact]
+    public async Task Ensemble_Update_OwnEnsemble_Succeeds()
+    {
+        var admin = await GetAdminClientAsync();
+        var ensemble = await CreateEnsembleWithLibrarianAsync(admin, "EnsLibOwnEnsemble");
+        var client = await GetEnsembleLibrarianClientAsync();
+
+        var resp = await client.PutAsJsonAsync($"/api/ensembles/{ensemble.Id}",
+            new { Name = "EnsLibOwnEnsemble Renamed", Description = "Updated by the ensemble librarian" });
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Ensemble_Update_OtherEnsemble_Returns403()
+    {
+        var admin = await GetAdminClientAsync();
+        var otherEnsemble = await CreateEnsembleAsync(admin, "EnsLibOtherEnsemble");
+        var client = await GetEnsembleLibrarianClientAsync();
+
+        var resp = await client.PutAsJsonAsync($"/api/ensembles/{otherEnsemble.Id}",
+            new { Name = "ShouldFail" });
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Ensemble_Create_AsEnsembleLibrarian_Returns403()
+    {
+        var client = await GetEnsembleLibrarianClientAsync();
+        var resp = await client.PostAsJsonAsync("/api/ensembles", new { Name = "ShouldFail" });
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Ensemble_Delete_OwnEnsemble_AsEnsembleLibrarian_Returns403()
+    {
+        var admin = await GetAdminClientAsync();
+        var ensemble = await CreateEnsembleWithLibrarianAsync(admin, "EnsLibDeleteOwnEnsemble");
+        var client = await GetEnsembleLibrarianClientAsync();
+
+        var resp = await client.DeleteAsync($"/api/ensembles/{ensemble.Id}");
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
 }

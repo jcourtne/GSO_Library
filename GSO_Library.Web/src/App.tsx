@@ -39,12 +39,16 @@ const queryClient = new QueryClient({
   },
 });
 
-const librarianRoles = ['Admin', 'Librarian'];
 // Reference data (games/series/instruments) and ensemble-scoped resources (seasons/performances):
 // Ensemble Librarians are allowed in; the API further restricts season/performance writes to
 // the librarian's own ensemble.
 const ensembleLibrarianRoles = ['Admin', 'Librarian', 'Ensemble Librarian'];
-const submitterRoles = ['Admin', 'Librarian', 'Submitter'];
+// Arrangement create/edit: Submitters (own arrangements) and Ensemble Librarians (own-ensemble
+// arrangements) are allowed in; the API enforces the per-arrangement ownership/ensemble check.
+const arrangementEditorRoles = ['Admin', 'Librarian', 'Submitter', 'Ensemble Librarian'];
+// Editing an ensemble: Admins (any) or Ensemble Librarians (their own — API checks membership).
+// Creating/deleting an ensemble stays Admin-only.
+const ensembleEditRoles = ['Admin', 'Ensemble Librarian'];
 const adminRoles = ['Admin'];
 
 export default function App() {
@@ -62,8 +66,8 @@ export default function App() {
               {/* Arrangements */}
               <Route path="arrangements" element={<ArrangementList />} />
               <Route path="arrangements/:id" element={<ArrangementDetail />} />
-              <Route path="arrangements/new" element={<ProtectedRoute requiredRoles={submitterRoles}><ArrangementForm /></ProtectedRoute>} />
-              <Route path="arrangements/:id/edit" element={<ProtectedRoute requiredRoles={submitterRoles}><ArrangementForm /></ProtectedRoute>} />
+              <Route path="arrangements/new" element={<ProtectedRoute requiredRoles={arrangementEditorRoles}><ArrangementForm /></ProtectedRoute>} />
+              <Route path="arrangements/:id/edit" element={<ProtectedRoute requiredRoles={arrangementEditorRoles}><ArrangementForm /></ProtectedRoute>} />
 
               {/* Series */}
               <Route path="series" element={<SeriesList />} />
@@ -89,8 +93,8 @@ export default function App() {
               {/* Ensembles */}
               <Route path="ensembles" element={<EnsembleList />} />
               <Route path="ensembles/:id" element={<EnsembleDetail />} />
-              <Route path="ensembles/new" element={<ProtectedRoute requiredRoles={librarianRoles}><EnsembleForm /></ProtectedRoute>} />
-              <Route path="ensembles/:id/edit" element={<ProtectedRoute requiredRoles={librarianRoles}><EnsembleForm /></ProtectedRoute>} />
+              <Route path="ensembles/new" element={<ProtectedRoute requiredRoles={adminRoles}><EnsembleForm /></ProtectedRoute>} />
+              <Route path="ensembles/:id/edit" element={<ProtectedRoute requiredRoles={ensembleEditRoles}><EnsembleForm /></ProtectedRoute>} />
 
               {/* Seasons */}
               <Route path="seasons" element={<SeasonList />} />

@@ -33,4 +33,10 @@ public static class Roles
 
     /// <summary>Everyone who can create or edit an arrangement.</summary>
     public const string ArrangementEditors = $"{Admin},{Librarian},{Submitter},{EnsembleLibrarian}";
+
+    /// <summary>
+    /// Admin plus Ensemble Librarians. Used where the controller then checks that the Ensemble
+    /// Librarian is a member of the ensemble in question (e.g. editing an ensemble).
+    /// </summary>
+    public const string AdminAndEnsembleLibrarian = $"{Admin},{EnsembleLibrarian}";
 }

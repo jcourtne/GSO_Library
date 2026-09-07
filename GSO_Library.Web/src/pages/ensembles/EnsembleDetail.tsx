@@ -8,11 +8,13 @@ import { seasonsApi } from '../../api/seasons';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import DataTable from '../../components/common/DataTable';
 import { useAuth } from '../../hooks/useAuth';
+import { useMyEnsembles } from '../../hooks/useMyEnsembles';
 
 export default function EnsembleDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
+  const { canEditForEnsemble } = useMyEnsembles();
   const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [error, setError] = useState('');
@@ -128,11 +130,11 @@ export default function EnsembleDetail() {
       <div className="d-flex justify-content-between align-items-start mb-3">
         <h2>{ensemble.name}</h2>
         <div>
+          {canEditForEnsemble(ensemble.id) && (
+            <Link to={`/ensembles/${id}/edit`} className="btn btn-outline-primary me-2">Edit</Link>
+          )}
           {isAdmin() && (
-            <>
-              <Link to={`/ensembles/${id}/edit`} className="btn btn-outline-primary me-2">Edit</Link>
-              <Button variant="outline-danger" onClick={() => setShowDelete(true)}>Delete</Button>
-            </>
+            <Button variant="outline-danger" onClick={() => setShowDelete(true)}>Delete</Button>
           )}
         </div>
       </div>
