@@ -23,6 +23,21 @@ public class SeasonsControllerTests : IntegrationTestBase
         return arr.GetProperty("id").GetInt32();
     }
 
+    private async Task LinkArrangementToEnsembleAsync(int arrangementId, int ensembleId)
+    {
+        var admin = await GetAdminClientAsync();
+        (await admin.PostAsync($"/api/arrangements/{arrangementId}/ensembles/{ensembleId}", null))
+            .EnsureSuccessStatusCode();
+    }
+
+    // A season may only hold arrangements linked to its ensemble, so link that first.
+    private async Task AddArrangementToSeasonAsync(HttpClient client, int ensembleId, int seasonId, int arrangementId)
+    {
+        await LinkArrangementToEnsembleAsync(arrangementId, ensembleId);
+        (await client.PostAsync($"/api/seasons/{seasonId}/arrangements/{arrangementId}", null))
+            .EnsureSuccessStatusCode();
+    }
+
     private async Task<string> ConfigureShareAsync(HttpClient client, int seasonId, bool includePdf = true)
     {
         var response = await client.PostAsJsonAsync($"/api/seasons/{seasonId}/share", new
@@ -287,6 +302,7 @@ public class SeasonsControllerTests : IntegrationTestBase
         });
         var arrObj = await arr.Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
         var arrangementId = arrObj.GetProperty("id").GetInt32();
+        await LinkArrangementToEnsembleAsync(arrangementId, ensemble.Id);
 
         var response = await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arrangementId}", null);
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -316,7 +332,7 @@ public class SeasonsControllerTests : IntegrationTestBase
         var arrObj = await arr.Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
         var arrangementId = arrObj.GetProperty("id").GetInt32();
 
-        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arrangementId}", null);
+        await AddArrangementToSeasonAsync(client, ensemble.Id, season.Id, arrangementId);
 
         var response = await client.DeleteAsync($"/api/seasons/{season.Id}/arrangements/{arrangementId}");
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -332,6 +348,46 @@ public class SeasonsControllerTests : IntegrationTestBase
         var client = await GetEditorClientAsync();
         var response = await client.PostAsync("/api/seasons/99999/arrangements/1", null);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddArrangement_NotLinkedToSeasonsEnsemble_Returns403_EvenForLibrarian()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync("Ens_ArrWrongEns");
+        var otherEnsemble = await CreateEnsembleAsync("Ens_ArrWrongEns_Other");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_ArrWrongEns");
+
+        var arrangementId = await CreateArrangementAsync(client, "Arr_WrongEns");
+        await LinkArrangementToEnsembleAsync(arrangementId, otherEnsemble.Id);
+
+        var response = await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arrangementId}", null);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateSeason_MovedToOtherEnsemble_PrunesMismatchedArrangements()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensembleA = await CreateEnsembleAsync("Ens_PruneA");
+        var ensembleB = await CreateEnsembleAsync("Ens_PruneB");
+        var season = await CreateSeasonAsync(client, ensembleA.Id, "Season_Prune");
+
+        var stayId = await CreateArrangementAsync(client, "Arr_Stays");
+        var goId = await CreateArrangementAsync(client, "Arr_Pruned");
+        await LinkArrangementToEnsembleAsync(stayId, ensembleA.Id);
+        await LinkArrangementToEnsembleAsync(stayId, ensembleB.Id);
+        await LinkArrangementToEnsembleAsync(goId, ensembleA.Id);
+        (await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{stayId}", null)).EnsureSuccessStatusCode();
+        (await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{goId}", null)).EnsureSuccessStatusCode();
+
+        var update = await client.PutAsJsonAsync($"/api/seasons/{season.Id}",
+            new { Name = "Season_Prune", EnsembleId = ensembleB.Id });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+
+        var fetched = await (await client.GetAsync($"/api/seasons/{season.Id}")).Content.ReadFromJsonAsync<Season>(JsonOpts);
+        Assert.Contains(fetched!.Arrangements, a => a.Id == stayId);
+        Assert.DoesNotContain(fetched.Arrangements, a => a.Id == goId);
     }
 
     // ───── Performance linking ─────
@@ -602,7 +658,7 @@ public class SeasonsControllerTests : IntegrationTestBase
         var uploadResponse = await client.PostAsync($"/api/arrangements/{arrangementId}/files", content);
         uploadResponse.EnsureSuccessStatusCode();
 
-        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arrangementId}", null);
+        await AddArrangementToSeasonAsync(client, ensemble.Id, season.Id, arrangementId);
 
         var token = await ConfigureShareAsync(client, season.Id);
 
@@ -648,7 +704,7 @@ public class SeasonsControllerTests : IntegrationTestBase
             new { ScorePartType = "voice_part", InstrumentIds = new[] { instrumentId } });
         Assert.Equal(HttpStatusCode.NoContent, patchResponse.StatusCode);
 
-        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arrangementId}", null);
+        await AddArrangementToSeasonAsync(client, ensemble.Id, season.Id, arrangementId);
 
         var token = await ConfigureShareAsync(client, season.Id);
         var anon = GetUnauthenticatedClient();
@@ -767,8 +823,8 @@ public class SeasonsControllerTests : IntegrationTestBase
         var arr2 = await CreateArrangementAsync(client, "Arr_Two");
         await UploadPdfAsync(client, arr1, "one.pdf");
         await UploadPdfAsync(client, arr2, "two.pdf");
-        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr1}", null);
-        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr2}", null);
+        await AddArrangementToSeasonAsync(client, ensemble.Id, season.Id, arr1);
+        await AddArrangementToSeasonAsync(client, ensemble.Id, season.Id, arr2);
 
         var token = await ConfigureShareAsync(client, season.Id);
         var anon = GetUnauthenticatedClient();
@@ -802,7 +858,7 @@ public class SeasonsControllerTests : IntegrationTestBase
 
         var arr = await CreateArrangementAsync(client, "Arr_Conductor");
         await UploadPdfAsync(client, arr, "score.pdf", "conductor_score");
-        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr}", null);
+        await AddArrangementToSeasonAsync(client, ensemble.Id, season.Id, arr);
 
         var token = await ConfigureShareAsync(client, season.Id);
         var anon = GetUnauthenticatedClient();
@@ -823,7 +879,7 @@ public class SeasonsControllerTests : IntegrationTestBase
 
         var arr = await CreateArrangementAsync(client, "Arr_Prep");
         await UploadPdfAsync(client, arr, "prep.pdf");
-        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr}", null);
+        await AddArrangementToSeasonAsync(client, ensemble.Id, season.Id, arr);
 
         var token = await ConfigureShareAsync(client, season.Id);
         var anon = GetUnauthenticatedClient();
@@ -846,7 +902,7 @@ public class SeasonsControllerTests : IntegrationTestBase
         var arr = await CreateArrangementAsync(client, "Arr_Counts");
         await UploadPdfAsync(client, arr, "a.pdf", "conductor_score");
         await UploadPdfAsync(client, arr, "b.pdf", "conductor_score");
-        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr}", null);
+        await AddArrangementToSeasonAsync(client, ensemble.Id, season.Id, arr);
 
         var token = await ConfigureShareAsync(client, season.Id);
         var anon = GetUnauthenticatedClient();
@@ -871,8 +927,8 @@ public class SeasonsControllerTests : IntegrationTestBase
         var arr2 = await CreateArrangementAsync(client, "Arr_LU_Two");
         await UploadPdfAsync(client, arr1, "one.pdf", "conductor_score");
         await UploadPdfAsync(client, arr2, "two.pdf", "conductor_score");
-        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr1}", null);
-        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr2}", null);
+        await AddArrangementToSeasonAsync(client, ensemble.Id, season.Id, arr1);
+        await AddArrangementToSeasonAsync(client, ensemble.Id, season.Id, arr2);
 
         var token = await ConfigureShareAsync(client, season.Id);
         var anon = GetUnauthenticatedClient();
@@ -897,7 +953,7 @@ public class SeasonsControllerTests : IntegrationTestBase
         var season = await CreateSeasonAsync(client, ensemble.Id, "Season_DLArrEmpty");
 
         var arr = await CreateArrangementAsync(client, "Arr_Empty");
-        await client.PostAsync($"/api/seasons/{season.Id}/arrangements/{arr}", null);
+        await AddArrangementToSeasonAsync(client, ensemble.Id, season.Id, arr);
 
         var token = await ConfigureShareAsync(client, season.Id);
         var anon = GetUnauthenticatedClient();

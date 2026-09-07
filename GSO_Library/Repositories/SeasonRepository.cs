@@ -175,6 +175,17 @@ public class SeasonRepository
             "UPDATE seasons SET name = @Name, ensemble_id = @EnsembleId, start_date = @StartDate, end_date = @EndDate, notes = @Notes, updated_at = @UpdatedAt WHERE id = @Id",
             new { season.Name, season.EnsembleId, season.StartDate, season.EndDate, season.Notes, season.UpdatedAt, Id = id });
         if (rows == 0) return null;
+
+        // Enforce the invariant that a season only contains arrangements linked to its
+        // ensemble. If the season was moved to a different ensemble, drop any arrangement
+        // that isn't linked to the new one. Idempotent, so it's safe to run on every update.
+        await connection.ExecuteAsync(
+            @"DELETE FROM season_arrangements
+              WHERE season_id = @Id
+                AND arrangement_id NOT IN (
+                    SELECT arrangement_id FROM arrangement_ensembles WHERE ensemble_id = @EnsembleId)",
+            new { Id = id, season.EnsembleId });
+
         InvalidateArrangementCache();
         return await GetSeasonByIdAsync(id);
     }

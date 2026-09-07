@@ -168,6 +168,50 @@ public class EnsembleLibrarianScopedWriteTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
 
+    // ───── Season arrangements ─────
+
+    private async Task<int> CreateArrangementAsync(HttpClient client, string name)
+    {
+        var resp = await client.PostAsJsonAsync("/api/arrangements", new { Name = name });
+        resp.EnsureSuccessStatusCode();
+        var arr = await resp.Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
+        return arr.GetProperty("id").GetInt32();
+    }
+
+    [Fact]
+    public async Task AddArrangement_ArrangementInOwnEnsemble_Succeeds()
+    {
+        var admin = await GetAdminClientAsync();
+        var ensemble = await CreateEnsembleWithLibrarianAsync(admin, "EnsLibSeasonArrOwn");
+        var arrangementId = await CreateArrangementAsync(admin, "EnsLibSeasonArrOwn_Arr");
+        (await admin.PostAsync($"/api/arrangements/{arrangementId}/ensembles/{ensemble.Id}", null))
+            .EnsureSuccessStatusCode();
+
+        var client = await GetEnsembleLibrarianClientAsync();
+        var createResp = await client.PostAsJsonAsync("/api/seasons",
+            new { Name = "EnsLib Season ArrOwn", EnsembleId = ensemble.Id });
+        var season = await createResp.Content.ReadFromJsonAsync<Season>(JsonOpts);
+
+        var resp = await client.PostAsync($"/api/seasons/{season!.Id}/arrangements/{arrangementId}", null);
+        Assert.Equal(HttpStatusCode.NoContent, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddArrangement_ArrangementNotInLibrariansEnsemble_Returns403()
+    {
+        var admin = await GetAdminClientAsync();
+        var ensemble = await CreateEnsembleWithLibrarianAsync(admin, "EnsLibSeasonArrOther");
+        var arrangementId = await CreateArrangementAsync(admin, "EnsLibSeasonArrOther_Arr");
+
+        var client = await GetEnsembleLibrarianClientAsync();
+        var createResp = await client.PostAsJsonAsync("/api/seasons",
+            new { Name = "EnsLib Season ArrOther", EnsembleId = ensemble.Id });
+        var season = await createResp.Content.ReadFromJsonAsync<Season>(JsonOpts);
+
+        var resp = await client.PostAsync($"/api/seasons/{season!.Id}/arrangements/{arrangementId}", null);
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
     // ───── Ensembles ─────
 
     [Fact]

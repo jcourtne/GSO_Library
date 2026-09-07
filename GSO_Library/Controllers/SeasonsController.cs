@@ -14,15 +14,18 @@ namespace GSO_Library.Controllers;
 public class SeasonsController : ControllerBase
 {
     private readonly SeasonRepository _seasonRepository;
+    private readonly ArrangementRepository _arrangementRepository;
     private readonly EnsembleRepository _ensembleRepository;
     private readonly IAuditService _auditService;
     private readonly ISeasonZipCacheService _zipCacheService;
     private readonly ISeasonZipWarmupQueue _zipWarmupQueue;
 
-    public SeasonsController(SeasonRepository seasonRepository, EnsembleRepository ensembleRepository,
-        IAuditService auditService, ISeasonZipCacheService zipCacheService, ISeasonZipWarmupQueue zipWarmupQueue)
+    public SeasonsController(SeasonRepository seasonRepository, ArrangementRepository arrangementRepository,
+        EnsembleRepository ensembleRepository, IAuditService auditService, ISeasonZipCacheService zipCacheService,
+        ISeasonZipWarmupQueue zipWarmupQueue)
     {
         _seasonRepository = seasonRepository;
+        _arrangementRepository = arrangementRepository;
         _ensembleRepository = ensembleRepository;
         _auditService = auditService;
         _zipCacheService = zipCacheService;
@@ -113,6 +116,10 @@ public class SeasonsController : ControllerBase
         if (updated == null)
             return NotFound();
 
+        // The ensemble may have changed, which prunes mismatched arrangements and changes
+        // the zip contents.
+        await _zipCacheService.InvalidateForSeasonAsync(id);
+
         await _auditService.LogAsync(AuditEventType.SeasonUpdate, User.Identity?.Name, null, null,
             $"seasonId: {id} ({updated.Name})");
         return Ok(updated);
@@ -139,8 +146,17 @@ public class SeasonsController : ControllerBase
     [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<IActionResult> AddArrangement(int id, int arrangementId)
     {
-        var (_, error) = await LoadSeasonForWriteAsync(id);
+        var (season, error) = await LoadSeasonForWriteAsync(id);
         if (error != null) return error;
+
+        // A season may only contain arrangements linked to its own ensemble. This keeps the
+        // season zip / public share from exposing file types the season's ensemble members
+        // (and Ensemble Librarians) would not otherwise be able to download.
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+        if (arrangement == null)
+            return BadRequest("Arrangement not found or already linked");
+        if (!arrangement.Ensembles.Any(e => e.Id == season!.EnsembleId))
+            return Forbid();
 
         var result = await _seasonRepository.AddArrangementAsync(id, arrangementId);
         if (result == true) await _zipCacheService.InvalidateForSeasonAsync(id);

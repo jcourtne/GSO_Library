@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Badge, Button, Col, Form, ListGroup, Modal, Row, Spinner } from 'react-bootstrap';
+import { Badge, Button, Col, Form, ListGroup, Modal, OverlayTrigger, Row, Spinner, Tooltip } from 'react-bootstrap';
 import { useQuery } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
 import FilterPanelSection from '../common/FilterPanel';
+import type { Arrangement } from '../../types';
 
 interface Props {
   show: boolean;
@@ -10,9 +11,20 @@ interface Props {
   excludeIds: Set<number>;
   onSelect: (id: number) => void;
   isPending: boolean;
+  /**
+   * Return a reason string to disable the "Add" button for this arrangement (shown as a
+   * tooltip), or undefined to allow it.
+   */
+  getAddDisabledReason?: (a: Arrangement) => string | undefined;
+  /**
+   * When provided, a left-panel checkbox appears that filters the list to arrangements for
+   * which this returns true (e.g. ones the user has full download permission for). Filtering
+   * is applied to the current page of results.
+   */
+  canDownload?: (a: Arrangement) => boolean;
 }
 
-export default function ArrangementPickerModal({ show, onHide, excludeIds, onSelect, isPending }: Props) {
+export default function ArrangementPickerModal({ show, onHide, excludeIds, onSelect, isPending, getAddDisabledReason, canDownload }: Props) {
   const [search, setSearch] = useState('');
   const [gameIds, setGameIds] = useState<number[]>([]);
   const [seriesIds, setSeriesIds] = useState<number[]>([]);
@@ -20,6 +32,7 @@ export default function ArrangementPickerModal({ show, onHide, excludeIds, onSel
   const [instrumentMatchAll, setInstrumentMatchAll] = useState(false);
   const [composers, setComposers] = useState<string[]>([]);
   const [arrangers, setArrangers] = useState<string[]>([]);
+  const [onlyDownloadable, setOnlyDownloadable] = useState(false);
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -31,6 +44,7 @@ export default function ArrangementPickerModal({ show, onHide, excludeIds, onSel
       setInstrumentMatchAll(false);
       setComposers([]);
       setArrangers([]);
+      setOnlyDownloadable(false);
       setPage(1);
     }
   }, [show]);
@@ -69,7 +83,9 @@ export default function ArrangementPickerModal({ show, onHide, excludeIds, onSel
     setPage(1);
   };
 
-  const results = (data?.items ?? []).filter((a) => !excludeIds.has(a.id));
+  const results = (data?.items ?? [])
+    .filter((a) => !excludeIds.has(a.id))
+    .filter((a) => !onlyDownloadable || !canDownload || canDownload(a));
 
   return (
     <Modal show={show} onHide={onHide} size="xl">
@@ -87,6 +103,16 @@ export default function ArrangementPickerModal({ show, onHide, excludeIds, onSel
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="mb-3"
               />
+              {canDownload && (
+                <Form.Check
+                  type="checkbox"
+                  id="picker-only-downloadable"
+                  label="Only arrangements I can download"
+                  checked={onlyDownloadable}
+                  onChange={(e) => { setOnlyDownloadable(e.target.checked); setPage(1); }}
+                  className="mb-3 small"
+                />
+              )}
               <FilterPanelSection
                 label="Games"
                 options={filterOptions?.games.map((g) => ({ value: g.id, label: g.name })) ?? []}
@@ -133,7 +159,20 @@ export default function ArrangementPickerModal({ show, onHide, excludeIds, onSel
                 <div className="text-center py-5"><Spinner animation="border" /></div>
               ) : (
                 <ListGroup variant="flush">
-                  {results.map((a) => (
+                  {results.map((a) => {
+                    const disabledReason = getAddDisabledReason?.(a);
+                    const addButton = (
+                      <Button
+                        size="sm"
+                        variant="outline-primary"
+                        className="flex-shrink-0 ms-3"
+                        onClick={() => onSelect(a.id)}
+                        disabled={isPending || !!disabledReason}
+                      >
+                        Add
+                      </Button>
+                    );
+                    return (
                     <ListGroup.Item key={a.id} className="d-flex justify-content-between align-items-start px-0">
                       <div>
                         <div className="fw-semibold">{a.name}</div>
@@ -151,17 +190,14 @@ export default function ArrangementPickerModal({ show, onHide, excludeIds, onSel
                           </div>
                         )}
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline-primary"
-                        className="flex-shrink-0 ms-3"
-                        onClick={() => onSelect(a.id)}
-                        disabled={isPending}
-                      >
-                        Add
-                      </Button>
+                      {disabledReason ? (
+                        <OverlayTrigger overlay={<Tooltip id={`add-disabled-${a.id}`}>{disabledReason}</Tooltip>}>
+                          <span className="flex-shrink-0 ms-3 d-inline-block">{addButton}</span>
+                        </OverlayTrigger>
+                      ) : addButton}
                     </ListGroup.Item>
-                  ))}
+                    );
+                  })}
                   {results.length === 0 && !isLoading && (
                     <ListGroup.Item className="text-muted px-0">No arrangements found.</ListGroup.Item>
                   )}

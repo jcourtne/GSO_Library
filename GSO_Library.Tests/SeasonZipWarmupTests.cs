@@ -51,6 +51,7 @@ public class SeasonZipWarmupTests : IntegrationTestBase
         content.Add(fileContent, "file", "score.pdf");
         (await client.PostAsync($"/api/arrangements/{arrangementId}/files", content)).EnsureSuccessStatusCode();
 
+        (await adminClient.PostAsync($"/api/arrangements/{arrangementId}/ensembles/{ensembleId}", null)).EnsureSuccessStatusCode();
         (await client.PostAsync($"/api/seasons/{seasonId}/arrangements/{arrangementId}", null)).EnsureSuccessStatusCode();
 
         await ConfigureShareAsync(seasonId, includePdf, includeNotation);

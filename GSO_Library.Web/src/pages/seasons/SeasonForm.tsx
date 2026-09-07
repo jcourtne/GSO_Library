@@ -8,6 +8,7 @@ import { performancesApi } from '../../api/performances';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import ArrangementPickerModal from '../../components/arrangements/ArrangementPickerModal';
 import { useMyEnsembles } from '../../hooks/useMyEnsembles';
+import { useArrangementAccess } from '../../hooks/useArrangementAccess';
 import type { Arrangement, Performance } from '../../types';
 
 function formatDuration(seconds?: number) {
@@ -39,6 +40,7 @@ export default function SeasonForm() {
   });
 
   const { myEnsembles, canEditAllEnsembles } = useMyEnsembles();
+  const { canDownloadNonPlayback, canAddToSeason } = useArrangementAccess();
 
   const { data: ensembles } = useQuery({
     queryKey: ['ensembles-all'],
@@ -275,6 +277,11 @@ export default function SeasonForm() {
             excludeIds={linkedArrangementIds}
             onSelect={(arrangementId) => addArrangementMutation.mutate(arrangementId)}
             isPending={addArrangementMutation.isPending}
+            canDownload={canDownloadNonPlayback}
+            getAddDisabledReason={(a) =>
+              existing && !canAddToSeason(a, existing.ensembleId)
+                ? "This arrangement isn't linked to this season's ensemble, so it can't be added."
+                : undefined}
           />
 
           {/* Add Performance Modal */}
