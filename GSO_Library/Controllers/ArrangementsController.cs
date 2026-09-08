@@ -105,7 +105,10 @@ public class ArrangementsController : ControllerBase
         bool isSubmitter = User.IsInRole(Roles.Submitter);
         bool isEnsembleLibrarian = User.IsInRole(Roles.EnsembleLibrarian);
 
-        bool ownerOk = isSubmitter && IsOwner(arrangement, User.Identity?.Name);
+        // Ensemble Librarians can also create arrangements (Roles.ArrangementEditors). A newly
+        // created arrangement has no ensembles yet, so IsInUserEnsemblesAsync would be vacuously
+        // false — fall back to ownership so the creator can still restrict/edit it afterwards.
+        bool ownerOk = (isSubmitter || isEnsembleLibrarian) && IsOwner(arrangement, User.Identity?.Name);
         bool ensembleOk = isEnsembleLibrarian && await IsInUserEnsemblesAsync(arrangement);
 
         return (ownerOk || ensembleOk) ? null : Forbid();
@@ -459,23 +462,17 @@ public class ArrangementsController : ControllerBase
             if (!PlaybackExtensions.Contains(ext ?? ""))
             {
                 var arrangement = await _arrangementRepository.GetArrangementByIdAsync(id);
+                if (arrangement == null) return NotFound();
 
-                if (User.IsInRole(Roles.EnsembleLibrarian) || User.IsInRole(Roles.EnsembleDownloader))
-                {
-                    if (arrangement == null) return NotFound();
+                // Any one of these grants access — a user can hold multiple roles (e.g. a
+                // Submitter who is also an Ensemble Librarian) and should pass if either applies.
+                bool ensembleOk = (User.IsInRole(Roles.EnsembleLibrarian) || User.IsInRole(Roles.EnsembleDownloader))
                     // A public arrangement (no ensemble) is downloadable by anyone with an
                     // ensemble-download role; otherwise the user must share an ensemble with it.
-                    if (!arrangement.IsPublic && !await IsInUserEnsemblesAsync(arrangement)) return Forbid();
-                }
-                else if (User.IsInRole(Roles.Submitter))
-                {
-                    if (arrangement == null || !IsOwner(arrangement, User.Identity?.Name))
-                        return Forbid();
-                }
-                else
-                {
-                    return Forbid();
-                }
+                    && (arrangement.IsPublic || await IsInUserEnsemblesAsync(arrangement));
+                bool ownerOk = User.IsInRole(Roles.Submitter) && IsOwner(arrangement, User.Identity?.Name);
+
+                if (!ensembleOk && !ownerOk) return Forbid();
             }
         }
 
