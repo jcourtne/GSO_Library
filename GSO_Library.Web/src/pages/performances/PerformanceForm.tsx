@@ -10,6 +10,7 @@ import SearchableSelect from '../../components/common/SearchableSelect';
 import ProgramSection from '../../components/performances/ProgramSection';
 import ArrangementPickerModal from '../../components/arrangements/ArrangementPickerModal';
 import { useMyEnsembles } from '../../hooks/useMyEnsembles';
+import { useArrangementAccess } from '../../hooks/useArrangementAccess';
 import type { Arrangement } from '../../types';
 
 export default function PerformanceForm() {
@@ -39,6 +40,7 @@ export default function PerformanceForm() {
   });
 
   const { myEnsembles, canEditAllEnsembles } = useMyEnsembles();
+  const { canDownloadNonPlayback } = useArrangementAccess();
 
   const { data: ensembles } = useQuery({
     queryKey: ['ensembles-all'],
@@ -250,6 +252,7 @@ export default function PerformanceForm() {
               excludeIds={linkedArrangementIds}
               onSelect={(arrangementId) => addArrangementMutation.mutate(arrangementId)}
               isPending={addArrangementMutation.isPending}
+              canDownload={canDownloadNonPlayback}
             />
 
             <div className="mt-4">

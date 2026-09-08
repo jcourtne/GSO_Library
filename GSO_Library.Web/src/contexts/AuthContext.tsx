@@ -101,7 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     canEdit: () => state.roles.includes('Admin') || state.roles.includes('Librarian'),
     // Games, series, and instruments can also be managed by Ensemble Librarians.
     canEditReferenceData: () => state.roles.includes('Admin') || state.roles.includes('Librarian') || state.roles.includes('Ensemble Librarian'),
-    canDownloadAll: () => state.roles.includes('Admin') || state.roles.includes('Librarian') || state.roles.includes('Downloader') || state.roles.includes('Submitter'),
+    // Mirrors ArrangementsController.DownloadFile: only these roles can download every file
+    // (incl. scores/notation) of any arrangement. A Submitter's non-playback access is
+    // limited to arrangements they created — see useArrangementAccess.
+    canDownloadAll: () => state.roles.includes('Admin') || state.roles.includes('Librarian') || state.roles.includes('Downloader'),
   }), [state, login, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

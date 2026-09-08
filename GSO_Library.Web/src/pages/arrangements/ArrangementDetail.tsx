@@ -46,8 +46,11 @@ export default function ArrangementDetail() {
   // An arrangement with no ensemble is public — any download/ensemble-download role can get its files.
   const arrangementIsPublic = !!arrangement && (arrangement.ensembles ?? []).length === 0;
 
+  const isOwner = !!username && !!arrangement?.createdBy &&
+    arrangement.createdBy.toLowerCase() === username.toLowerCase();
+
   const canDownloadNonPlayback = canDownloadAll() || arrangementInMyEnsembles ||
-    (isEnsembleScoped && arrangementIsPublic);
+    (isEnsembleScoped && arrangementIsPublic) || (isSubmitter() && isOwner);
 
   const deleteMutation = useMutation({
     mutationFn: () => arrangementsApi.delete(Number(id)),

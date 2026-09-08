@@ -8,12 +8,14 @@ import type { Arrangement } from '../types';
  * actions the server would reject anyway.
  *
  * - `canDownloadNonPlayback` — may the user download every file of an arrangement (scores,
- *   notation), not just the playback files everyone can get. Mirrors `ArrangementsController.DownloadFile`.
+ *   notation), not just the playback files everyone can get. Mirrors `ArrangementsController.DownloadFile`:
+ *   full-download roles, an ensemble member of the arrangement's ensemble (or any ensemble-scoped
+ *   user for a public arrangement), or a Submitter who created the arrangement.
  * - `canAddToSeason` — the API only links an arrangement to a season whose ensemble the
  *   arrangement belongs to (`SeasonsController.AddArrangement`).
  */
 export function useArrangementAccess() {
-  const { canDownloadAll, isEnsembleLibrarian, isEnsembleDownloader } = useAuth();
+  const { canDownloadAll, isSubmitter, isEnsembleLibrarian, isEnsembleDownloader, username } = useAuth();
   const ensembleScoped = isEnsembleLibrarian() || isEnsembleDownloader();
 
   const { data: myEnsembles = [] } = useQuery({
@@ -29,8 +31,13 @@ export function useArrangementAccess() {
   const inMyEnsembles = (a: Arrangement) =>
     (a.ensembles ?? []).some((e) => myEnsembles.some((me) => me.id === e.id));
 
+  const isOwner = (a: Arrangement) =>
+    !!username && !!a.createdBy && a.createdBy.toLowerCase() === username.toLowerCase();
+
   const canDownloadNonPlayback = (a: Arrangement) =>
-    canDownloadAll() || (ensembleScoped && (isPublic(a) || inMyEnsembles(a)));
+    canDownloadAll()
+    || (isSubmitter() && isOwner(a))
+    || (ensembleScoped && (isPublic(a) || inMyEnsembles(a)));
 
   const canAddToSeason = (a: Arrangement, seasonEnsembleId: number) =>
     isPublic(a) || (a.ensembles ?? []).some((e) => e.id === seasonEnsembleId);
