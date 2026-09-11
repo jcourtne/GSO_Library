@@ -142,6 +142,7 @@ builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<AuditEventRepository>();
 
 builder.Services.AddScoped<ISeasonZipCacheService, SeasonZipCacheService>();
+builder.Services.AddScoped<IEnsembleAccessService, EnsembleAccessService>();
 
 // Pre-generate the "download all" share zip when a season share link is configured
 builder.Services.AddSingleton<ISeasonZipWarmupQueue, SeasonZipWarmupQueue>();

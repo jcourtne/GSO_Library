@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using GSO_Library.Dtos;
 using GSO_Library.Models;
 using GSO_Library.Repositories;
@@ -15,36 +14,21 @@ public class SeasonsController : ControllerBase
 {
     private readonly SeasonRepository _seasonRepository;
     private readonly ArrangementRepository _arrangementRepository;
-    private readonly EnsembleRepository _ensembleRepository;
+    private readonly IEnsembleAccessService _ensembleAccess;
     private readonly IAuditService _auditService;
     private readonly ISeasonZipCacheService _zipCacheService;
     private readonly ISeasonZipWarmupQueue _zipWarmupQueue;
 
     public SeasonsController(SeasonRepository seasonRepository, ArrangementRepository arrangementRepository,
-        EnsembleRepository ensembleRepository, IAuditService auditService, ISeasonZipCacheService zipCacheService,
+        IEnsembleAccessService ensembleAccess, IAuditService auditService, ISeasonZipCacheService zipCacheService,
         ISeasonZipWarmupQueue zipWarmupQueue)
     {
         _seasonRepository = seasonRepository;
         _arrangementRepository = arrangementRepository;
-        _ensembleRepository = ensembleRepository;
+        _ensembleAccess = ensembleAccess;
         _auditService = auditService;
         _zipCacheService = zipCacheService;
         _zipWarmupQueue = zipWarmupQueue;
-    }
-
-    // Admin/Librarian may write any season. An Ensemble Librarian may only write seasons
-    // tied to one of their own ensembles.
-    private async Task<bool> CanWriteForEnsembleAsync(int ensembleId)
-    {
-        if (User.IsInRole(Roles.Admin) || User.IsInRole(Roles.Librarian))
-            return true;
-        if (!User.IsInRole(Roles.EnsembleLibrarian))
-            return false;
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId is null)
-            return false;
-        var ensembles = await _ensembleRepository.GetEnsemblesForUserAsync(userId);
-        return ensembles.Any(e => e.Id == ensembleId);
     }
 
     // Loads the season and checks ensemble-scoped write access. Returns the season on success,
@@ -54,7 +38,7 @@ public class SeasonsController : ControllerBase
         var season = await _seasonRepository.GetSeasonByIdAsync(id);
         if (season == null)
             return (null, NotFound());
-        if (!await CanWriteForEnsembleAsync(season.EnsembleId))
+        if (!await _ensembleAccess.CanWriteForEnsembleAsync(User, season.EnsembleId))
             return (null, Forbid());
         return (season, null);
     }
@@ -88,7 +72,7 @@ public class SeasonsController : ControllerBase
     [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<ActionResult<Season>> AddSeason([FromBody] Season season)
     {
-        if (!await CanWriteForEnsembleAsync(season.EnsembleId))
+        if (!await _ensembleAccess.CanWriteForEnsembleAsync(User, season.EnsembleId))
             return Forbid();
 
         var now = DateTime.UtcNow;
@@ -108,7 +92,7 @@ public class SeasonsController : ControllerBase
         var (_, error) = await LoadSeasonForWriteAsync(id);
         if (error != null) return error;
         // Prevent moving a season into an ensemble the user doesn't belong to.
-        if (!await CanWriteForEnsembleAsync(season.EnsembleId))
+        if (!await _ensembleAccess.CanWriteForEnsembleAsync(User, season.EnsembleId))
             return Forbid();
 
         season.UpdatedAt = DateTime.UtcNow;
@@ -156,7 +140,7 @@ public class SeasonsController : ControllerBase
         var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
         if (arrangement == null)
             return BadRequest("Arrangement not found or already linked");
-        if (!arrangement.IsPublic && !arrangement.Ensembles.Any(e => e.Id == season!.EnsembleId))
+        if (!arrangement.QualifiesForEnsemble(season!.EnsembleId))
             return Forbid();
 
         var result = await _seasonRepository.AddArrangementAsync(id, arrangementId);

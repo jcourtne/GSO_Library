@@ -188,6 +188,65 @@ public class SeasonZipWarmupTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task WarmSeasonAsync_ExcludesArrangement_AfterEnsembleUnlinked_ButSeasonStillListsIt()
+    {
+        var adminClient = await GetAdminClientAsync();
+        var libClient = await GetLibrarianClientAsync();
+
+        var ens1Resp = await adminClient.PostAsJsonAsync("/api/ensembles", new { Name = $"Ens1_{Guid.NewGuid():N}" });
+        ens1Resp.EnsureSuccessStatusCode();
+        var ens1Id = (await ens1Resp.Content.ReadFromJsonAsync<JsonElement>(JsonOpts)).GetProperty("id").GetInt32();
+
+        var ens2Resp = await adminClient.PostAsJsonAsync("/api/ensembles", new { Name = $"Ens2_{Guid.NewGuid():N}" });
+        ens2Resp.EnsureSuccessStatusCode();
+        var ens2Id = (await ens2Resp.Content.ReadFromJsonAsync<JsonElement>(JsonOpts)).GetProperty("id").GetInt32();
+
+        var seasonResp = await libClient.PostAsJsonAsync("/api/seasons", new
+        {
+            Name = $"Season_{Guid.NewGuid():N}",
+            EnsembleId = ens1Id,
+            StartDate = "2025-09-01",
+            EndDate = "2025-12-31",
+        });
+        seasonResp.EnsureSuccessStatusCode();
+        var seasonId = (await seasonResp.Content.ReadFromJsonAsync<Season>(JsonOpts))!.Id;
+
+        var arrResp = await libClient.PostAsJsonAsync("/api/arrangements", new { Name = $"Arr_{Guid.NewGuid():N}" });
+        arrResp.EnsureSuccessStatusCode();
+        var arrangementId = (await arrResp.Content.ReadFromJsonAsync<JsonElement>(JsonOpts)).GetProperty("id").GetInt32();
+
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("pdf content"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(fileContent, "file", "score.pdf");
+        (await libClient.PostAsync($"/api/arrangements/{arrangementId}/files", content)).EnsureSuccessStatusCode();
+
+        // Arrangement is linked to both ensembles, so it qualifies for ens1's season.
+        (await adminClient.PostAsync($"/api/arrangements/{arrangementId}/ensembles/{ens1Id}", null)).EnsureSuccessStatusCode();
+        (await adminClient.PostAsync($"/api/arrangements/{arrangementId}/ensembles/{ens2Id}", null)).EnsureSuccessStatusCode();
+        (await libClient.PostAsync($"/api/seasons/{seasonId}/arrangements/{arrangementId}", null)).EnsureSuccessStatusCode();
+
+        await ConfigureShareAsync(seasonId, includePdf: true, includeNotation: false);
+        await WarmAsync(seasonId);
+        Assert.Contains((await AllZipEntryNamesAsync(seasonId))!, e => e.EndsWith("score.pdf"));
+
+        // Unlink the season's own ensemble — the arrangement stays linked to ens2, so it's no
+        // longer public and no longer qualifies for ens1's season.
+        (await adminClient.DeleteAsync($"/api/arrangements/{arrangementId}/ensembles/{ens1Id}")).EnsureSuccessStatusCode();
+
+        // The season is a historical record: it still lists the arrangement.
+        var seasonAfterResp = await libClient.GetAsync($"/api/seasons/{seasonId}");
+        var seasonAfter = await seasonAfterResp.Content.ReadFromJsonAsync<Season>(JsonOpts);
+        Assert.Contains(seasonAfter!.Arrangements, a => a.Id == arrangementId);
+
+        // But the shared zip no longer serves its files.
+        await WarmAsync(seasonId);
+        var entriesAfter = await AllZipEntryNamesAsync(seasonId);
+        Assert.NotNull(entriesAfter);
+        Assert.DoesNotContain(entriesAfter!, e => e.EndsWith("score.pdf"));
+    }
+
+    [Fact]
     public void Queue_DedupesPendingSeason_UntilMarkedStarted()
     {
         var queue = new SeasonZipWarmupQueue(NullLogger<SeasonZipWarmupQueue>.Instance);

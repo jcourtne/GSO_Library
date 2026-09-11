@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using GSO_Library.Configuration;
 using GSO_Library.Dtos;
 using GSO_Library.Models;
@@ -42,7 +41,7 @@ public class ArrangementsController : ControllerBase
 
     private readonly ArrangementRepository _arrangementRepository;
     private readonly ArrangementFileRepository _fileRepository;
-    private readonly EnsembleRepository _ensembleRepository;
+    private readonly IEnsembleAccessService _ensembleAccess;
     private readonly IFileStorageService _fileStorageService;
     private readonly FileUploadSettings _fileUploadSettings;
     private readonly IAuditService _auditService;
@@ -51,7 +50,7 @@ public class ArrangementsController : ControllerBase
     public ArrangementsController(
         ArrangementRepository arrangementRepository,
         ArrangementFileRepository fileRepository,
-        EnsembleRepository ensembleRepository,
+        IEnsembleAccessService ensembleAccess,
         IFileStorageService fileStorageService,
         FileUploadSettings fileUploadSettings,
         IAuditService auditService,
@@ -59,7 +58,7 @@ public class ArrangementsController : ControllerBase
     {
         _arrangementRepository = arrangementRepository;
         _fileRepository = fileRepository;
-        _ensembleRepository = ensembleRepository;
+        _ensembleAccess = ensembleAccess;
         _fileStorageService = fileStorageService;
         _fileUploadSettings = fileUploadSettings;
         _auditService = auditService;
@@ -68,31 +67,6 @@ public class ArrangementsController : ControllerBase
 
     private static bool IsOwner(Arrangement arrangement, string? username) =>
         string.Equals(arrangement.CreatedBy, username, StringComparison.OrdinalIgnoreCase);
-
-    // Request-scoped cache so AddEnsemble/RemoveEnsemble don't call GetEnsemblesForUserAsync twice.
-    private IReadOnlyList<Ensemble>? _userEnsemblesCache;
-
-    private async Task<IReadOnlyList<Ensemble>> GetUserEnsemblesAsync()
-    {
-        if (_userEnsemblesCache != null) return _userEnsemblesCache;
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null) return _userEnsemblesCache = [];
-        _userEnsemblesCache = (await _ensembleRepository.GetEnsemblesForUserAsync(userId)).ToList();
-        return _userEnsemblesCache;
-    }
-
-    private async Task<bool> IsEnsembleMemberAsync(string? userId, int ensembleId)
-    {
-        if (userId == null) return false;
-        var userEnsembles = await GetUserEnsemblesAsync();
-        return userEnsembles.Any(e => e.Id == ensembleId);
-    }
-
-    private async Task<bool> IsInUserEnsemblesAsync(Arrangement arrangement)
-    {
-        var userEnsembles = await GetUserEnsemblesAsync();
-        return arrangement.Ensembles.Any(e => userEnsembles.Any(ue => ue.Id == e.Id));
-    }
 
     // Returns null (allow) or a Forbid result. Handles Submitter, Ensemble Librarian, and dual-role
     // users correctly. Admin and Librarian always get null (full access).
@@ -106,10 +80,10 @@ public class ArrangementsController : ControllerBase
         bool isEnsembleLibrarian = User.IsInRole(Roles.EnsembleLibrarian);
 
         // Ensemble Librarians can also create arrangements (Roles.ArrangementEditors). A newly
-        // created arrangement has no ensembles yet, so IsInUserEnsemblesAsync would be vacuously
+        // created arrangement has no ensembles yet, so IsMemberOfAnyAsync would be vacuously
         // false — fall back to ownership so the creator can still restrict/edit it afterwards.
         bool ownerOk = (isSubmitter || isEnsembleLibrarian) && IsOwner(arrangement, User.Identity?.Name);
-        bool ensembleOk = isEnsembleLibrarian && await IsInUserEnsemblesAsync(arrangement);
+        bool ensembleOk = isEnsembleLibrarian && await _ensembleAccess.IsMemberOfAnyAsync(User, arrangement.Ensembles.Select(e => e.Id));
 
         return (ownerOk || ensembleOk) ? null : Forbid();
     }
@@ -329,7 +303,7 @@ public class ArrangementsController : ControllerBase
         // Non-admin/librarian users can only link an ensemble they are a member of
         if (!User.IsInRole(Roles.Admin) && !User.IsInRole(Roles.Librarian))
         {
-            if (!await IsEnsembleMemberAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), ensembleId))
+            if (!await _ensembleAccess.IsMemberAsync(User, ensembleId))
                 return Forbid();
         }
 
@@ -341,6 +315,7 @@ public class ArrangementsController : ControllerBase
 
         await _auditService.LogAsync(Models.AuditEventType.ArrangementEnsembleAdd, User.Identity?.Name, null, null,
             $"arrangementId: {arrangementId}, ensembleId: {ensembleId}");
+        await _zipCacheService.InvalidateForArrangementAsync(arrangementId);
         return NoContent();
     }
 
@@ -356,7 +331,7 @@ public class ArrangementsController : ControllerBase
         // Non-admin/librarian users can only unlink an ensemble they are a member of
         if (!User.IsInRole(Roles.Admin) && !User.IsInRole(Roles.Librarian))
         {
-            if (!await IsEnsembleMemberAsync(User.FindFirstValue(ClaimTypes.NameIdentifier), ensembleId))
+            if (!await _ensembleAccess.IsMemberAsync(User, ensembleId))
                 return Forbid();
         }
 
@@ -368,6 +343,7 @@ public class ArrangementsController : ControllerBase
 
         await _auditService.LogAsync(Models.AuditEventType.ArrangementEnsembleRemove, User.Identity?.Name, null, null,
             $"arrangementId: {arrangementId}, ensembleId: {ensembleId}");
+        await _zipCacheService.InvalidateForArrangementAsync(arrangementId);
         return NoContent();
     }
 
@@ -469,8 +445,8 @@ public class ArrangementsController : ControllerBase
                 bool ensembleOk = (User.IsInRole(Roles.EnsembleLibrarian) || User.IsInRole(Roles.EnsembleDownloader))
                     // A public arrangement (no ensemble) is downloadable by anyone with an
                     // ensemble-download role; otherwise the user must share an ensemble with it.
-                    && (arrangement.IsPublic || await IsInUserEnsemblesAsync(arrangement));
-                bool ownerOk = User.IsInRole(Roles.Submitter) && IsOwner(arrangement, User.Identity?.Name);
+                    && (arrangement.IsPublic || await _ensembleAccess.IsMemberOfAnyAsync(User, arrangement.Ensembles.Select(e => e.Id)));
+                bool ownerOk = (User.IsInRole(Roles.Submitter) || User.IsInRole(Roles.EnsembleLibrarian)) && IsOwner(arrangement, User.Identity?.Name);
 
                 if (!ensembleOk && !ownerOk) return Forbid();
             }

@@ -9,6 +9,7 @@ import FileSection from '../../components/arrangements/FileSection';
 import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
 import { categorizeFiles } from '../../utils/fileCategories';
 import { useAuth } from '../../hooks/useAuth';
+import { useArrangementAccess } from '../../hooks/useArrangementAccess';
 
 function formatDuration(seconds?: number) {
   if (!seconds) return '-';
@@ -20,7 +21,8 @@ function formatDuration(seconds?: number) {
 export default function ArrangementDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canEdit, canDownloadAll, isSubmitter, isEnsembleLibrarian, isEnsembleDownloader, username } = useAuth();
+  const { canEdit, isSubmitter, isEnsembleLibrarian, isEnsembleDownloader, username } = useAuth();
+  const { canDownloadNonPlayback } = useArrangementAccess();
   const isEnsembleScoped = isEnsembleLibrarian() || isEnsembleDownloader();
   const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
@@ -43,14 +45,8 @@ export default function ArrangementDetail() {
   const arrangementInMyEnsembles = isEnsembleScoped &&
     (arrangement?.ensembles ?? []).some(e => myEnsembles.some(me => me.id === e.id));
 
-  // An arrangement with no ensemble is public — any download/ensemble-download role can get its files.
-  const arrangementIsPublic = !!arrangement && (arrangement.ensembles ?? []).length === 0;
-
   const isOwner = !!username && !!arrangement?.createdBy &&
     arrangement.createdBy.toLowerCase() === username.toLowerCase();
-
-  const canDownloadNonPlayback = canDownloadAll() || arrangementInMyEnsembles ||
-    (isEnsembleScoped && arrangementIsPublic) || (isSubmitter() && isOwner);
 
   const deleteMutation = useMutation({
     mutationFn: () => arrangementsApi.delete(Number(id)),
@@ -74,7 +70,7 @@ export default function ArrangementDetail() {
           {arrangement.composers?.length > 0 && <p className="text-muted mb-0">Composed by {arrangement.composers.join(', ')}</p>}
           {arrangement.arrangers?.length > 0 && <p className="text-muted mb-0">Arranged by {arrangement.arrangers.join(', ')}</p>}
         </div>
-        {(canEdit() || (isEnsembleLibrarian() && arrangementInMyEnsembles) || (isSubmitter() && arrangement.createdBy === username)) && (
+        {(canEdit() || (isEnsembleLibrarian() && (arrangementInMyEnsembles || isOwner)) || (isSubmitter() && isOwner)) && (
           <div>
             <Link to={`/arrangements/${id}/edit`} className="btn btn-outline-primary me-2">
               Edit
@@ -112,12 +108,13 @@ export default function ArrangementDetail() {
 
           {arrangement.files?.length > 0 && (() => {
             const categorized = categorizeFiles(arrangement.files);
+            const canDownload = canDownloadNonPlayback(arrangement);
             return (
               <>
                 {categorized.notationFiles.length > 0 && (
-                  <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownloadNonPlayback} />
+                  <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownload} />
                 )}
-                <RenderedScoreGrid arrangement={arrangement} files={arrangement.files} editable={false} canDownload={canDownloadNonPlayback} />
+                <RenderedScoreGrid arrangement={arrangement} files={arrangement.files} editable={false} canDownload={canDownload} />
                 {categorized.playbackFiles.length > 0 && (
                   <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={arrangement.id} editable={false} />
                 )}
