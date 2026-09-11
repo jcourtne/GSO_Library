@@ -265,10 +265,25 @@ public class EnsembleRoleTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task EnsembleLibrarian_UpdateArrangement_NotInEnsemble_Returns403()
+    public async Task EnsembleLibrarian_UpdateArrangement_PublicNotInEnsemble_Returns200()
+    {
+        // A newly-created arrangement has no ensemble (public), and an Ensemble Librarian may
+        // edit any public arrangement regardless of membership/ownership.
+        var admin = await GetAdminClientAsync();
+        var arrangement = await CreateArrangementAsync(admin, "EnsLibUpdatePublic");
+
+        var client = await GetEnsembleLibrarianClientAsync();
+        var resp = await client.PutAsJsonAsync($"/api/arrangements/{arrangement.Id}/details", new { Name = "EnsLibUpdatedPublic" });
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task EnsembleLibrarian_UpdateArrangement_InOtherEnsemble_Returns403()
     {
         var admin = await GetAdminClientAsync();
+        var otherEnsemble = await CreateEnsembleAsync(admin, "EnsLibUpdateOtherEnsemble");
         var arrangement = await CreateArrangementAsync(admin, "EnsLibUpdateNoAccess");
+        await admin.PostAsync($"/api/arrangements/{arrangement.Id}/ensembles/{otherEnsemble.Id}", null);
 
         var client = await GetEnsembleLibrarianClientAsync();
         var resp = await client.PutAsJsonAsync($"/api/arrangements/{arrangement.Id}/details", new { Name = "ShouldFail" });
@@ -323,10 +338,29 @@ public class EnsembleRoleTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task EnsembleLibrarian_UploadFile_NotInEnsemble_Returns403()
+    public async Task EnsembleLibrarian_UploadFile_PublicNotInEnsemble_Returns201()
+    {
+        // A newly-created arrangement has no ensemble (public), and an Ensemble Librarian may
+        // edit any public arrangement regardless of membership/ownership.
+        var admin = await GetAdminClientAsync();
+        var arrangement = await CreateArrangementAsync(admin, "EnsLibUploadPublic");
+
+        var client = await GetEnsembleLibrarianClientAsync();
+        var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent("audio"u8.ToArray());
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/mpeg");
+        content.Add(fileContent, "file", "track.mp3");
+        var resp = await client.PostAsync($"/api/arrangements/{arrangement.Id}/files", content);
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task EnsembleLibrarian_UploadFile_InOtherEnsemble_Returns403()
     {
         var admin = await GetAdminClientAsync();
+        var otherEnsemble = await CreateEnsembleAsync(admin, "EnsLibUploadOtherEnsemble");
         var arrangement = await CreateArrangementAsync(admin, "EnsLibUploadNoAccess");
+        await admin.PostAsync($"/api/arrangements/{arrangement.Id}/ensembles/{otherEnsemble.Id}", null);
 
         var client = await GetEnsembleLibrarianClientAsync();
         var content = new MultipartFormDataContent();

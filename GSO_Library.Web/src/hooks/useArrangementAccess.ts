@@ -13,9 +13,14 @@ import type { Arrangement } from '../types';
  *   user for a public arrangement), or a Submitter who created the arrangement.
  * - `canAddToSeason` — the API only links an arrangement to a season whose ensemble the
  *   arrangement belongs to (`SeasonsController.AddArrangement`).
+ * - `canEditArrangement` / `canDeleteArrangement` / `canLinkEnsemble` — mirror
+ *   `ArrangementsController.EnforceWriteAccessAsync` plus its `DeleteArrangement`/`AddEnsemble`
+ *   carve-outs: an Ensemble Librarian can edit any public arrangement, but deleting one or
+ *   linking an ensemble to it still requires ownership (or shared-ensemble membership for a
+ *   non-public arrangement, as before).
  */
 export function useArrangementAccess() {
-  const { canDownloadAll, isSubmitter, isEnsembleLibrarian, isEnsembleDownloader, username } = useAuth();
+  const { canEdit, canDownloadAll, isSubmitter, isEnsembleLibrarian, isEnsembleDownloader, username } = useAuth();
   const ensembleScoped = isEnsembleLibrarian() || isEnsembleDownloader();
 
   const { data: myEnsembles = [] } = useQuery({
@@ -42,5 +47,20 @@ export function useArrangementAccess() {
   const canAddToSeason = (a: Arrangement, seasonEnsembleId: number) =>
     isPublic(a) || (a.ensembles ?? []).some((e) => e.id === seasonEnsembleId);
 
-  return { canDownloadNonPlayback, canAddToSeason };
+  const canEditArrangement = (a: Arrangement) =>
+    canEdit()
+    || (isSubmitter() && isOwner(a))
+    || (isEnsembleLibrarian() && (isOwner(a) || inMyEnsembles(a) || isPublic(a)));
+
+  const canDeleteArrangement = (a: Arrangement) =>
+    canEdit()
+    || (isSubmitter() && isOwner(a))
+    || (isEnsembleLibrarian() && (isOwner(a) || inMyEnsembles(a)));
+
+  const canLinkEnsemble = (a: Arrangement) =>
+    canEdit()
+    || (isSubmitter() && isOwner(a))
+    || (isEnsembleLibrarian() && (isOwner(a) || inMyEnsembles(a)));
+
+  return { canDownloadNonPlayback, canAddToSeason, canEditArrangement, canDeleteArrangement, canLinkEnsemble };
 }

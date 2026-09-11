@@ -3,12 +3,10 @@ import { Alert, Badge, Button, Card, Col, ListGroup, Row, Spinner } from 'react-
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
-import { authApi } from '../../api/auth';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import FileSection from '../../components/arrangements/FileSection';
 import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
 import { categorizeFiles } from '../../utils/fileCategories';
-import { useAuth } from '../../hooks/useAuth';
 import { useArrangementAccess } from '../../hooks/useArrangementAccess';
 
 function formatDuration(seconds?: number) {
@@ -21,9 +19,7 @@ function formatDuration(seconds?: number) {
 export default function ArrangementDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canEdit, isSubmitter, isEnsembleLibrarian, isEnsembleDownloader, username } = useAuth();
-  const { canDownloadNonPlayback } = useArrangementAccess();
-  const isEnsembleScoped = isEnsembleLibrarian() || isEnsembleDownloader();
+  const { canDownloadNonPlayback, canEditArrangement, canDeleteArrangement } = useArrangementAccess();
   const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [error, setError] = useState('');
@@ -35,18 +31,6 @@ export default function ArrangementDetail() {
     queryFn: () => arrangementsApi.get(Number(id)),
     enabled: !!id,
   });
-
-  const { data: myEnsembles = [] } = useQuery({
-    queryKey: ['my-ensembles'],
-    queryFn: () => authApi.getMyEnsembles(),
-    enabled: isEnsembleScoped,
-  });
-
-  const arrangementInMyEnsembles = isEnsembleScoped &&
-    (arrangement?.ensembles ?? []).some(e => myEnsembles.some(me => me.id === e.id));
-
-  const isOwner = !!username && !!arrangement?.createdBy &&
-    arrangement.createdBy.toLowerCase() === username.toLowerCase();
 
   const deleteMutation = useMutation({
     mutationFn: () => arrangementsApi.delete(Number(id)),
@@ -70,12 +54,16 @@ export default function ArrangementDetail() {
           {arrangement.composers?.length > 0 && <p className="text-muted mb-0">Composed by {arrangement.composers.join(', ')}</p>}
           {arrangement.arrangers?.length > 0 && <p className="text-muted mb-0">Arranged by {arrangement.arrangers.join(', ')}</p>}
         </div>
-        {(canEdit() || (isEnsembleLibrarian() && (arrangementInMyEnsembles || isOwner)) || (isSubmitter() && isOwner)) && (
+        {(canEditArrangement(arrangement) || canDeleteArrangement(arrangement)) && (
           <div>
-            <Link to={`/arrangements/${id}/edit`} className="btn btn-outline-primary me-2">
-              Edit
-            </Link>
-            <Button variant="outline-danger" onClick={() => setShowDelete(true)}>Delete</Button>
+            {canEditArrangement(arrangement) && (
+              <Link to={`/arrangements/${id}/edit`} className="btn btn-outline-primary me-2">
+                Edit
+              </Link>
+            )}
+            {canDeleteArrangement(arrangement) && (
+              <Button variant="outline-danger" onClick={() => setShowDelete(true)}>Delete</Button>
+            )}
           </div>
         )}
       </div>

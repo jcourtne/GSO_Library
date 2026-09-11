@@ -261,4 +261,66 @@ public class EnsembleLibrarianScopedWriteTests : IntegrationTestBase
         var resp = await client.DeleteAsync($"/api/ensembles/{ensemble.Id}");
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
+
+    // ───── Public arrangements ─────
+    // An Ensemble Librarian can edit any public arrangement even without ownership or shared
+    // ensemble membership, but deleting one or linking an ensemble to it is still reserved for
+    // the actual owner.
+
+    [Fact]
+    public async Task UpdateDetails_PublicArrangement_AsEnsembleLibrarian_NonOwner_Succeeds()
+    {
+        var admin = await GetAdminClientAsync();
+        var arrangementId = await CreateArrangementAsync(admin, "EnsLibPublicArrUpdate");
+        var client = await GetEnsembleLibrarianClientAsync();
+
+        var resp = await client.PutAsJsonAsync($"/api/arrangements/{arrangementId}/details",
+            new ArrangementRequest { Name = "EnsLibPublicArrUpdate Renamed" });
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteArrangement_PublicArrangement_AsEnsembleLibrarian_NonOwner_Returns403()
+    {
+        var admin = await GetAdminClientAsync();
+        var arrangementId = await CreateArrangementAsync(admin, "EnsLibPublicArrDeleteNonOwner");
+        var client = await GetEnsembleLibrarianClientAsync();
+
+        var resp = await client.DeleteAsync($"/api/arrangements/{arrangementId}");
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteArrangement_PublicArrangement_AsEnsembleLibrarian_Owner_Returns204()
+    {
+        var client = await GetEnsembleLibrarianClientAsync();
+        var arrangementId = await CreateArrangementAsync(client, "EnsLibPublicArrDeleteOwner");
+
+        var resp = await client.DeleteAsync($"/api/arrangements/{arrangementId}");
+        Assert.Equal(HttpStatusCode.NoContent, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddEnsemble_PublicArrangement_AsEnsembleLibrarian_NonOwner_Returns403()
+    {
+        var admin = await GetAdminClientAsync();
+        var arrangementId = await CreateArrangementAsync(admin, "EnsLibPublicArrLinkNonOwner");
+        var ensemble = await CreateEnsembleWithLibrarianAsync(admin, "EnsLibPublicArrLinkNonOwnerEnsemble");
+        var client = await GetEnsembleLibrarianClientAsync();
+
+        var resp = await client.PostAsync($"/api/arrangements/{arrangementId}/ensembles/{ensemble.Id}", null);
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddEnsemble_PublicArrangement_AsEnsembleLibrarian_Owner_Returns204()
+    {
+        var admin = await GetAdminClientAsync();
+        var ensemble = await CreateEnsembleWithLibrarianAsync(admin, "EnsLibPublicArrLinkOwnerEnsemble");
+        var client = await GetEnsembleLibrarianClientAsync();
+        var arrangementId = await CreateArrangementAsync(client, "EnsLibPublicArrLinkOwner");
+
+        var resp = await client.PostAsync($"/api/arrangements/{arrangementId}/ensembles/{ensemble.Id}", null);
+        Assert.Equal(HttpStatusCode.NoContent, resp.StatusCode);
+    }
 }

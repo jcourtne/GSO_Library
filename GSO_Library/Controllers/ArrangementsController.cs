@@ -84,8 +84,12 @@ public class ArrangementsController : ControllerBase
         // false — fall back to ownership so the creator can still restrict/edit it afterwards.
         bool ownerOk = (isSubmitter || isEnsembleLibrarian) && IsOwner(arrangement, User.Identity?.Name);
         bool ensembleOk = isEnsembleLibrarian && await _ensembleAccess.IsMemberOfAnyAsync(User, arrangement.Ensembles.Select(e => e.Id));
+        // Ensemble Librarians can edit any public arrangement (no ensemble = no owner-in-particular
+        // needed), but see the extra owner checks in DeleteArrangement and AddEnsemble that keep
+        // deletion and ensemble-linking restricted to the actual owner.
+        bool publicOk = isEnsembleLibrarian && arrangement.IsPublic;
 
-        return (ownerOk || ensembleOk) ? null : Forbid();
+        return (ownerOk || ensembleOk || publicOk) ? null : Forbid();
     }
 
     [HttpPost]
@@ -165,6 +169,15 @@ public class ArrangementsController : ControllerBase
 
         var deny = await EnforceWriteAccessAsync(arrangement);
         if (deny != null) return deny;
+
+        // Ensemble Librarians who only qualify via the "public arrangement" grant (not
+        // ownership, not shared ensemble membership) cannot delete — deletion is reserved
+        // for the actual owner (or Admin/Librarian).
+        if (User.IsInRole(Roles.EnsembleLibrarian) && !User.IsInRole(Roles.Admin) && !User.IsInRole(Roles.Librarian)
+            && arrangement.IsPublic && !IsOwner(arrangement, User.Identity?.Name))
+        {
+            return Forbid();
+        }
 
         // Delete files from disk first
         foreach (var file in arrangement.Files)
@@ -303,6 +316,13 @@ public class ArrangementsController : ControllerBase
         // Non-admin/librarian users can only link an ensemble they are a member of
         if (!User.IsInRole(Roles.Admin) && !User.IsInRole(Roles.Librarian))
         {
+            // An Ensemble Librarian who only has access to this arrangement because it's
+            // public (not ownership) cannot link an ensemble — that would let them
+            // restrict/claim an arrangement they have no real tie to. The owner can still
+            // link (existing "restrict access afterwards" flow).
+            if (User.IsInRole(Roles.EnsembleLibrarian) && arrangement.IsPublic && !IsOwner(arrangement, User.Identity?.Name))
+                return Forbid();
+
             if (!await _ensembleAccess.IsMemberAsync(User, ensembleId))
                 return Forbid();
         }

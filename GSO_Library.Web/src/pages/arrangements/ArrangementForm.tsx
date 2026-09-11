@@ -9,6 +9,7 @@ import { gamesApi } from '../../api/games';
 import { instrumentsApi } from '../../api/instruments';
 import { instrumentSortOrdersApi } from '../../api/instrumentSortOrders';
 import { useAuth } from '../../hooks/useAuth';
+import { useArrangementAccess } from '../../hooks/useArrangementAccess';
 import FileSection from '../../components/arrangements/FileSection';
 import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
 import QuickCreateGameModal from '../../components/common/QuickCreateGameModal';
@@ -38,6 +39,7 @@ export default function ArrangementForm() {
   const queryClient = useQueryClient();
   useDragAutoScroll();
   const { canEdit } = useAuth();
+  const { canLinkEnsemble } = useArrangementAccess();
   const [error, setError] = useState('');
 
   const [form, setForm] = useState<ArrangementRequest>({
@@ -523,9 +525,11 @@ export default function ArrangementForm() {
                     season. Add an ensemble to restrict access to its members.
                   </p>
                 )}
-                <Button variant="outline-primary" size="sm" onClick={() => { setEnsembleSearch(''); setShowEnsemblePicker(true); }}>
-                  Add
-                </Button>
+                {(!isEdit || (existing && canLinkEnsemble(existing))) && (
+                  <Button variant="outline-primary" size="sm" onClick={() => { setEnsembleSearch(''); setShowEnsemblePicker(true); }}>
+                    Add
+                  </Button>
+                )}
               </Card.Body>
             </Card>
 
