@@ -5,6 +5,7 @@ using GSO_Library.Data;
 using GSO_Library.Models;
 using GSO_Library.Repositories;
 using GSO_Library.Services;
+using Google.Apis.Auth.OAuth2;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
@@ -154,6 +155,27 @@ builder.Services.Configure<SeasonZipCacheOptions>(builder.Configuration.GetSecti
 builder.Services.AddHostedService<SeasonZipCleanupService>();
 
 var app = builder.Build();
+
+// Resolve Application Default Credentials once, up front, before any hosted service
+// (SeasonZipCleanupService, SeasonZipWarmupBackgroundService) or request can race the
+// Cloud Run metadata server. Google.Apis.Auth caches a negative GCE-detection result for
+// the life of the process, so a lost race here would otherwise break GCS for the
+// container's entire lifetime.
+if (!string.IsNullOrEmpty(builder.Configuration["GCS:BucketName"]))
+{
+    for (var attempt = 1; ; attempt++)
+    {
+        try
+        {
+            await GoogleCredential.GetApplicationDefaultAsync();
+            break;
+        }
+        catch (InvalidOperationException) when (attempt < 5)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(attempt));
+        }
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
