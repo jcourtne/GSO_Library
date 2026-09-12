@@ -118,10 +118,12 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 
 // Add File Storage Service (GCS in production when GCS:BucketName is set, local disk otherwise)
+// Singleton: both implementations are stateless/thread-safe, and StorageClient is meant to
+// be created once and reused rather than rebuilt on every request.
 if (!string.IsNullOrEmpty(builder.Configuration["GCS:BucketName"]))
-    builder.Services.AddScoped<IFileStorageService, GcsFileStorageService>();
+    builder.Services.AddSingleton<IFileStorageService, GcsFileStorageService>();
 else
-    builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+    builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
 
 // Add Memory Cache
 builder.Services.AddMemoryCache();
