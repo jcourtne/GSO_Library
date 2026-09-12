@@ -12,7 +12,7 @@ import type { Instrument, InstrumentSortOrder } from '../../types';
 
 export default function InstrumentList() {
   const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { canEdit, canEditReferenceData } = useAuth();
   const queryClient = useQueryClient();
 
   // Alphabetical list state
@@ -192,7 +192,7 @@ export default function InstrumentList() {
     (i) => !search || i.name.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const actionColumn = canEdit() ? [{
+  const actionColumn = canEditReferenceData() ? [{
     key: 'actions',
     label: '',
     render: (i: Instrument) => (
@@ -213,7 +213,7 @@ export default function InstrumentList() {
     <>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h2>Instruments</h2>
-        {canEdit() && <Link to="/instruments/new" className="btn btn-primary">New Instrument</Link>}
+        {canEditReferenceData() && <Link to="/instruments/new" className="btn btn-primary">New Instrument</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
 

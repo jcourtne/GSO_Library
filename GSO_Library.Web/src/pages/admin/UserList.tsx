@@ -10,7 +10,11 @@ type SortKey = 'userName' | 'email' | 'name' | 'lastLogin';
 type SortDir = 'asc' | 'desc';
 
 function roleBadgeBg(r: string) {
-  return r === 'Admin' ? 'danger' : r === 'Librarian' ? 'warning' : r === 'Submitter' ? 'info' : r === 'Downloader' ? 'primary' : 'secondary';
+  if (r === 'Admin') return 'danger';
+  if (r === 'Librarian' || r === 'Ensemble Librarian') return 'warning';
+  if (r === 'Submitter') return 'info';
+  if (r === 'Downloader' || r === 'Ensemble Downloader') return 'primary';
+  return 'secondary';
 }
 
 function sortUsers(users: UserResponse[], key: SortKey, dir: SortDir) {

@@ -52,7 +52,7 @@ public class PublicController(
         var pw = Request.Headers["X-Share-Password"].FirstOrDefault();
         if (!ValidatePassword(season, pw)) return Unauthorized();
 
-        if (arrangementId.HasValue && season.Arrangements.All(a => a.Id != arrangementId.Value))
+        if (arrangementId.HasValue && !season.Arrangements.Any(a => a.Id == arrangementId.Value && a.QualifiesForEnsemble(season.EnsembleId)))
             return BadRequest("Invalid arrangementId");
 
         var zipKey = zipCache.BuildZipKey(scorePartType, instrumentId, familyId, arrangementId);
@@ -74,7 +74,7 @@ public class PublicController(
         var pw = Request.Headers["X-Share-Password"].FirstOrDefault();
         if (!ValidatePassword(season, pw)) return Unauthorized();
 
-        if (arrangementId.HasValue && season.Arrangements.All(a => a.Id != arrangementId.Value))
+        if (arrangementId.HasValue && !season.Arrangements.Any(a => a.Id == arrangementId.Value && a.QualifiesForEnsemble(season.EnsembleId)))
             return BadRequest("Invalid arrangementId");
 
         var zipKey = zipCache.BuildZipKey(scorePartType, instrumentId, familyId, arrangementId);
@@ -93,10 +93,17 @@ public class PublicController(
 
     private static SeasonPublicDto BuildDto(Season season, Dictionary<int, int> sortPositions)
     {
-        var validInstrumentIds = new HashSet<int>(
-            season.Arrangements.SelectMany(a => a.Instruments.Select(i => i.Id)));
+        // Only serve arrangements the season's ensemble may currently access — an arrangement
+        // unlinked from this ensemble after being added stays in season_arrangements as a
+        // historical record, but it (and its files) are no longer shared publicly.
+        var qualifyingArrangements = season.Arrangements
+            .Where(a => a.QualifiesForEnsemble(season.EnsembleId))
+            .ToList();
 
-        var filteredFiles = season.Arrangements
+        var validInstrumentIds = new HashSet<int>(
+            qualifyingArrangements.SelectMany(a => a.Instruments.Select(i => i.Id)));
+
+        var filteredFiles = qualifyingArrangements
             .SelectMany(a => a.Files.Select(f => (Arr: a, File: f)))
             .Where(x => MatchesTypeConfig(x.File, season))
             .ToList();
@@ -126,7 +133,7 @@ public class PublicController(
         // Per-instrument, sorted by default score order then alphabetically
         var instrumentMap = new Dictionary<int, string>();
         var instrumentFamilyMap = new Dictionary<int, (int? FamilyId, string? FamilyName)>();
-        foreach (var arr in season.Arrangements)
+        foreach (var arr in qualifyingArrangements)
             foreach (var inst in arr.Instruments)
             {
                 instrumentMap.TryAdd(inst.Id, inst.Name);
@@ -245,7 +252,7 @@ public class PublicController(
             StartDate = season.StartDate?.ToString("yyyy-MM-dd"),
             EndDate = season.EndDate?.ToString("yyyy-MM-dd"),
             RequiresPassword = false,
-            Arrangements = season.Arrangements.Select(a => new ArrangementSummaryDto
+            Arrangements = qualifyingArrangements.Select(a => new ArrangementSummaryDto
             {
                 Id = a.Id,
                 Name = a.Name,

@@ -6,7 +6,7 @@ export type { Series } from './series';
 export type { Instrument } from './instrument';
 export type { InstrumentFamily } from './instrumentFamily';
 export type { Performance, PerformanceFile } from './performance';
-export type { Ensemble } from './ensemble';
+export type { Ensemble, EnsembleMember } from './ensemble';
 export type { InstrumentSortOrder } from './instrumentSortOrder';
 export type { AuditEvent } from './auditEvent';
 export { AUDIT_EVENT_TYPES } from './auditEvent';

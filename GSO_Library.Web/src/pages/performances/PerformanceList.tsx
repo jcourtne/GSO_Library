@@ -8,7 +8,7 @@ import DataTable from '../../components/common/DataTable';
 import Pagination from '../../components/common/Pagination';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import FilterPanelSection from '../../components/common/FilterPanel';
-import { useAuth } from '../../hooks/useAuth';
+import { useMyEnsembles } from '../../hooks/useMyEnsembles';
 import type { Performance } from '../../types';
 
 // Extended type for list items that include eagerly-loaded ensemble (subset)
@@ -18,7 +18,7 @@ interface PerformanceWithEnsemble extends Omit<Performance, 'ensemble'> {
 
 export default function PerformanceList() {
   const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { canEditForEnsemble, canCreateForEnsemble } = useMyEnsembles();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -96,15 +96,15 @@ export default function PerformanceList() {
       ) : '-',
     },
     { key: 'notes', label: 'Notes', render: (p: Performance) => p.notes || '-' },
-    ...(canEdit() ? [{
+    ...(canCreateForEnsemble ? [{
       key: 'actions',
       label: '',
-      render: (p: Performance) => (
+      render: (p: Performance) => canEditForEnsemble(p.ensembleId) ? (
         <div className="d-flex gap-1" onClick={(e) => e.stopPropagation()}>
           <Link to={`/performances/${p.id}/edit`} className="btn btn-sm btn-outline-primary">Edit</Link>
           <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(p)}>Delete</Button>
         </div>
-      ),
+      ) : null,
     }] : []),
   ];
 
@@ -112,7 +112,7 @@ export default function PerformanceList() {
     <>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h2>Performances</h2>
-        {canEdit() && <Link to="/performances/new" className="btn btn-primary">New Performance</Link>}
+        {canCreateForEnsemble && <Link to="/performances/new" className="btn btn-primary">New Performance</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
 

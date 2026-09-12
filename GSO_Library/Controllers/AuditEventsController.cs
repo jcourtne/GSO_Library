@@ -1,3 +1,4 @@
+using GSO_Library.Models;
 using GSO_Library.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -6,7 +7,7 @@ namespace GSO_Library.Controllers;
 
 [ApiController]
 [Route("api/audit-events")]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = Roles.Admin)]
 public class AuditEventsController(AuditEventRepository repository) : ControllerBase
 {
     [HttpGet]

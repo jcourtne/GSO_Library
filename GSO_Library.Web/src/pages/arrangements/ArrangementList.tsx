@@ -7,11 +7,15 @@ import DataTable from '../../components/common/DataTable';
 import Pagination from '../../components/common/Pagination';
 import FilterPanelSection from '../../components/common/FilterPanel';
 import { useAuth } from '../../hooks/useAuth';
+import { useArrangementAccess } from '../../hooks/useArrangementAccess';
 import type { Arrangement } from '../../types';
 
 export default function ArrangementList() {
   const navigate = useNavigate();
-  const { canEdit, isSubmitter } = useAuth();
+  const { canEdit, isSubmitter, isEnsembleLibrarian, isEnsembleDownloader, canDownloadAll } = useAuth();
+  const { canDownloadNonPlayback } = useArrangementAccess();
+  const showDownloadableFilter = !canDownloadAll() && (isSubmitter() || isEnsembleLibrarian() || isEnsembleDownloader());
+  const [onlyDownloadable, setOnlyDownloadable] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [sortBy, setSortBy] = useState('name');
@@ -90,7 +94,7 @@ export default function ArrangementList() {
     <>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h2>Arrangements</h2>
-        {(canEdit() || isSubmitter()) && (
+        {(canEdit() || isSubmitter() || isEnsembleLibrarian()) && (
           <Link to="/arrangements/new" className="btn btn-primary">New Arrangement</Link>
         )}
       </div>
@@ -105,6 +109,17 @@ export default function ArrangementList() {
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               className="mb-3"
             />
+
+            {showDownloadableFilter && (
+              <Form.Check
+                type="checkbox"
+                id="arrangements-only-downloadable"
+                label="Only arrangements I can download"
+                checked={onlyDownloadable}
+                onChange={(e) => { setOnlyDownloadable(e.target.checked); setPage(1); }}
+                className="mb-3 small"
+              />
+            )}
 
             <FilterPanelSection
               label="Games"
@@ -150,7 +165,7 @@ export default function ArrangementList() {
         <Col md={9}>
           <DataTable
             columns={columns}
-            data={data?.items ?? []}
+            data={(data?.items ?? []).filter((a) => !onlyDownloadable || canDownloadNonPlayback(a))}
             isLoading={isLoading}
             sortBy={sortBy}
             sortDirection={sortDirection}

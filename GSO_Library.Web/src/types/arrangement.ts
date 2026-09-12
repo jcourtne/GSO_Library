@@ -1,3 +1,4 @@
+import type { Ensemble } from './ensemble';
 import type { Game } from './game';
 import type { Instrument } from './instrument';
 import type { Performance } from './performance';
@@ -32,6 +33,7 @@ export interface Arrangement {
   instruments: Instrument[];
   performances: Performance[];
   seasons?: Season[];
+  ensembles?: Ensemble[];
 }
 
 export interface ArrangementRequest {

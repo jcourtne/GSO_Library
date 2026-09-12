@@ -13,6 +13,7 @@ public class PerformancesController : ControllerBase
 {
     private readonly PerformanceRepository _performanceRepository;
     private readonly PerformanceFileRepository _fileRepository;
+    private readonly IEnsembleAccessService _ensembleAccess;
     private readonly IFileStorageService _fileStorageService;
     private readonly FileUploadSettings _fileUploadSettings;
     private readonly IAuditService _auditService;
@@ -20,12 +21,14 @@ public class PerformancesController : ControllerBase
     public PerformancesController(
         PerformanceRepository performanceRepository,
         PerformanceFileRepository fileRepository,
+        IEnsembleAccessService ensembleAccess,
         IFileStorageService fileStorageService,
         FileUploadSettings fileUploadSettings,
         IAuditService auditService)
     {
         _performanceRepository = performanceRepository;
         _fileRepository = fileRepository;
+        _ensembleAccess = ensembleAccess;
         _fileStorageService = fileStorageService;
         _fileUploadSettings = fileUploadSettings;
         _auditService = auditService;
@@ -57,9 +60,12 @@ public class PerformancesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<ActionResult<Performance>> AddPerformance([FromBody] Performance performance)
     {
+        if (!await _ensembleAccess.CanWriteForEnsembleAsync(User, performance.EnsembleId))
+            return Forbid();
+
         var now = DateTime.UtcNow;
         performance.CreatedAt = now;
         performance.UpdatedAt = now;
@@ -71,9 +77,16 @@ public class PerformancesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<ActionResult<Performance>> UpdatePerformance(int id, [FromBody] Performance performance)
     {
+        var existing = await _performanceRepository.GetPerformanceByIdAsync(id);
+        if (existing == null)
+            return NotFound();
+        // Must be allowed on both the current ensemble and the target ensemble.
+        if (!await _ensembleAccess.CanWriteForEnsembleAsync(User, existing.EnsembleId) || !await _ensembleAccess.CanWriteForEnsembleAsync(User, performance.EnsembleId))
+            return Forbid();
+
         performance.UpdatedAt = DateTime.UtcNow;
         var updated = await _performanceRepository.UpdatePerformanceAsync(id, performance);
         if (updated == null)
@@ -83,12 +96,14 @@ public class PerformancesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<IActionResult> DeletePerformance(int id)
     {
         var performance = await _performanceRepository.GetPerformanceByIdAsync(id);
         if (performance == null)
             return NotFound();
+        if (!await _ensembleAccess.CanWriteForEnsembleAsync(User, performance.EnsembleId))
+            return Forbid();
 
         var success = await _performanceRepository.DeletePerformanceAsync(id);
         if (!success)
@@ -111,11 +126,14 @@ public class PerformancesController : ControllerBase
     }
 
     [HttpPost("{id}/files")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<ActionResult<PerformanceFile>> UploadFile(int id, IFormFile file)
     {
-        if (!await _fileRepository.PerformanceExistsAsync(id))
+        var performance = await _performanceRepository.GetPerformanceByIdAsync(id);
+        if (performance == null)
             return NotFound();
+        if (!await _ensembleAccess.CanWriteForEnsembleAsync(User, performance.EnsembleId))
+            return Forbid();
 
         if (file.Length > _fileUploadSettings.MaxFileSizeBytes)
             return BadRequest($"File size exceeds the maximum allowed size of {_fileUploadSettings.MaxFileSizeBytes} bytes.");
@@ -170,12 +188,18 @@ public class PerformancesController : ControllerBase
     }
 
     [HttpDelete("{id}/files/{fileId}")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<IActionResult> DeleteFile(int id, int fileId)
     {
         var file = await _fileRepository.GetFileAsync(id, fileId);
         if (file == null)
             return NotFound();
+
+        var performance = await _performanceRepository.GetPerformanceByIdAsync(id);
+        if (performance == null)
+            return NotFound();
+        if (!await _ensembleAccess.CanWriteForEnsembleAsync(User, performance.EnsembleId))
+            return Forbid();
 
         await _fileStorageService.DeleteFileAsync($"performances/{id}", file.StoredFileName);
         await _fileRepository.DeleteFileAsync(id, fileId);

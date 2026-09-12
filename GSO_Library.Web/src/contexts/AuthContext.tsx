@@ -18,7 +18,10 @@ interface AuthContextValue extends AuthState {
   isLibrarian: () => boolean;
   isSubmitter: () => boolean;
   isDownloader: () => boolean;
+  isEnsembleLibrarian: () => boolean;
+  isEnsembleDownloader: () => boolean;
   canEdit: () => boolean;
+  canEditReferenceData: () => boolean;
   canDownloadAll: () => boolean;
 }
 
@@ -93,8 +96,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLibrarian: () => state.roles.includes('Librarian'),
     isSubmitter: () => state.roles.includes('Submitter'),
     isDownloader: () => state.roles.includes('Downloader'),
+    isEnsembleLibrarian: () => state.roles.includes('Ensemble Librarian'),
+    isEnsembleDownloader: () => state.roles.includes('Ensemble Downloader'),
     canEdit: () => state.roles.includes('Admin') || state.roles.includes('Librarian'),
-    canDownloadAll: () => state.roles.includes('Admin') || state.roles.includes('Librarian') || state.roles.includes('Downloader') || state.roles.includes('Submitter'),
+    // Games, series, and instruments can also be managed by Ensemble Librarians.
+    canEditReferenceData: () => state.roles.includes('Admin') || state.roles.includes('Librarian') || state.roles.includes('Ensemble Librarian'),
+    // Mirrors ArrangementsController.DownloadFile: only these roles can download every file
+    // (incl. scores/notation) of any arrangement. A Submitter's non-playback access is
+    // limited to arrangements they created — see useArrangementAccess.
+    canDownloadAll: () => state.roles.includes('Admin') || state.roles.includes('Librarian') || state.roles.includes('Downloader'),
   }), [state, login, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

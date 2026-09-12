@@ -7,11 +7,13 @@ import DataTable from '../../components/common/DataTable';
 import Pagination from '../../components/common/Pagination';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import { useAuth } from '../../hooks/useAuth';
+import { useMyEnsembles } from '../../hooks/useMyEnsembles';
 import type { Ensemble } from '../../types';
 
 export default function EnsembleList() {
   const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { isAdmin } = useAuth();
+  const { canEditForEnsemble, isEnsembleLibrarian } = useMyEnsembles();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -50,13 +52,17 @@ export default function EnsembleList() {
         </a>
       ) : '-',
     },
-    ...(canEdit() ? [{
+    ...((isAdmin() || isEnsembleLibrarian) ? [{
       key: 'actions',
       label: '',
       render: (e: Ensemble) => (
         <div className="d-flex gap-1" onClick={(ev) => ev.stopPropagation()}>
-          <Link to={`/ensembles/${e.id}/edit`} className="btn btn-sm btn-outline-primary">Edit</Link>
-          <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(e)}>Delete</Button>
+          {canEditForEnsemble(e.id) && (
+            <Link to={`/ensembles/${e.id}/edit`} className="btn btn-sm btn-outline-primary">Edit</Link>
+          )}
+          {isAdmin() && (
+            <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(e)}>Delete</Button>
+          )}
         </div>
       ),
     }] : []),
@@ -66,7 +72,7 @@ export default function EnsembleList() {
     <>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h2>Ensembles</h2>
-        {canEdit() && <Link to="/ensembles/new" className="btn btn-primary">New Ensemble</Link>}
+        {isAdmin() && <Link to="/ensembles/new" className="btn btn-primary">New Ensemble</Link>}
       </div>
       {error && <Alert variant="danger" dismissible onClose={() => setError('')}>{error}</Alert>}
 

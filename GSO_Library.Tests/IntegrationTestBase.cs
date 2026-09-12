@@ -59,6 +59,12 @@ public abstract class IntegrationTestBase : IClassFixture<CustomWebApplicationFa
     protected Task<HttpClient> GetUserClientAsync() =>
         GetAuthenticatedClientAsync("testuser", "User1234!");
 
+    protected Task<HttpClient> GetEnsembleLibrarianClientAsync() =>
+        GetAuthenticatedClientAsync("testensemblelibrarian", "EnsLib123!");
+
+    protected Task<HttpClient> GetEnsembleDownloaderClientAsync() =>
+        GetAuthenticatedClientAsync("testensembledownloader", "EnsDl123!");
+
     protected HttpClient GetUnauthenticatedClient() =>
         Factory.CreateClient();
 

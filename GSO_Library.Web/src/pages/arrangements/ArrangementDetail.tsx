@@ -7,7 +7,7 @@ import ConfirmModal from '../../components/common/ConfirmModal';
 import FileSection from '../../components/arrangements/FileSection';
 import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
 import { categorizeFiles } from '../../utils/fileCategories';
-import { useAuth } from '../../hooks/useAuth';
+import { useArrangementAccess } from '../../hooks/useArrangementAccess';
 
 function formatDuration(seconds?: number) {
   if (!seconds) return '-';
@@ -19,7 +19,7 @@ function formatDuration(seconds?: number) {
 export default function ArrangementDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canEdit, canDownloadAll, isSubmitter, username } = useAuth();
+  const { canDownloadNonPlayback, canEditArrangement, canDeleteArrangement } = useArrangementAccess();
   const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [error, setError] = useState('');
@@ -54,12 +54,16 @@ export default function ArrangementDetail() {
           {arrangement.composers?.length > 0 && <p className="text-muted mb-0">Composed by {arrangement.composers.join(', ')}</p>}
           {arrangement.arrangers?.length > 0 && <p className="text-muted mb-0">Arranged by {arrangement.arrangers.join(', ')}</p>}
         </div>
-        {(canEdit() || (isSubmitter() && arrangement.createdBy === username)) && (
+        {(canEditArrangement(arrangement) || canDeleteArrangement(arrangement)) && (
           <div>
-            <Link to={`/arrangements/${id}/edit`} className="btn btn-outline-primary me-2">
-              Edit
-            </Link>
-            <Button variant="outline-danger" onClick={() => setShowDelete(true)}>Delete</Button>
+            {canEditArrangement(arrangement) && (
+              <Link to={`/arrangements/${id}/edit`} className="btn btn-outline-primary me-2">
+                Edit
+              </Link>
+            )}
+            {canDeleteArrangement(arrangement) && (
+              <Button variant="outline-danger" onClick={() => setShowDelete(true)}>Delete</Button>
+            )}
           </div>
         )}
       </div>
@@ -92,12 +96,13 @@ export default function ArrangementDetail() {
 
           {arrangement.files?.length > 0 && (() => {
             const categorized = categorizeFiles(arrangement.files);
+            const canDownload = canDownloadNonPlayback(arrangement);
             return (
               <>
                 {categorized.notationFiles.length > 0 && (
-                  <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownloadAll()} />
+                  <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={arrangement.id} editable={false} canDownload={canDownload} />
                 )}
-                <RenderedScoreGrid arrangement={arrangement} files={arrangement.files} editable={false} canDownload={canDownloadAll()} />
+                <RenderedScoreGrid arrangement={arrangement} files={arrangement.files} editable={false} canDownload={canDownload} />
                 {categorized.playbackFiles.length > 0 && (
                   <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={arrangement.id} editable={false} />
                 )}
@@ -150,6 +155,27 @@ export default function ArrangementDetail() {
                 ));
               })() : (
                 <p className="text-muted mb-0">None</p>
+              )}
+            </Card.Body>
+          </Card>
+
+          <Card className="mb-3">
+            <Card.Body>
+              <Card.Title>Ensembles</Card.Title>
+              {arrangement.ensembles && arrangement.ensembles.length > 0 ? (
+                <div className="d-flex flex-wrap gap-1">
+                  {arrangement.ensembles.map((e) => (
+                    <Badge key={e.id} bg="warning" text="dark">{e.name}</Badge>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <Badge bg="success">Public</Badge>
+                  <p className="text-muted mb-0 mt-2 small">
+                    This arrangement isn't restricted to an ensemble. Any user with download
+                    permission can access its files, and any ensemble can add it to a season.
+                  </p>
+                </>
               )}
             </Card.Body>
           </Card>

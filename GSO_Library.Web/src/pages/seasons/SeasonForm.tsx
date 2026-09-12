@@ -7,6 +7,8 @@ import { ensemblesApi } from '../../api/ensembles';
 import { performancesApi } from '../../api/performances';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import ArrangementPickerModal from '../../components/arrangements/ArrangementPickerModal';
+import { useMyEnsembles } from '../../hooks/useMyEnsembles';
+import { useArrangementAccess } from '../../hooks/useArrangementAccess';
 import type { Arrangement, Performance } from '../../types';
 
 function formatDuration(seconds?: number) {
@@ -37,10 +39,17 @@ export default function SeasonForm() {
     enabled: isEdit,
   });
 
+  const { myEnsembles, canEditAllEnsembles } = useMyEnsembles();
+  const { canDownloadNonPlayback, canAddToSeason } = useArrangementAccess();
+
   const { data: ensembles } = useQuery({
     queryKey: ['ensembles-all'],
     queryFn: () => ensemblesApi.getAll(),
+    enabled: canEditAllEnsembles,
   });
+
+  // Ensemble Librarians may only tie a season to one of their own ensembles.
+  const ensembleOptions = (canEditAllEnsembles ? ensembles : myEnsembles) ?? [];
 
   const { data: allPerformances } = useQuery({
     queryKey: ['performances', { search: performanceSearch, pageSize: 20 }],
@@ -130,7 +139,7 @@ export default function SeasonForm() {
               <Form.Label>Ensemble *</Form.Label>
               <SearchableSelect
                 placeholder="Select an ensemble..."
-                options={ensembles?.map((ens) => ({ value: ens.id, label: ens.name })) ?? []}
+                options={ensembleOptions.map((ens) => ({ value: ens.id, label: ens.name }))}
                 value={ensembleId}
                 onChange={(v) => setEnsembleId(v)}
               />
@@ -268,6 +277,11 @@ export default function SeasonForm() {
             excludeIds={linkedArrangementIds}
             onSelect={(arrangementId) => addArrangementMutation.mutate(arrangementId)}
             isPending={addArrangementMutation.isPending}
+            canDownload={canDownloadNonPlayback}
+            getAddDisabledReason={(a) =>
+              existing && !canAddToSeason(a, existing.ensembleId)
+                ? "This arrangement isn't linked to this season's ensemble, so it can't be added."
+                : undefined}
           />
 
           {/* Add Performance Modal */}

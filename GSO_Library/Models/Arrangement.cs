@@ -18,4 +18,17 @@ public class Arrangement
     public virtual ICollection<Instrument> Instruments { get; set; } = [];
     public virtual ICollection<Performance> Performances { get; set; } = [];
     public virtual ICollection<Season> Seasons { get; set; } = [];
+    public virtual ICollection<Ensemble> Ensembles { get; set; } = [];
+
+    /// <summary>
+    /// An arrangement with no ensemble is public: any user with download or ensemble-download
+    /// permission may download all its files, and any ensemble may add it to a season.
+    /// </summary>
+    public bool IsPublic => Ensembles.Count == 0;
+
+    /// <summary>
+    /// Whether a season/ensemble with the given id may currently include this arrangement:
+    /// either the arrangement is public, or it's linked to that same ensemble.
+    /// </summary>
+    public bool QualifiesForEnsemble(int ensembleId) => IsPublic || Ensembles.Any(e => e.Id == ensembleId);
 }

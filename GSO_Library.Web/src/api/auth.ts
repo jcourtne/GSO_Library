@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { AuthResponse, LoginRequest, RegisterRequest, RefreshRequest, UpdateCredentialsRequest, ResetPasswordRequest, RoleManagementRequest, RoleManagementResponse, UserResponse } from '../types';
+import type { AuthResponse, Ensemble, LoginRequest, RegisterRequest, RefreshRequest, UpdateCredentialsRequest, ResetPasswordRequest, RoleManagementRequest, RoleManagementResponse, UserResponse } from '../types';
 
 export const authApi = {
   login: (data: LoginRequest) =>
@@ -38,4 +38,10 @@ export const authApi = {
 
   removeRole: (data: RoleManagementRequest) =>
     apiClient.post<RoleManagementResponse>('/auth/remove-role', data).then((r) => r.data),
+
+  getUserEnsembles: (userId: string) =>
+    apiClient.get<Ensemble[]>(`/auth/users/${userId}/ensembles`).then((r) => r.data),
+
+  getMyEnsembles: () =>
+    apiClient.get<Ensemble[]>('/auth/users/me/ensembles').then((r) => r.data),
 };

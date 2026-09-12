@@ -6,7 +6,7 @@ import { performancesApi } from '../../api/performances';
 import { arrangementsApi } from '../../api/arrangements';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import ProgramSection from '../../components/performances/ProgramSection';
-import { useAuth } from '../../hooks/useAuth';
+import { useMyEnsembles } from '../../hooks/useMyEnsembles';
 
 function formatDuration(seconds?: number) {
   if (!seconds) return '-';
@@ -18,7 +18,7 @@ function formatDuration(seconds?: number) {
 export default function PerformanceDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { canEditForEnsemble } = useMyEnsembles();
   const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [error, setError] = useState('');
@@ -72,7 +72,7 @@ export default function PerformanceDetail() {
               External Link
             </a>
           )}
-          {canEdit() && (
+          {canEditForEnsemble(performance.ensembleId) && (
             <>
               <Link to={`/performances/${id}/edit`} className="btn btn-outline-primary me-2">
                 Edit

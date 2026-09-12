@@ -142,6 +142,7 @@ builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<AuditEventRepository>();
 
 builder.Services.AddScoped<ISeasonZipCacheService, SeasonZipCacheService>();
+builder.Services.AddScoped<IEnsembleAccessService, EnsembleAccessService>();
 
 // Pre-generate the "download all" share zip when a season share link is configured
 builder.Services.AddSingleton<ISeasonZipWarmupQueue, SeasonZipWarmupQueue>();
@@ -188,9 +189,7 @@ app.MapFallbackToFile("index.html");
 using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    var roles = new[] { "Admin", "Librarian", "Submitter", "Downloader", "User" };
-
-    foreach (var role in roles)
+    foreach (var role in GSO_Library.Models.Roles.All)
     {
         if (!await roleManager.RoleExistsAsync(role))
         {

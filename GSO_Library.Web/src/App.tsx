@@ -39,8 +39,16 @@ const queryClient = new QueryClient({
   },
 });
 
-const librarianRoles = ['Admin', 'Librarian'];
-const submitterRoles = ['Admin', 'Librarian', 'Submitter'];
+// Reference data (games/series/instruments) and ensemble-scoped resources (seasons/performances):
+// Ensemble Librarians are allowed in; the API further restricts season/performance writes to
+// the librarian's own ensemble.
+const ensembleLibrarianRoles = ['Admin', 'Librarian', 'Ensemble Librarian'];
+// Arrangement create/edit: Submitters (own arrangements) and Ensemble Librarians (own-ensemble
+// arrangements) are allowed in; the API enforces the per-arrangement ownership/ensemble check.
+const arrangementEditorRoles = ['Admin', 'Librarian', 'Submitter', 'Ensemble Librarian'];
+// Editing an ensemble: Admins (any) or Ensemble Librarians (their own — API checks membership).
+// Creating/deleting an ensemble stays Admin-only.
+const ensembleEditRoles = ['Admin', 'Ensemble Librarian'];
 const adminRoles = ['Admin'];
 
 export default function App() {
@@ -58,41 +66,41 @@ export default function App() {
               {/* Arrangements */}
               <Route path="arrangements" element={<ArrangementList />} />
               <Route path="arrangements/:id" element={<ArrangementDetail />} />
-              <Route path="arrangements/new" element={<ProtectedRoute requiredRoles={submitterRoles}><ArrangementForm /></ProtectedRoute>} />
-              <Route path="arrangements/:id/edit" element={<ProtectedRoute requiredRoles={submitterRoles}><ArrangementForm /></ProtectedRoute>} />
+              <Route path="arrangements/new" element={<ProtectedRoute requiredRoles={arrangementEditorRoles}><ArrangementForm /></ProtectedRoute>} />
+              <Route path="arrangements/:id/edit" element={<ProtectedRoute requiredRoles={arrangementEditorRoles}><ArrangementForm /></ProtectedRoute>} />
 
               {/* Series */}
               <Route path="series" element={<SeriesList />} />
-              <Route path="series/new" element={<ProtectedRoute requiredRoles={librarianRoles}><SeriesForm /></ProtectedRoute>} />
-              <Route path="series/:id/edit" element={<ProtectedRoute requiredRoles={librarianRoles}><SeriesForm /></ProtectedRoute>} />
+              <Route path="series/new" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><SeriesForm /></ProtectedRoute>} />
+              <Route path="series/:id/edit" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><SeriesForm /></ProtectedRoute>} />
 
               {/* Games */}
               <Route path="games" element={<GameList />} />
-              <Route path="games/new" element={<ProtectedRoute requiredRoles={librarianRoles}><GameForm /></ProtectedRoute>} />
-              <Route path="games/:id/edit" element={<ProtectedRoute requiredRoles={librarianRoles}><GameForm /></ProtectedRoute>} />
+              <Route path="games/new" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><GameForm /></ProtectedRoute>} />
+              <Route path="games/:id/edit" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><GameForm /></ProtectedRoute>} />
 
               {/* Instruments */}
               <Route path="instruments" element={<InstrumentList />} />
-              <Route path="instruments/new" element={<ProtectedRoute requiredRoles={librarianRoles}><InstrumentForm /></ProtectedRoute>} />
-              <Route path="instruments/:id/edit" element={<ProtectedRoute requiredRoles={librarianRoles}><InstrumentForm /></ProtectedRoute>} />
+              <Route path="instruments/new" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><InstrumentForm /></ProtectedRoute>} />
+              <Route path="instruments/:id/edit" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><InstrumentForm /></ProtectedRoute>} />
 
               {/* Performances */}
               <Route path="performances" element={<PerformanceList />} />
               <Route path="performances/:id" element={<PerformanceDetail />} />
-              <Route path="performances/new" element={<ProtectedRoute requiredRoles={librarianRoles}><PerformanceForm /></ProtectedRoute>} />
-              <Route path="performances/:id/edit" element={<ProtectedRoute requiredRoles={librarianRoles}><PerformanceForm /></ProtectedRoute>} />
+              <Route path="performances/new" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><PerformanceForm /></ProtectedRoute>} />
+              <Route path="performances/:id/edit" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><PerformanceForm /></ProtectedRoute>} />
 
               {/* Ensembles */}
               <Route path="ensembles" element={<EnsembleList />} />
               <Route path="ensembles/:id" element={<EnsembleDetail />} />
-              <Route path="ensembles/new" element={<ProtectedRoute requiredRoles={librarianRoles}><EnsembleForm /></ProtectedRoute>} />
-              <Route path="ensembles/:id/edit" element={<ProtectedRoute requiredRoles={librarianRoles}><EnsembleForm /></ProtectedRoute>} />
+              <Route path="ensembles/new" element={<ProtectedRoute requiredRoles={adminRoles}><EnsembleForm /></ProtectedRoute>} />
+              <Route path="ensembles/:id/edit" element={<ProtectedRoute requiredRoles={ensembleEditRoles}><EnsembleForm /></ProtectedRoute>} />
 
               {/* Seasons */}
               <Route path="seasons" element={<SeasonList />} />
               <Route path="seasons/:id" element={<SeasonDetail />} />
-              <Route path="seasons/new" element={<ProtectedRoute requiredRoles={librarianRoles}><SeasonForm /></ProtectedRoute>} />
-              <Route path="seasons/:id/edit" element={<ProtectedRoute requiredRoles={librarianRoles}><SeasonForm /></ProtectedRoute>} />
+              <Route path="seasons/new" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><SeasonForm /></ProtectedRoute>} />
+              <Route path="seasons/:id/edit" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><SeasonForm /></ProtectedRoute>} />
 
               {/* Account */}
               <Route path="change-password" element={<ChangePassword />} />

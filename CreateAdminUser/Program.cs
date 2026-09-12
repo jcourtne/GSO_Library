@@ -37,7 +37,7 @@ var userManager = scope.ServiceProvider.GetRequiredService<UserManager<Applicati
 var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
 // Ensure roles exist
-foreach (var role in new[] { "Admin", "Librarian", "Submitter", "Downloader", "User" })
+foreach (var role in GSO_Library.Models.Roles.All)
 {
     if (!await roleManager.RoleExistsAsync(role))
         await roleManager.CreateAsync(new IdentityRole(role));

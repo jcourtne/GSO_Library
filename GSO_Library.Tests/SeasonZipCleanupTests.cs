@@ -22,7 +22,8 @@ public class SeasonZipCleanupTests : IntegrationTestBase
     {
         var client = await GetLibrarianClientAsync();
 
-        var ensembleResp = await client.PostAsJsonAsync("/api/ensembles", new { Name = $"Ens_{Guid.NewGuid():N}" });
+        var adminClient = await GetAdminClientAsync();
+        var ensembleResp = await adminClient.PostAsJsonAsync("/api/ensembles", new { Name = $"Ens_{Guid.NewGuid():N}" });
         ensembleResp.EnsureSuccessStatusCode();
         var ensembleId = (await ensembleResp.Content.ReadFromJsonAsync<JsonElement>(JsonOpts)).GetProperty("id").GetInt32();
 

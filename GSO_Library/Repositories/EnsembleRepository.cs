@@ -1,5 +1,6 @@
 using Dapper;
 using GSO_Library.Data;
+using GSO_Library.Dtos;
 using GSO_Library.Models;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -100,6 +101,54 @@ public class EnsembleRepository
         if (rows == 0) return false;
         InvalidateArrangementCache();
         return true;
+    }
+
+    public async Task<IEnumerable<EnsembleMemberDto>> GetEnsembleMembersAsync(int ensembleId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        var isSqlite = connection.GetType().Name.Contains("Sqlite", StringComparison.OrdinalIgnoreCase);
+        var usersTable = isSqlite ? "AspNetUsers" : "\"AspNetUsers\"";
+        return await connection.QueryAsync<EnsembleMemberDto>(
+            $"SELECT u.\"Id\", u.\"UserName\", u.\"Email\", u.\"FirstName\", u.\"LastName\" " +
+            $"FROM {usersTable} u INNER JOIN user_ensembles ue ON u.\"Id\" = ue.user_id " +
+            "WHERE ue.ensemble_id = @EnsembleId",
+            new { EnsembleId = ensembleId });
+    }
+
+    public async Task<IEnumerable<Ensemble>> GetEnsemblesForUserAsync(string userId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QueryAsync<Ensemble>(
+            "SELECT e.id, e.name, e.description, e.website, e.contact_info, e.created_at, e.updated_at, e.created_by " +
+            "FROM ensembles e INNER JOIN user_ensembles ue ON e.id = ue.ensemble_id " +
+            "WHERE ue.user_id = @UserId ORDER BY e.name",
+            new { UserId = userId });
+    }
+
+    public async Task<bool?> AddMemberAsync(int ensembleId, string userId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        var ensembleExists = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ensembles WHERE id = @Id", new { Id = ensembleId });
+        if (ensembleExists == 0) return null;
+
+        var isSqlite = connection.GetType().Name.Contains("Sqlite", StringComparison.OrdinalIgnoreCase);
+        var sql = isSqlite
+            ? "INSERT OR IGNORE INTO user_ensembles (user_id, ensemble_id) VALUES (@UserId, @EnsembleId)"
+            : "INSERT INTO user_ensembles (user_id, ensemble_id) VALUES (@UserId, @EnsembleId) ON CONFLICT DO NOTHING";
+        var rows = await connection.ExecuteAsync(sql, new { UserId = userId, EnsembleId = ensembleId });
+        return rows > 0;
+    }
+
+    public async Task<bool?> RemoveMemberAsync(int ensembleId, string userId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        var ensembleExists = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ensembles WHERE id = @Id", new { Id = ensembleId });
+        if (ensembleExists == 0) return null;
+
+        var rows = await connection.ExecuteAsync(
+            "DELETE FROM user_ensembles WHERE ensemble_id = @EnsembleId AND user_id = @UserId",
+            new { EnsembleId = ensembleId, UserId = userId });
+        return rows > 0;
     }
 
     private void InvalidateArrangementCache()

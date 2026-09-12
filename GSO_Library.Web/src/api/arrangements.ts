@@ -42,6 +42,12 @@ export const arrangementsApi = {
   removePerformance: (arrangementId: number, performanceId: number) =>
     apiClient.delete(`/arrangements/${arrangementId}/performances/${performanceId}`),
 
+  addEnsemble: (arrangementId: number, ensembleId: number) =>
+    apiClient.post(`/arrangements/${arrangementId}/ensembles/${ensembleId}`),
+
+  removeEnsemble: (arrangementId: number, ensembleId: number) =>
+    apiClient.delete(`/arrangements/${arrangementId}/ensembles/${ensembleId}`),
+
   // File endpoints
   listFiles: (arrangementId: number) =>
     apiClient.get<ArrangementFile[]>(`/arrangements/${arrangementId}/files`).then((r) => r.data),

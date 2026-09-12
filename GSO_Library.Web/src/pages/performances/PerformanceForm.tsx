@@ -9,6 +9,8 @@ import { seasonsApi } from '../../api/seasons';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import ProgramSection from '../../components/performances/ProgramSection';
 import ArrangementPickerModal from '../../components/arrangements/ArrangementPickerModal';
+import { useMyEnsembles } from '../../hooks/useMyEnsembles';
+import { useArrangementAccess } from '../../hooks/useArrangementAccess';
 import type { Arrangement } from '../../types';
 
 export default function PerformanceForm() {
@@ -37,15 +39,22 @@ export default function PerformanceForm() {
     enabled: isEdit,
   });
 
+  const { myEnsembles, canEditAllEnsembles } = useMyEnsembles();
+  const { canDownloadNonPlayback } = useArrangementAccess();
+
   const { data: ensembles } = useQuery({
     queryKey: ['ensembles-all'],
     queryFn: () => ensemblesApi.getAll(),
+    enabled: canEditAllEnsembles,
   });
 
+  // Ensemble Librarians may only tie a performance to one of their own ensembles.
+  const ensembleOptions = (canEditAllEnsembles ? ensembles : myEnsembles) ?? [];
+
   const { data: seasonsAll } = useQuery({
-    queryKey: ['seasons-all'],
-    queryFn: () => seasonsApi.list({ pageSize: 100 }),
-    enabled: !isEdit,
+    queryKey: ['seasons-all', ensembleId],
+    queryFn: () => seasonsApi.list({ pageSize: 100, ensembleIds: [ensembleId!] }),
+    enabled: !isEdit && ensembleId !== null,
   });
 
   const { data: selectedSeason, isLoading: seasonLoading } = useQuery({
@@ -139,16 +148,17 @@ export default function PerformanceForm() {
               <Form.Label>Ensemble</Form.Label>
               <SearchableSelect
                 placeholder="No Ensemble"
-                options={ensembles?.map((ens) => ({ value: ens.id, label: ens.name })) ?? []}
+                options={ensembleOptions.map((ens) => ({ value: ens.id, label: ens.name }))}
                 value={ensembleId}
-                onChange={(v) => setEnsembleId(v)}
+                onChange={(v) => { setEnsembleId(v); setSeasonId(null); }}
               />
             </Form.Group>
             {!isEdit && (
               <Form.Group className="mb-3">
                 <Form.Label>Season</Form.Label>
                 <SearchableSelect
-                  placeholder="No Season"
+                  placeholder={ensembleId === null ? 'Select an ensemble first' : 'No Season'}
+                  disabled={ensembleId === null}
                   options={seasonsAll?.items.map((s) => ({ value: s.id, label: s.name })) ?? []}
                   value={seasonId}
                   onChange={(v) => setSeasonId(v)}
@@ -242,6 +252,7 @@ export default function PerformanceForm() {
               excludeIds={linkedArrangementIds}
               onSelect={(arrangementId) => addArrangementMutation.mutate(arrangementId)}
               isPending={addArrangementMutation.isPending}
+              canDownload={canDownloadNonPlayback}
             />
 
             <div className="mt-4">

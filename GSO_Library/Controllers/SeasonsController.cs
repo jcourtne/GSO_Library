@@ -13,17 +13,34 @@ namespace GSO_Library.Controllers;
 public class SeasonsController : ControllerBase
 {
     private readonly SeasonRepository _seasonRepository;
+    private readonly ArrangementRepository _arrangementRepository;
+    private readonly IEnsembleAccessService _ensembleAccess;
     private readonly IAuditService _auditService;
     private readonly ISeasonZipCacheService _zipCacheService;
     private readonly ISeasonZipWarmupQueue _zipWarmupQueue;
 
-    public SeasonsController(SeasonRepository seasonRepository, IAuditService auditService,
-        ISeasonZipCacheService zipCacheService, ISeasonZipWarmupQueue zipWarmupQueue)
+    public SeasonsController(SeasonRepository seasonRepository, ArrangementRepository arrangementRepository,
+        IEnsembleAccessService ensembleAccess, IAuditService auditService, ISeasonZipCacheService zipCacheService,
+        ISeasonZipWarmupQueue zipWarmupQueue)
     {
         _seasonRepository = seasonRepository;
+        _arrangementRepository = arrangementRepository;
+        _ensembleAccess = ensembleAccess;
         _auditService = auditService;
         _zipCacheService = zipCacheService;
         _zipWarmupQueue = zipWarmupQueue;
+    }
+
+    // Loads the season and checks ensemble-scoped write access. Returns the season on success,
+    // or an error result (404/403) to return directly.
+    private async Task<(Season? season, ActionResult? error)> LoadSeasonForWriteAsync(int id)
+    {
+        var season = await _seasonRepository.GetSeasonByIdAsync(id);
+        if (season == null)
+            return (null, NotFound());
+        if (!await _ensembleAccess.CanWriteForEnsembleAsync(User, season.EnsembleId))
+            return (null, Forbid());
+        return (season, null);
     }
 
     [HttpGet]
@@ -52,9 +69,12 @@ public class SeasonsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<ActionResult<Season>> AddSeason([FromBody] Season season)
     {
+        if (!await _ensembleAccess.CanWriteForEnsembleAsync(User, season.EnsembleId))
+            return Forbid();
+
         var now = DateTime.UtcNow;
         season.CreatedAt = now;
         season.UpdatedAt = now;
@@ -66,13 +86,23 @@ public class SeasonsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<ActionResult<Season>> UpdateSeason(int id, [FromBody] Season season)
     {
+        var (_, error) = await LoadSeasonForWriteAsync(id);
+        if (error != null) return error;
+        // Prevent moving a season into an ensemble the user doesn't belong to.
+        if (!await _ensembleAccess.CanWriteForEnsembleAsync(User, season.EnsembleId))
+            return Forbid();
+
         season.UpdatedAt = DateTime.UtcNow;
         var updated = await _seasonRepository.UpdateSeasonAsync(id, season);
         if (updated == null)
             return NotFound();
+
+        // The ensemble may have changed, which prunes mismatched arrangements and changes
+        // the zip contents.
+        await _zipCacheService.InvalidateForSeasonAsync(id);
 
         await _auditService.LogAsync(AuditEventType.SeasonUpdate, User.Identity?.Name, null, null,
             $"seasonId: {id} ({updated.Name})");
@@ -80,12 +110,11 @@ public class SeasonsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<IActionResult> DeleteSeason(int id)
     {
-        var season = await _seasonRepository.GetSeasonByIdAsync(id);
-        if (season == null)
-            return NotFound();
+        var (season, error) = await LoadSeasonForWriteAsync(id);
+        if (error != null) return error;
 
         await _zipCacheService.InvalidateForSeasonAsync(id);
         var success = await _seasonRepository.DeleteSeasonAsync(id);
@@ -93,14 +122,27 @@ public class SeasonsController : ControllerBase
             return NotFound();
 
         await _auditService.LogAsync(AuditEventType.SeasonDelete, User.Identity?.Name, null, null,
-            $"seasonId: {id} ({season.Name})");
+            $"seasonId: {id} ({season!.Name})");
         return NoContent();
     }
 
     [HttpPost("{id}/arrangements/{arrangementId}")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<IActionResult> AddArrangement(int id, int arrangementId)
     {
+        var (season, error) = await LoadSeasonForWriteAsync(id);
+        if (error != null) return error;
+
+        // A season may only contain arrangements its ensemble is allowed to download: either a
+        // public arrangement (no ensemble) or one linked to this season's own ensemble. This keeps
+        // the season zip / public share from exposing file types the season's ensemble members
+        // (and Ensemble Librarians) would not otherwise be able to download.
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+        if (arrangement == null)
+            return BadRequest("Arrangement not found or already linked");
+        if (!arrangement.QualifiesForEnsemble(season!.EnsembleId))
+            return Forbid();
+
         var result = await _seasonRepository.AddArrangementAsync(id, arrangementId);
         if (result == true) await _zipCacheService.InvalidateForSeasonAsync(id);
         return result switch
@@ -112,9 +154,12 @@ public class SeasonsController : ControllerBase
     }
 
     [HttpDelete("{id}/arrangements/{arrangementId}")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<IActionResult> RemoveArrangement(int id, int arrangementId)
     {
+        var (_, error) = await LoadSeasonForWriteAsync(id);
+        if (error != null) return error;
+
         var result = await _seasonRepository.RemoveArrangementAsync(id, arrangementId);
         if (result == true) await _zipCacheService.InvalidateForSeasonAsync(id);
         return result switch
@@ -126,11 +171,12 @@ public class SeasonsController : ControllerBase
     }
 
     [HttpPost("{id}/share")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<ActionResult<object>> ConfigureShare(int id, [FromBody] ShareConfigRequest request)
     {
-        var season = await _seasonRepository.GetSeasonByIdAsync(id);
-        if (season == null) return NotFound();
+        var (_, error) = await LoadSeasonForWriteAsync(id);
+        if (error != null) return error;
+
         string? hash = request.Password is { Length: > 0 }
             ? new PasswordHasher<object>().HashPassword(null!, request.Password)
             : null;
@@ -145,9 +191,12 @@ public class SeasonsController : ControllerBase
     }
 
     [HttpDelete("{id}/share")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<IActionResult> RevokeShare(int id)
     {
+        var (_, error) = await LoadSeasonForWriteAsync(id);
+        if (error != null) return error;
+
         var success = await _seasonRepository.RevokeShareTokenAsync(id);
         if (!success) return NotFound();
         await _zipCacheService.InvalidateForSeasonAsync(id);
@@ -155,9 +204,12 @@ public class SeasonsController : ControllerBase
     }
 
     [HttpPost("{id}/performances/{performanceId}")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<IActionResult> AddPerformance(int id, int performanceId)
     {
+        var (_, error) = await LoadSeasonForWriteAsync(id);
+        if (error != null) return error;
+
         var result = await _seasonRepository.AddPerformanceAsync(id, performanceId);
         return result switch
         {
@@ -168,9 +220,12 @@ public class SeasonsController : ControllerBase
     }
 
     [HttpDelete("{id}/performances/{performanceId}")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.EditorsAndEnsembleLibrarian)]
     public async Task<IActionResult> RemovePerformance(int id, int performanceId)
     {
+        var (_, error) = await LoadSeasonForWriteAsync(id);
+        if (error != null) return error;
+
         var result = await _seasonRepository.RemovePerformanceAsync(id, performanceId);
         return result switch
         {

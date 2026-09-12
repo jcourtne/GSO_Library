@@ -12,6 +12,10 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.2" />
     <PackageReference Include="Dapper" Version="2.1.35" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.2" />
+    <!-- Transitive pin: patched SQLite native lib (GHSA-2m69-gcr7-jv3q). Remove once Microsoft.EntityFrameworkCore.Sqlite references a patched version. -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.13" />
+    <!-- Transitive pin: patched Microsoft.OpenApi (GHSA-v5pm-xwqc-g5wc). Remove once the parent package references a patched version. -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.12.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2" />

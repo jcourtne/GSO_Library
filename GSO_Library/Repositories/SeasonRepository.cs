@@ -115,6 +115,15 @@ public class SeasonRepository
             var instrumentsByArr = arrInstrumentRows.GroupBy(x => x.ArrangementId)
                 .ToDictionary(g => g.Key, g => (ICollection<Instrument>)g.Select(x => new Instrument { Id = x.Id, Name = x.Name, FamilyId = x.FamilyId, FamilyName = x.FamilyName }).ToList());
 
+            var arrEnsembleRows = await connection.QueryInListAsync<(int ArrangementId, int Id, string Name)>(
+                @"SELECT ae.arrangement_id, e.id, e.name
+                  FROM ensembles e
+                  INNER JOIN arrangement_ensembles ae ON e.id = ae.ensemble_id
+                  WHERE ae.arrangement_id = ANY(@Ids)",
+                new { Ids = arrIds });
+            var ensemblesByArr = arrEnsembleRows.GroupBy(x => x.ArrangementId)
+                .ToDictionary(g => g.Key, g => (ICollection<Ensemble>)g.Select(x => new Ensemble { Id = x.Id, Name = x.Name }).ToList());
+
             var arrFiles = (await connection.QueryInListAsync<ArrangementFile>(
                 @"SELECT id, arrangement_id, file_name, stored_file_name, content_type, file_size,
                          score_part_type, uploaded_at, created_by
@@ -142,6 +151,7 @@ public class SeasonRepository
                 a.Games = gamesByArr.GetValueOrDefault(a.Id, []);
                 a.Instruments = instrumentsByArr.GetValueOrDefault(a.Id, []);
                 a.Files = filesByArr.GetValueOrDefault(a.Id, []);
+                a.Ensembles = ensemblesByArr.GetValueOrDefault(a.Id, []);
             }
         }
         season.Arrangements = arrangements;
@@ -175,6 +185,19 @@ public class SeasonRepository
             "UPDATE seasons SET name = @Name, ensemble_id = @EnsembleId, start_date = @StartDate, end_date = @EndDate, notes = @Notes, updated_at = @UpdatedAt WHERE id = @Id",
             new { season.Name, season.EnsembleId, season.StartDate, season.EndDate, season.Notes, season.UpdatedAt, Id = id });
         if (rows == 0) return null;
+
+        // Enforce the invariant that a season only contains arrangements its ensemble may download:
+        // public arrangements (linked to no ensemble) or arrangements linked to this ensemble. If
+        // the season was moved to a different ensemble, drop any ensemble-scoped arrangement that
+        // isn't linked to the new one. Idempotent, so it's safe to run on every update.
+        await connection.ExecuteAsync(
+            @"DELETE FROM season_arrangements
+              WHERE season_id = @Id
+                AND arrangement_id IN (SELECT arrangement_id FROM arrangement_ensembles)
+                AND arrangement_id NOT IN (
+                    SELECT arrangement_id FROM arrangement_ensembles WHERE ensemble_id = @EnsembleId)",
+            new { Id = id, season.EnsembleId });
+
         InvalidateArrangementCache();
         return await GetSeasonByIdAsync(id);
     }

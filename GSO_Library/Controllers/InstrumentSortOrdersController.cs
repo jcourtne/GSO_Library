@@ -52,7 +52,7 @@ public class InstrumentSortOrdersController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.Editors)]
     public async Task<ActionResult<InstrumentSortOrder>> Create([FromBody] InstrumentSortOrderRequest request)
     {
         var created = await _repo.CreateAsync(request);
@@ -60,7 +60,7 @@ public class InstrumentSortOrdersController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.Editors)]
     public async Task<ActionResult<InstrumentSortOrder>> Update(int id, [FromBody] InstrumentSortOrderRequest request)
     {
         var updated = await _repo.UpdateAsync(id, request);
@@ -69,7 +69,7 @@ public class InstrumentSortOrdersController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "Admin,Librarian")]
+    [Authorize(Roles = Roles.Editors)]
     public async Task<IActionResult> Delete(int id)
     {
         var success = await _repo.DeleteAsync(id);

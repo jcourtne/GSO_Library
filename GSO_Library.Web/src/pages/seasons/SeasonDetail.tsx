@@ -6,7 +6,7 @@ import { seasonsApi } from '../../api/seasons';
 import type { ShareConfig } from '../../api/seasons';
 import { instrumentSortOrdersApi } from '../../api/instrumentSortOrders';
 import ConfirmModal from '../../components/common/ConfirmModal';
-import { useAuth } from '../../hooks/useAuth';
+import { useMyEnsembles } from '../../hooks/useMyEnsembles';
 import { categorizeFiles, groupScoreFiles } from '../../utils/fileCategories';
 import type { Arrangement, ArrangementFile, Instrument, Performance } from '../../types';
 
@@ -66,7 +66,7 @@ function formatDateRange(startDate?: string, endDate?: string) {
 export default function SeasonDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { canEditForEnsemble } = useMyEnsembles();
   const queryClient = useQueryClient();
   const [showDelete, setShowDelete] = useState(false);
   const [error, setError] = useState('');
@@ -177,7 +177,7 @@ export default function SeasonDetail() {
           {dateRange && <p className="text-muted mb-0">{dateRange}</p>}
         </div>
         <div>
-          {canEdit() && (
+          {canEditForEnsemble(season.ensembleId) && (
             <>
               <Link to={`/seasons/${id}/edit`} className="btn btn-outline-primary me-2">Edit</Link>
               <Button variant="outline-danger" onClick={() => setShowDelete(true)}>Delete</Button>
@@ -371,7 +371,7 @@ export default function SeasonDetail() {
             </Card.Body>
           </Card>
 
-          {canEdit() && (
+          {canEditForEnsemble(season.ensembleId) && (
             <Card className="mb-3">
               <Card.Body>
                 <Card.Title>Public Share Link</Card.Title>

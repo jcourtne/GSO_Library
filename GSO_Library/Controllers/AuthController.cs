@@ -23,6 +23,7 @@ public class AuthController : ControllerBase
     private readonly GSOLibraryContext _context;
     private readonly IAuditService _auditService;
     private readonly UserRepository _userRepository;
+    private readonly EnsembleRepository _ensembleRepository;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -33,6 +34,7 @@ public class AuthController : ControllerBase
         GSOLibraryContext context,
         IAuditService auditService,
         UserRepository userRepository,
+        EnsembleRepository ensembleRepository,
         ILogger<AuthController> logger)
     {
         _userManager = userManager;
@@ -42,11 +44,12 @@ public class AuthController : ControllerBase
         _context = context;
         _auditService = auditService;
         _userRepository = userRepository;
+        _ensembleRepository = ensembleRepository;
         _logger = logger;
     }
 
     [HttpGet("users")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<List<UserResponse>>> GetAllUsers()
     {
         var users = await _userManager.Users.ToListAsync();
@@ -74,7 +77,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpGet("users/{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<UserResponse>> GetUserById(string id)
     {
         var user = await _userManager.FindByIdAsync(id);
@@ -96,8 +99,30 @@ public class AuthController : ControllerBase
         });
     }
 
+    [HttpGet("users/me/ensembles")]
+    [Authorize]
+    public async Task<IActionResult> GetMyEnsembles()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+        var ensembles = await _ensembleRepository.GetEnsemblesForUserAsync(userId);
+        return Ok(ensembles);
+    }
+
+    [HttpGet("users/{id}/ensembles")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> GetUserEnsembles(string id)
+    {
+        var user = await _userManager.FindByIdAsync(id);
+        if (user == null)
+            return NotFound();
+
+        var ensembles = await _ensembleRepository.GetEnsemblesForUserAsync(id);
+        return Ok(ensembles);
+    }
+
     [HttpPost("register")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest request)
     {
         var user = new ApplicationUser
@@ -271,7 +296,7 @@ public class AuthController : ControllerBase
             return NotFound();
 
         var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var isAdmin = User.IsInRole("Admin");
+        var isAdmin = User.IsInRole(Roles.Admin);
 
         if (refreshToken.UserId != currentUserId && !isAdmin)
             return Forbid();
@@ -363,7 +388,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("disable/{userId}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<AuthResponse>> DisableAccount(string userId)
     {
         var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -429,7 +454,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("enable/{userId}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<AuthResponse>> EnableAccount(string userId)
     {
         var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -487,7 +512,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("reset-password/{userId}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<AuthResponse>> ResetPassword(string userId, [FromBody] ResetPasswordRequest request)
     {
         var user = await _userManager.FindByIdAsync(userId);
@@ -533,7 +558,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("grant-role")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<RoleManagementResponse>> GrantRole([FromBody] RoleManagementRequest request)
     {
         var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -603,7 +628,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("remove-role")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<ActionResult<RoleManagementResponse>> RemoveRole([FromBody] RoleManagementRequest request)
     {
         var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

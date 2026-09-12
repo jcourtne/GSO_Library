@@ -235,6 +235,18 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 performance_id INTEGER NOT NULL REFERENCES performances(id) ON DELETE CASCADE,
                 PRIMARY KEY (season_id, performance_id)
             );
+
+            CREATE TABLE IF NOT EXISTS user_ensembles (
+                user_id     TEXT    NOT NULL REFERENCES AspNetUsers(Id) ON DELETE CASCADE,
+                ensemble_id INTEGER NOT NULL REFERENCES ensembles(id)   ON DELETE CASCADE,
+                PRIMARY KEY (user_id, ensemble_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS arrangement_ensembles (
+                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
+                ensemble_id    INTEGER NOT NULL REFERENCES ensembles(id)    ON DELETE CASCADE,
+                PRIMARY KEY (arrangement_id, ensemble_id)
+            );
             """);
     }
 
@@ -296,7 +308,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         RoleManager<IdentityRole> roleManager)
     {
         // Ensure roles (in case Program.cs seeding somehow didn't run)
-        foreach (var role in new[] { "Admin", "Librarian", "Submitter", "Downloader", "User" })
+        foreach (var role in GSO_Library.Models.Roles.All)
         {
             if (!await roleManager.RoleExistsAsync(role))
                 await roleManager.CreateAsync(new IdentityRole(role));
@@ -307,6 +319,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         await CreateUserIfMissing(userManager, "testsubmitter", "submitter@test.com", "Submit123!", "Test", "Submitter", "Submitter");
         await CreateUserIfMissing(userManager, "testdownloader", "downloader@test.com", "Download1!", "Test", "Downloader", "Downloader");
         await CreateUserIfMissing(userManager, "testuser", "user@test.com", "User1234!", "Test", "User", "User");
+        await CreateUserIfMissing(userManager, "testensemblelibrarian", "enslibr@test.com", "EnsLib123!", "Test", "EnsembleLibrarian", "Ensemble Librarian");
+        await CreateUserIfMissing(userManager, "testensembledownloader", "ensdl@test.com", "EnsDl123!", "Test", "EnsembleDownloader", "Ensemble Downloader");
     }
 
     private static async Task CreateUserIfMissing(

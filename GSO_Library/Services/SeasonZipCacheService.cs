@@ -144,9 +144,13 @@ public class SeasonZipCacheService(
             };
         }
 
+        // Only serve arrangements the season's ensemble may currently access — an arrangement
+        // unlinked from this ensemble after being added stays in season_arrangements as a
+        // historical record, but its files are no longer shared.
+        var qualifyingArrangements = season.Arrangements.Where(a => a.QualifiesForEnsemble(season.EnsembleId));
         var arrangements = arrangementId.HasValue
-            ? season.Arrangements.Where(a => a.Id == arrangementId.Value)
-            : season.Arrangements;
+            ? qualifyingArrangements.Where(a => a.Id == arrangementId.Value)
+            : qualifyingArrangements;
 
         var entries = arrangements
             .SelectMany(a => a.Files.Select(f => (ArrName: a.Name, File: f)))
