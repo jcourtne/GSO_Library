@@ -117,10 +117,13 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 
 // Add File Storage Service (GCS in production when GCS:BucketName is set, local disk otherwise)
+// Singleton: both implementations are stateless/thread-safe, and GcsFileStorageService's
+// constructor resolves Application Default Credentials once at startup instead of racing
+// the Cloud Run metadata server on every request.
 if (!string.IsNullOrEmpty(builder.Configuration["GCS:BucketName"]))
-    builder.Services.AddScoped<IFileStorageService, GcsFileStorageService>();
+    builder.Services.AddSingleton<IFileStorageService, GcsFileStorageService>();
 else
-    builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+    builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
 
 // Add Memory Cache
 builder.Services.AddMemoryCache();
