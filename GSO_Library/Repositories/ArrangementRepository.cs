@@ -270,6 +270,7 @@ public class ArrangementRepository
             "year" => desc ? filtered.OrderByDescending(a => a.Year) : filtered.OrderBy(a => a.Year),
             "durationseconds" => desc ? filtered.OrderByDescending(a => a.DurationSeconds) : filtered.OrderBy(a => a.DurationSeconds),
             "createdat" => desc ? filtered.OrderByDescending(a => a.CreatedAt) : filtered.OrderBy(a => a.CreatedAt),
+            "updatedat" => desc ? filtered.OrderByDescending(a => a.UpdatedAt) : filtered.OrderBy(a => a.UpdatedAt),
             _ => desc ? filtered.OrderByDescending(a => a.Id) : filtered.OrderBy(a => a.Id),
         };
 

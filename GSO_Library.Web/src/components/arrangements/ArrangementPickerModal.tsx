@@ -64,6 +64,8 @@ export default function ArrangementPickerModal({ show, onHide, excludeIds, onSel
       instrumentMatchAll: instrumentMatchAll || undefined,
       composers: composers.length ? composers : undefined,
       arrangers: arrangers.length ? arrangers : undefined,
+      sortBy: 'updatedAt',
+      sortDirection: 'desc',
       page,
       pageSize: 20,
     }),
