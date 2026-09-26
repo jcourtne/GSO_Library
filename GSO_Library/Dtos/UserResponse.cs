@@ -10,4 +10,5 @@ public class UserResponse
     public bool IsDisabled { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public List<string> Roles { get; set; } = [];
+    public List<EnsembleSummaryDto> Ensembles { get; set; } = [];
 }

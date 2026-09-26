@@ -125,6 +125,26 @@ public class EnsembleRepository
             new { UserId = userId });
     }
 
+    private class UserEnsembleRow
+    {
+        public string UserId { get; set; } = string.Empty;
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public async Task<Dictionary<string, List<EnsembleSummaryDto>>> GetEnsemblesForUsersAsync(IEnumerable<string> userIds)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        var rows = await connection.QueryInListAsync<UserEnsembleRow>(
+            "SELECT ue.user_id AS UserId, e.id AS Id, e.name AS Name " +
+            "FROM ensembles e INNER JOIN user_ensembles ue ON e.id = ue.ensemble_id " +
+            "WHERE ue.user_id = ANY(@Ids) ORDER BY e.name",
+            new { Ids = userIds.ToArray() });
+
+        return rows.GroupBy(r => r.UserId)
+            .ToDictionary(g => g.Key, g => g.Select(r => new EnsembleSummaryDto { Id = r.Id, Name = r.Name }).ToList());
+    }
+
     public async Task<bool?> AddMemberAsync(int ensembleId, string userId)
     {
         using var connection = _connectionFactory.CreateConnection();

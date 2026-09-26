@@ -55,6 +55,7 @@ public class AuthController : ControllerBase
         var users = await _userManager.Users.ToListAsync();
         var usernames = users.Select(u => u.UserName).Where(n => n != null).Cast<string>();
         var lastLogins = await _userRepository.GetLastLoginsAsync(usernames);
+        var ensembleLookup = await _ensembleRepository.GetEnsemblesForUsersAsync(users.Select(u => u.Id));
         var userResponses = new List<UserResponse>();
 
         foreach (var user in users)
@@ -69,7 +70,8 @@ public class AuthController : ControllerBase
                 LastName = user.LastName,
                 IsDisabled = user.IsDisabled,
                 LastLoginAt = user.UserName != null ? lastLogins.GetValueOrDefault(user.UserName) : null,
-                Roles = roles.ToList()
+                Roles = roles.ToList(),
+                Ensembles = ensembleLookup.GetValueOrDefault(user.Id, [])
             });
         }
 
@@ -86,6 +88,7 @@ public class AuthController : ControllerBase
 
         var roles = await _userManager.GetRolesAsync(user);
         var lastLogin = user.UserName != null ? await _userRepository.GetLastLoginAsync(user.UserName) : null;
+        var ensembles = await _ensembleRepository.GetEnsemblesForUserAsync(user.Id);
         return Ok(new UserResponse
         {
             Id = user.Id,
@@ -95,7 +98,8 @@ public class AuthController : ControllerBase
             LastName = user.LastName,
             IsDisabled = user.IsDisabled,
             LastLoginAt = lastLogin,
-            Roles = roles.ToList()
+            Roles = roles.ToList(),
+            Ensembles = ensembles.Select(e => new EnsembleSummaryDto { Id = e.Id, Name = e.Name }).ToList()
         });
     }
 

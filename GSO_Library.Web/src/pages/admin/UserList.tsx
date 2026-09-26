@@ -120,6 +120,7 @@ export default function UserList() {
             <SortTh label="Email" sortKey="email" {...sortThProps} />
             <SortTh label="Name" sortKey="name" {...sortThProps} />
             <th>Roles</th>
+            <th>Ensembles</th>
             <SortTh label="Last Login" sortKey="lastLogin" {...sortThProps} />
             <th></th>
           </tr>
@@ -134,6 +135,13 @@ export default function UserList() {
                 <div className="d-flex gap-1 flex-wrap">
                   {u.roles.map((r) => (
                     <Badge key={r} bg={roleBadgeBg(r)}>{r}</Badge>
+                  ))}
+                </div>
+              </td>
+              <td>
+                <div className="d-flex gap-1 flex-wrap">
+                  {u.ensembles.map((e) => (
+                    <Badge key={e.id} bg="secondary">{e.name}</Badge>
                   ))}
                 </div>
               </td>
@@ -163,6 +171,7 @@ export default function UserList() {
                 <SortTh label="Email" sortKey="email" {...sortThProps} />
                 <SortTh label="Name" sortKey="name" {...sortThProps} />
                 <th>Roles</th>
+                <th>Ensembles</th>
                 <SortTh label="Last Login" sortKey="lastLogin" {...sortThProps} />
                 <th></th>
               </tr>
@@ -177,6 +186,13 @@ export default function UserList() {
                     <div className="d-flex gap-1 flex-wrap">
                       {u.roles.map((r) => (
                         <Badge key={r} bg="secondary">{r}</Badge>
+                      ))}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="d-flex gap-1 flex-wrap">
+                      {u.ensembles.map((e) => (
+                        <Badge key={e.id} bg="secondary">{e.name}</Badge>
                       ))}
                     </div>
                   </td>

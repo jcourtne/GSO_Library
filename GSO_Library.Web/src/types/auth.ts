@@ -47,6 +47,11 @@ export interface RoleManagementResponse {
   roles?: string[];
 }
 
+export interface EnsembleSummary {
+  id: number;
+  name: string;
+}
+
 export interface UserResponse {
   id: string;
   userName?: string;
@@ -56,4 +61,5 @@ export interface UserResponse {
   isDisabled: boolean;
   lastLoginAt?: string;
   roles: string[];
+  ensembles: EnsembleSummary[];
 }
