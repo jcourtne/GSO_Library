@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Alert, Button, Form, Modal, Spinner } from 'react-bootstrap';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { instrumentsApi } from '../../api/instruments';
+import { instrumentFamiliesApi } from '../../api/instrumentFamilies';
 import type { Instrument } from '../../types';
 
 interface QuickCreateInstrumentModalProps {
@@ -13,10 +14,16 @@ interface QuickCreateInstrumentModalProps {
 export default function QuickCreateInstrumentModal({ show, onHide, onCreated }: QuickCreateInstrumentModalProps) {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
+  const [familyId, setFamilyId] = useState<number | null>(null);
   const [error, setError] = useState('');
 
+  const { data: families } = useQuery({
+    queryKey: ['instrument-families'],
+    queryFn: instrumentFamiliesApi.getAll,
+  });
+
   const mutation = useMutation({
-    mutationFn: () => instrumentsApi.create({ name }),
+    mutationFn: () => instrumentsApi.create({ name, familyId }),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ['instruments-all'] });
       onCreated(created);
@@ -27,6 +34,7 @@ export default function QuickCreateInstrumentModal({ show, onHide, onCreated }: 
 
   const resetAndClose = () => {
     setName('');
+    setFamilyId(null);
     setError('');
     onHide();
   };
@@ -42,6 +50,18 @@ export default function QuickCreateInstrumentModal({ show, onHide, onCreated }: 
           <Form.Group className="mb-3">
             <Form.Label>Name *</Form.Label>
             <Form.Control value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Family</Form.Label>
+            <Form.Select
+              value={familyId ?? ''}
+              onChange={(e) => setFamilyId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">— No Family —</option>
+              {families?.map((f) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </Form.Select>
           </Form.Group>
         </Modal.Body>
         <Modal.Footer>
