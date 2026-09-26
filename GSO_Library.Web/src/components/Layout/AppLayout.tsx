@@ -6,7 +6,7 @@ export default function AppLayout() {
   return (
     <div className="d-flex flex-column min-vh-100">
       <AppNavbar />
-      <Container className="flex-grow-1 py-4">
+      <Container fluid className="flex-grow-1 py-4" style={{ maxWidth: '1600px' }}>
         <Outlet />
       </Container>
       <footer className="bg-dark text-light text-center py-3 mt-auto">
