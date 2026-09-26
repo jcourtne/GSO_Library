@@ -8,6 +8,8 @@ public class UserResponse
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
     public bool IsDisabled { get; set; }
+    public bool IsLockedOut { get; set; }
+    public DateTimeOffset? LockoutEnd { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public List<string> Roles { get; set; } = [];
     public List<EnsembleSummaryDto> Ensembles { get; set; } = [];

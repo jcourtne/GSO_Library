@@ -69,6 +69,8 @@ public class AuthController : ControllerBase
                 FirstName = user.FirstName,
                 LastName = user.LastName,
                 IsDisabled = user.IsDisabled,
+                IsLockedOut = await _userManager.IsLockedOutAsync(user),
+                LockoutEnd = user.LockoutEnd,
                 LastLoginAt = user.UserName != null ? lastLogins.GetValueOrDefault(user.UserName) : null,
                 Roles = roles.ToList(),
                 Ensembles = ensembleLookup.GetValueOrDefault(user.Id, [])
@@ -97,6 +99,8 @@ public class AuthController : ControllerBase
             FirstName = user.FirstName,
             LastName = user.LastName,
             IsDisabled = user.IsDisabled,
+            IsLockedOut = await _userManager.IsLockedOutAsync(user),
+            LockoutEnd = user.LockoutEnd,
             LastLoginAt = lastLogin,
             Roles = roles.ToList(),
             Ensembles = ensembles.Select(e => new EnsembleSummaryDto { Id = e.Id, Name = e.Name }).ToList()
@@ -184,6 +188,11 @@ public class AuthController : ControllerBase
                 Success = false,
                 Message = "This account has been disabled"
             });
+        }
+
+        if (user.LockoutEnd.HasValue && user.LockoutEnd <= DateTimeOffset.UtcNow && user.AccessFailedCount > 0)
+        {
+            await _userManager.ResetAccessFailedCountAsync(user);
         }
 
         var result = await _signInManager.PasswordSignInAsync(user, request.Password, false, lockoutOnFailure: true);
@@ -549,6 +558,9 @@ public class AuthController : ControllerBase
             });
         }
 
+        await _userManager.SetLockoutEndDateAsync(user, null);
+        await _userManager.ResetAccessFailedCountAsync(user);
+
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
         await _auditService.LogAsync(AuditEventType.PasswordReset, User.Identity?.Name, user.UserName, ip, null);
 
@@ -556,6 +568,35 @@ public class AuthController : ControllerBase
         {
             Success = true,
             Message = "Password reset successfully",
+            UserId = user.Id,
+            Username = user.UserName
+        });
+    }
+
+    [HttpPost("unlock/{userId}")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<ActionResult<AuthResponse>> UnlockAccount(string userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            return NotFound(new AuthResponse
+            {
+                Success = false,
+                Message = "User not found"
+            });
+        }
+
+        await _userManager.SetLockoutEndDateAsync(user, null);
+        await _userManager.ResetAccessFailedCountAsync(user);
+
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        await _auditService.LogAsync(AuditEventType.AccountUnlock, User.Identity?.Name, user.UserName, ip, null);
+
+        return Ok(new AuthResponse
+        {
+            Success = true,
+            Message = "Account unlocked successfully",
             UserId = user.Id,
             Username = user.UserName
         });

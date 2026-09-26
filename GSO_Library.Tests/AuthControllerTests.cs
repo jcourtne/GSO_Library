@@ -185,6 +185,50 @@ public class AuthControllerTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Login_WithRepeatedFailures_LocksAccount_AndUnlockClearsIt()
+    {
+        var adminClient = await GetAdminClientAsync();
+        var registerResponse = await adminClient.PostAsJsonAsync("/api/auth/register", new RegisterRequest
+        {
+            Username = "lockouttestuser",
+            Email = "lockouttestuser@test.com",
+            Password = "LockoutUser123!",
+            FirstName = "Lockout",
+            LastName = "Test"
+        });
+        Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
+
+        var unauthClient = GetUnauthenticatedClient();
+        for (var i = 0; i < 5; i++)
+        {
+            await unauthClient.PostAsJsonAsync("/api/auth/login", new LoginRequest
+            {
+                Username = "lockouttestuser",
+                Password = "WrongPassword!"
+            });
+        }
+
+        var lockedOutResponse = await unauthClient.PostAsJsonAsync("/api/auth/login", new LoginRequest
+        {
+            Username = "lockouttestuser",
+            Password = "WrongPassword!"
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, lockedOutResponse.StatusCode);
+
+        var usersResponse = await adminClient.GetAsync("/api/auth/users");
+        var users = await usersResponse.Content.ReadFromJsonAsync<List<UserResponse>>(JsonOpts);
+        var target = users!.First(u => u.UserName == "lockouttestuser");
+        Assert.True(target.IsLockedOut);
+
+        var unlockResponse = await adminClient.PostAsync($"/api/auth/unlock/{target.Id}", null);
+        Assert.Equal(HttpStatusCode.OK, unlockResponse.StatusCode);
+
+        var afterUnlockResponse = await adminClient.GetAsync($"/api/auth/users/{target.Id}");
+        var afterUnlock = await afterUnlockResponse.Content.ReadFromJsonAsync<UserResponse>(JsonOpts);
+        Assert.False(afterUnlock!.IsLockedOut);
+    }
+
+    [Fact]
     public async Task GrantAndRemoveRole_AsAdmin_Succeeds()
     {
         var client = await GetAdminClientAsync();

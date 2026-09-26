@@ -59,6 +59,8 @@ export interface UserResponse {
   firstName?: string;
   lastName?: string;
   isDisabled: boolean;
+  isLockedOut: boolean;
+  lockoutEnd?: string;
   lastLoginAt?: string;
   roles: string[];
   ensembles: EnsembleSummary[];

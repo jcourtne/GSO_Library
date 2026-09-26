@@ -89,6 +89,14 @@ export default function UserList() {
     onError: () => setError('Failed to update user status'),
   });
 
+  const unlockMutation = useMutation({
+    mutationFn: (user: UserResponse) => authApi.unlockUser(user.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: () => setError('Failed to unlock user'),
+  });
+
   function handleSort(key: SortKey) {
     if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortKey(key); setSortDir('asc'); }
@@ -174,7 +182,10 @@ export default function UserList() {
         <tbody>
           {filteredActive.map((u) => (
             <tr key={u.id}>
-              <td>{u.userName}</td>
+              <td>
+                {u.userName}{' '}
+                {u.isLockedOut && <Badge bg="warning">Locked Out</Badge>}
+              </td>
               <td>{u.email}</td>
               <td>{[u.firstName, u.lastName].filter(Boolean).join(' ') || '-'}</td>
               <td>
@@ -197,6 +208,16 @@ export default function UserList() {
                   <Link to={`/admin/users/${u.id}`} className="btn btn-sm btn-outline-primary">
                     Manage
                   </Link>
+                  {u.isLockedOut && (
+                    <Button
+                      size="sm"
+                      variant="outline-warning"
+                      onClick={() => unlockMutation.mutate(u)}
+                      disabled={unlockMutation.isPending}
+                    >
+                      Unlock
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline-danger" onClick={() => setToggleTarget(u)}>
                     Disable
                   </Button>

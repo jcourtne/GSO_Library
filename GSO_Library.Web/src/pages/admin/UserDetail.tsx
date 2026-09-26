@@ -59,6 +59,8 @@ export default function UserDetail() {
   const resetPasswordMutation = useMutation({
     mutationFn: () => authApi.resetPassword(id!, { newPassword }),
     onSuccess: (resp) => {
+      queryClient.invalidateQueries({ queryKey: ['user', id] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
       setSuccess(resp.message);
       setNewPassword('');
       setConfirmPassword('');
@@ -74,6 +76,16 @@ export default function UserDetail() {
       setSuccess(resp.message);
     },
     onError: () => setError('Failed to update status'),
+  });
+
+  const unlockMutation = useMutation({
+    mutationFn: () => authApi.unlockUser(id!),
+    onSuccess: (resp) => {
+      queryClient.invalidateQueries({ queryKey: ['user', id] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setSuccess(resp.message);
+    },
+    onError: () => setError('Failed to unlock account'),
   });
 
   const { data: userEnsembles } = useQuery({
@@ -130,15 +142,27 @@ export default function UserDetail() {
                 <strong>Status:</strong>{' '}
                 <Badge bg={user.isDisabled ? 'danger' : 'success'}>
                   {user.isDisabled ? 'Disabled' : 'Active'}
-                </Badge>
+                </Badge>{' '}
+                {user.isLockedOut && <Badge bg="warning">Locked Out</Badge>}
               </p>
-              <Button
-                variant={user.isDisabled ? 'success' : 'danger'}
-                onClick={() => toggleMutation.mutate()}
-                disabled={toggleMutation.isPending}
-              >
-                {user.isDisabled ? 'Enable Account' : 'Disable Account'}
-              </Button>
+              <div className="d-flex gap-2">
+                <Button
+                  variant={user.isDisabled ? 'success' : 'danger'}
+                  onClick={() => toggleMutation.mutate()}
+                  disabled={toggleMutation.isPending}
+                >
+                  {user.isDisabled ? 'Enable Account' : 'Disable Account'}
+                </Button>
+                {user.isLockedOut && (
+                  <Button
+                    variant="warning"
+                    onClick={() => unlockMutation.mutate()}
+                    disabled={unlockMutation.isPending}
+                  >
+                    Unlock Account
+                  </Button>
+                )}
+              </div>
             </Card.Body>
           </Card>
         </Col>
