@@ -14,9 +14,10 @@ interface FileSectionProps {
   editable: boolean;
   accept?: string;
   canDownload?: boolean;
+  checkCanModifyFiles?: () => boolean;
 }
 
-export default function FileSection({ title, files, arrangementId, editable, accept, canDownload = true }: FileSectionProps) {
+export default function FileSection({ title, files, arrangementId, editable, accept, canDownload = true, checkCanModifyFiles = () => true }: FileSectionProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
@@ -53,6 +54,7 @@ export default function FileSection({ title, files, arrangementId, editable, acc
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!checkCanModifyFiles()) { e.target.value = ''; return; }
     setError('');
     setUploading(true);
     uploadMutation.mutate(file);
@@ -77,6 +79,7 @@ export default function FileSection({ title, files, arrangementId, editable, acc
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (!file) return;
+    if (!checkCanModifyFiles()) return;
     setError('');
     setUploading(true);
     uploadMutation.mutate(file);
@@ -136,7 +139,7 @@ export default function FileSection({ title, files, arrangementId, editable, acc
                         </Button>
                       )}
                       {editable && (
-                        <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(f)}>
+                        <Button size="sm" variant="outline-danger" onClick={() => { if (!checkCanModifyFiles()) return; setDeleteTarget(f); }}>
                           Delete
                         </Button>
                       )}

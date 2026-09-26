@@ -6,6 +6,7 @@ interface ConfirmModalProps {
   message: string;
   confirmLabel?: string;
   confirmVariant?: string;
+  hideCancel?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -16,6 +17,7 @@ export default function ConfirmModal({
   message,
   confirmLabel = 'Delete',
   confirmVariant = 'danger',
+  hideCancel = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -26,7 +28,7 @@ export default function ConfirmModal({
       </Modal.Header>
       <Modal.Body>{message}</Modal.Body>
       <Modal.Footer>
-        <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+        {!hideCancel && <Button variant="secondary" onClick={onCancel}>Cancel</Button>}
         <Button variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Button>
       </Modal.Footer>
     </Modal>

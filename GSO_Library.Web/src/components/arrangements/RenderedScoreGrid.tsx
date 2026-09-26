@@ -44,6 +44,7 @@ interface Props {
   files: ArrangementFile[];
   editable: boolean;
   canDownload: boolean;
+  checkCanModifyFiles?: () => boolean;
 }
 
 interface Section {
@@ -70,7 +71,7 @@ function filterVisible(sections: Section[]): Section[] {
   return out;
 }
 
-export default function RenderedScoreGrid({ arrangement, files, editable, canDownload }: Props) {
+export default function RenderedScoreGrid({ arrangement, files, editable, canDownload, checkCanModifyFiles = () => true }: Props) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
@@ -136,6 +137,7 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
 
   const uploadFiles = (filesToUpload: File[]) => {
     if (filesToUpload.length === 0) return;
+    if (!checkCanModifyFiles()) return;
     setError('');
     setUploading(true);
     Promise.allSettled(filesToUpload.map((f) => uploadMutation.mutateAsync(f)))
@@ -165,6 +167,7 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
   const handleRowDrop = (e: React.DragEvent, scorePartType: string, instrumentId: number | null) => {
     e.preventDefault();
     setDragOverRow(null);
+    if (!checkCanModifyFiles()) return;
     const fileIdStr = e.dataTransfer.getData('fileId');
     if (!fileIdStr) return;
     const fileId = parseInt(fileIdStr, 10);
@@ -185,6 +188,7 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
   };
 
   const handleRemoveFromInstrument = (fileId: number, instrumentId: number) => {
+    if (!checkCanModifyFiles()) return;
     const file = renderedScoreFiles.find((f) => f.id === fileId);
     if (!file) return;
     const newIds = file.instrumentIds.filter((id) => id !== instrumentId);
@@ -196,6 +200,7 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
   };
 
   const handleRemoveFromSection = (fileId: number) => {
+    if (!checkCanModifyFiles()) return;
     const file = renderedScoreFiles.find((f) => f.id === fileId);
     if (!file) return;
     // Keep any instrument assignments; only clear the generic section type
@@ -206,6 +211,7 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
   };
 
   const handleAutoSort = async () => {
+    if (!checkCanModifyFiles()) return;
     const matches = autoMatch(grouped.unlisted, instruments);
     if (matches.length === 0) return;
     setAutoSorting(true);
@@ -427,7 +433,7 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
                             </Button>
                           )}
                           {editable && (
-                            <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(f)}>
+                            <Button size="sm" variant="outline-danger" onClick={() => { if (!checkCanModifyFiles()) return; setDeleteTarget(f); }}>
                               Delete
                             </Button>
                           )}

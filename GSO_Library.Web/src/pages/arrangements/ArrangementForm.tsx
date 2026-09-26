@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Badge, Button, Card, Col, Form, ListGroup, Modal, Row, Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,9 +14,28 @@ import FileSection from '../../components/arrangements/FileSection';
 import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
 import QuickCreateGameModal from '../../components/common/QuickCreateGameModal';
 import QuickCreateInstrumentModal from '../../components/common/QuickCreateInstrumentModal';
+import ConfirmModal from '../../components/common/ConfirmModal';
 import { categorizeFiles, NOTATION_ACCEPT, PLAYBACK_ACCEPT } from '../../utils/fileCategories';
 import { useDragAutoScroll } from '../../hooks/useDragAutoScroll';
 import type { ArrangementRequest, Instrument } from '../../types';
+
+interface FormBaseline {
+  form: ArrangementRequest;
+  gameIds: Set<number>;
+  instrumentIds: Set<number>;
+  ensembleIds: Set<number>;
+}
+
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((v, i) => v === b[i]);
+}
+
+function setsEqual(a: Set<number>, b: Set<number>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
+}
 
 function buildInstrumentGroups(instruments: Instrument[]) {
   const seen = new Map<string, Instrument[]>();
@@ -98,21 +117,56 @@ export default function ArrangementForm() {
   const [showCreateGame, setShowCreateGame] = useState(false);
   const [showCreateInstrument, setShowCreateInstrument] = useState(false);
 
+  // Unsaved-changes guard for file operations
+  const hasInitializedFormRef = useRef(false);
+  const baselineRef = useRef<FormBaseline | null>(null);
+  const [showUnsavedFilesBlockedModal, setShowUnsavedFilesBlockedModal] = useState(false);
+
   useEffect(() => {
-    if (existing) {
-      setForm({
+    if (existing && !hasInitializedFormRef.current) {
+      hasInitializedFormRef.current = true;
+      const nextForm: ArrangementRequest = {
         name: existing.name,
         description: existing.description || '',
         arrangers: existing.arrangers || [],
         composers: existing.composers || [],
         durationSeconds: existing.durationSeconds,
         year: existing.year,
-      });
-      setLinkedGameIds(new Set(existing.games?.map((g) => g.id) || []));
-      setLinkedInstrumentIds(new Set(existing.instruments?.map((i) => i.id) || []));
-      setLinkedEnsembleIds(new Set(existing.ensembles?.map((e) => e.id) || []));
+      };
+      const nextGameIds = new Set(existing.games?.map((g) => g.id) || []);
+      const nextInstrumentIds = new Set(existing.instruments?.map((i) => i.id) || []);
+      const nextEnsembleIds = new Set(existing.ensembles?.map((e) => e.id) || []);
+      setForm(nextForm);
+      setLinkedGameIds(nextGameIds);
+      setLinkedInstrumentIds(nextInstrumentIds);
+      setLinkedEnsembleIds(nextEnsembleIds);
+      baselineRef.current = { form: nextForm, gameIds: nextGameIds, instrumentIds: nextInstrumentIds, ensembleIds: nextEnsembleIds };
     }
   }, [existing]);
+
+  const isFormDirty = (): boolean => {
+    const b = baselineRef.current;
+    if (!b) return false;
+    if (composerInput.trim() !== '' || arrangerInput.trim() !== '') return true;
+    if (form.name !== b.form.name) return true;
+    if ((form.description || '') !== (b.form.description || '')) return true;
+    if (form.durationSeconds !== b.form.durationSeconds) return true;
+    if (form.year !== b.form.year) return true;
+    if (!arraysEqual(form.composers || [], b.form.composers || [])) return true;
+    if (!arraysEqual(form.arrangers || [], b.form.arrangers || [])) return true;
+    if (!setsEqual(linkedGameIds, b.gameIds)) return true;
+    if (!setsEqual(linkedInstrumentIds, b.instrumentIds)) return true;
+    if (!setsEqual(linkedEnsembleIds, b.ensembleIds)) return true;
+    return false;
+  };
+
+  const handleCheckCanModifyFiles = (): boolean => {
+    if (isFormDirty()) {
+      setShowUnsavedFilesBlockedModal(true);
+      return false;
+    }
+    return true;
+  };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -578,6 +632,9 @@ export default function ArrangementForm() {
             {saveMutation.isPending ? <Spinner size="sm" animation="border" /> : (isEdit ? 'Save Changes' : 'Create Arrangement')}
           </Button>
           <Button variant="secondary" className="ms-2" onClick={() => navigate(isEdit ? `/arrangements/${id}` : '/arrangements')}>Cancel</Button>
+          {isEdit && isFormDirty() && (
+            <Badge bg="warning" text="dark" className="ms-2">Unsaved changes</Badge>
+          )}
         </div>
       </Form>
 
@@ -604,12 +661,23 @@ export default function ArrangementForm() {
         return (
           <div className="mt-4">
             <h4>Files</h4>
-            <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={Number(id)} editable accept={NOTATION_ACCEPT} />
-            <RenderedScoreGrid arrangement={existing} files={files} editable canDownload />
-            <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={Number(id)} editable accept={PLAYBACK_ACCEPT} />
+            <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={Number(id)} editable accept={NOTATION_ACCEPT} checkCanModifyFiles={handleCheckCanModifyFiles} />
+            <RenderedScoreGrid arrangement={existing} files={files} editable canDownload checkCanModifyFiles={handleCheckCanModifyFiles} />
+            <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={Number(id)} editable accept={PLAYBACK_ACCEPT} checkCanModifyFiles={handleCheckCanModifyFiles} />
           </div>
         );
       })()}
+
+      <ConfirmModal
+        show={showUnsavedFilesBlockedModal}
+        title="Unsaved Changes"
+        message="You have unsaved changes to this arrangement. Please save your changes and refresh the page before uploading, deleting, or reorganizing files."
+        confirmLabel="OK"
+        confirmVariant="primary"
+        hideCancel
+        onConfirm={() => setShowUnsavedFilesBlockedModal(false)}
+        onCancel={() => setShowUnsavedFilesBlockedModal(false)}
+      />
     </>
   );
 }
