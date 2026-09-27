@@ -13,6 +13,7 @@ export interface ArrangementSummary {
   name: string;
   composers: string[];
   arrangers: string[];
+  games: string[];
 }
 
 export interface DownloadSection {

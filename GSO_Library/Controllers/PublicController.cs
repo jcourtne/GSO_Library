@@ -258,6 +258,7 @@ public class PublicController(
                 Name = a.Name,
                 Composers = a.Composers.ToList(),
                 Arrangers = a.Arrangers.ToList(),
+                Games = a.Games.Select(g => g.Name).ToList(),
             }).ToList(),
             DownloadSections = sections,
         };

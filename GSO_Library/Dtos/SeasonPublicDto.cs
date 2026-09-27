@@ -26,6 +26,7 @@ public class ArrangementSummaryDto
     public string Name { get; set; } = "";
     public List<string> Composers { get; set; } = [];
     public List<string> Arrangers { get; set; } = [];
+    public List<string> Games { get; set; } = [];
 }
 
 public class DownloadSectionDto
