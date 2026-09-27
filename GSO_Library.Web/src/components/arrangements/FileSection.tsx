@@ -107,7 +107,10 @@ export default function FileSection({ title, files, arrangementId, editable, acc
                   <ProgressBar animated now={100} className="mt-2" />
                 </>
               ) : (
-                <small className="text-muted">Drag & drop or click to upload</small>
+                <>
+                  <small className="text-muted d-block">Drag & drop or click to upload</small>
+                  <small className="text-muted">Max file size: 30 MB</small>
+                </>
               )}
               <input
                 type="file"
