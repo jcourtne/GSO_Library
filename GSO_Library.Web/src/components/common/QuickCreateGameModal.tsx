@@ -3,6 +3,7 @@ import { Alert, Button, Form, Modal, Spinner } from 'react-bootstrap';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { gamesApi } from '../../api/games';
 import { seriesApi } from '../../api/series';
+import { getApiErrorMessage } from '../../api/errors';
 import SearchableSelect from './SearchableSelect';
 import QuickCreateSeriesModal from './QuickCreateSeriesModal';
 import type { Game } from '../../types';
@@ -31,7 +32,7 @@ export default function QuickCreateGameModal({ show, onHide, onCreated }: QuickC
       onCreated(created);
       resetAndClose();
     },
-    onError: () => setError('Failed to create game'),
+    onError: (err) => setError(getApiErrorMessage(err, 'Failed to create game')),
   });
 
   const resetAndClose = () => {

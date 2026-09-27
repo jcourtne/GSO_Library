@@ -3,6 +3,7 @@ import { Alert, Button, Form, Modal, Spinner } from 'react-bootstrap';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { instrumentsApi } from '../../api/instruments';
 import { instrumentFamiliesApi } from '../../api/instrumentFamilies';
+import { getApiErrorMessage } from '../../api/errors';
 import type { Instrument } from '../../types';
 
 interface QuickCreateInstrumentModalProps {
@@ -29,7 +30,7 @@ export default function QuickCreateInstrumentModal({ show, onHide, onCreated }: 
       onCreated(created);
       resetAndClose();
     },
-    onError: () => setError('Failed to create instrument'),
+    onError: (err) => setError(getApiErrorMessage(err, 'Failed to create instrument')),
   });
 
   const resetAndClose = () => {

@@ -42,9 +42,11 @@ public class SeriesController(SeriesRepository seriesRepository, IAuditService a
         series.CreatedAt = now;
         series.UpdatedAt = now;
         series.CreatedBy = User.Identity?.Name;
-        var createdSeries = await seriesRepository.AddSeriesAsync(series);
+        var (createdSeries, duplicate) = await seriesRepository.AddSeriesAsync(series);
+        if (duplicate)
+            return Conflict($"A series named '{series.Name}' already exists.");
         await auditService.LogAsync(AuditEventType.SeriesCreate, User.Identity?.Name, null, null,
-            $"seriesId: {createdSeries.Id} ({createdSeries.Name})");
+            $"seriesId: {createdSeries!.Id} ({createdSeries.Name})");
         return CreatedAtAction(nameof(GetSeriesById), new { id = createdSeries.Id }, createdSeries);
     }
 
@@ -53,7 +55,9 @@ public class SeriesController(SeriesRepository seriesRepository, IAuditService a
     public async Task<ActionResult<Series>> UpdateSeries(int id, [FromBody] Series series)
     {
         series.UpdatedAt = DateTime.UtcNow;
-        var updated = await seriesRepository.UpdateSeriesAsync(id, series);
+        var (updated, duplicate) = await seriesRepository.UpdateSeriesAsync(id, series);
+        if (duplicate)
+            return Conflict($"A series named '{series.Name}' already exists.");
         if (updated == null)
             return NotFound();
 

@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { gamesApi } from '../../api/games';
 import { seriesApi } from '../../api/series';
+import { getApiErrorMessage } from '../../api/errors';
 import QuickCreateSeriesModal from '../../components/common/QuickCreateSeriesModal';
 import SearchableSelect from '../../components/common/SearchableSelect';
 
@@ -45,7 +46,7 @@ export default function GameForm() {
       queryClient.invalidateQueries({ queryKey: ['games'] });
       navigate('/games');
     },
-    onError: () => setError('Failed to save game'),
+    onError: (err) => setError(getApiErrorMessage(err, 'Failed to save game')),
   });
 
   if (isEdit && isLoading) return <Spinner animation="border" />;

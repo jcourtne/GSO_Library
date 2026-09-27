@@ -81,27 +81,39 @@ public class SeriesRepository
         return new PaginatedResult<Series> { Items = seriesList, Page = page, PageSize = pageSize, TotalCount = totalCount };
     }
 
-    public async Task<Series> AddSeriesAsync(Series series)
+    public async Task<(Series? Series, bool DuplicateName)> AddSeriesAsync(Series series)
     {
         using var connection = _connectionFactory.CreateConnection();
+        if (await NameExistsAsync(connection, series.Name))
+            return (null, true);
         var id = await connection.InsertReturningIdAsync(
             "INSERT INTO series (name, description, created_at, updated_at, created_by) VALUES (@Name, @Description, @CreatedAt, @UpdatedAt, @CreatedBy)",
             new { series.Name, series.Description, series.CreatedAt, series.UpdatedAt, series.CreatedBy });
         series.Id = id;
         InvalidateArrangementCache();
-        return series;
+        return (series, false);
     }
 
-    public async Task<Series?> UpdateSeriesAsync(int id, Series series)
+    public async Task<(Series? Series, bool DuplicateName)> UpdateSeriesAsync(int id, Series series)
     {
         using var connection = _connectionFactory.CreateConnection();
+        if (await NameExistsAsync(connection, series.Name, excludeId: id))
+            return (null, true);
         var rows = await connection.ExecuteAsync(
             "UPDATE series SET name = @Name, description = @Description, updated_at = @UpdatedAt WHERE id = @Id",
             new { series.Name, series.Description, series.UpdatedAt, Id = id });
-        if (rows == 0) return null;
+        if (rows == 0) return (null, false);
         series.Id = id;
         InvalidateArrangementCache();
-        return series;
+        return (series, false);
+    }
+
+    private static async Task<bool> NameExistsAsync(System.Data.IDbConnection connection, string name, int? excludeId = null)
+    {
+        var sql = "SELECT COUNT(*) FROM series WHERE LOWER(name) = LOWER(@Name)";
+        if (excludeId.HasValue) sql += " AND id != @ExcludeId";
+        var count = await connection.ExecuteScalarAsync<int>(sql, new { Name = name, ExcludeId = excludeId });
+        return count > 0;
     }
 
     public async Task<bool> DeleteSeriesAsync(int id)

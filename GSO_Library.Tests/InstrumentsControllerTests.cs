@@ -176,4 +176,40 @@ public class InstrumentsControllerTests : IntegrationTestBase
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Fact]
+    public async Task CreateInstrument_DuplicateNameCaseInsensitive_Returns409()
+    {
+        var client = await GetEditorClientAsync();
+        await client.PostAsJsonAsync("/api/instruments", new { Name = "Piccolo" });
+
+        var response = await client.PostAsJsonAsync("/api/instruments", new { Name = "piccolo" });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateInstrument_RenameToExistingName_Returns409()
+    {
+        var client = await GetEditorClientAsync();
+        await client.PostAsJsonAsync("/api/instruments", new { Name = "Bassoon" });
+        var createResponse = await client.PostAsJsonAsync("/api/instruments", new { Name = "Clarinet" });
+        var created = await createResponse.Content.ReadFromJsonAsync<Instrument>(JsonOpts);
+
+        var response = await client.PutAsJsonAsync($"/api/instruments/{created!.Id}", new { Name = "bassoon" });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateInstrument_RenameToOwnNameDifferentCase_Returns200()
+    {
+        var client = await GetEditorClientAsync();
+        var createResponse = await client.PostAsJsonAsync("/api/instruments", new { Name = "Harp" });
+        var created = await createResponse.Content.ReadFromJsonAsync<Instrument>(JsonOpts);
+
+        var response = await client.PutAsJsonAsync($"/api/instruments/{created!.Id}", new { Name = "HARP" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 }

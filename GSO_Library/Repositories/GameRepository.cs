@@ -104,27 +104,39 @@ public class GameRepository
         return new PaginatedResult<Game> { Items = games, Page = page, PageSize = pageSize, TotalCount = totalCount };
     }
 
-    public async Task<Game> AddGameAsync(Game game)
+    public async Task<(Game? Game, bool DuplicateName)> AddGameAsync(Game game)
     {
         using var connection = _connectionFactory.CreateConnection();
+        if (await NameExistsAsync(connection, game.Name))
+            return (null, true);
         var id = await connection.InsertReturningIdAsync(
             "INSERT INTO games (name, description, release_year, series_id, created_at, updated_at, created_by) VALUES (@Name, @Description, @ReleaseYear, @SeriesId, @CreatedAt, @UpdatedAt, @CreatedBy)",
             new { game.Name, game.Description, game.ReleaseYear, game.SeriesId, game.CreatedAt, game.UpdatedAt, game.CreatedBy });
         game.Id = id;
         InvalidateArrangementCache();
-        return game;
+        return (game, false);
     }
 
-    public async Task<Game?> UpdateGameAsync(int id, Game game)
+    public async Task<(Game? Game, bool DuplicateName)> UpdateGameAsync(int id, Game game)
     {
         using var connection = _connectionFactory.CreateConnection();
+        if (await NameExistsAsync(connection, game.Name, excludeId: id))
+            return (null, true);
         var rows = await connection.ExecuteAsync(
             "UPDATE games SET name = @Name, description = @Description, release_year = @ReleaseYear, series_id = @SeriesId, updated_at = @UpdatedAt WHERE id = @Id",
             new { game.Name, game.Description, game.ReleaseYear, game.SeriesId, game.UpdatedAt, Id = id });
-        if (rows == 0) return null;
+        if (rows == 0) return (null, false);
         game.Id = id;
         InvalidateArrangementCache();
-        return game;
+        return (game, false);
+    }
+
+    private static async Task<bool> NameExistsAsync(System.Data.IDbConnection connection, string name, int? excludeId = null)
+    {
+        var sql = "SELECT COUNT(*) FROM games WHERE LOWER(name) = LOWER(@Name)";
+        if (excludeId.HasValue) sql += " AND id != @ExcludeId";
+        var count = await connection.ExecuteScalarAsync<int>(sql, new { Name = name, ExcludeId = excludeId });
+        return count > 0;
     }
 
     public async Task<bool> DeleteGameAsync(int id)

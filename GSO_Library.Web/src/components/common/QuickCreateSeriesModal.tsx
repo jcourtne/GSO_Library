@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, Button, Form, Modal, Spinner } from 'react-bootstrap';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { seriesApi } from '../../api/series';
+import { getApiErrorMessage } from '../../api/errors';
 import type { Series } from '../../types';
 
 interface QuickCreateSeriesModalProps {
@@ -23,7 +24,7 @@ export default function QuickCreateSeriesModal({ show, onHide, onCreated }: Quic
       onCreated(created);
       resetAndClose();
     },
-    onError: () => setError('Failed to create series'),
+    onError: (err) => setError(getApiErrorMessage(err, 'Failed to create series')),
   });
 
   const resetAndClose = () => {

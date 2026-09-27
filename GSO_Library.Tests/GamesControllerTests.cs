@@ -14,7 +14,7 @@ public class GamesControllerTests : IntegrationTestBase
 
     private async Task<int> CreateSeriesAsync(HttpClient client)
     {
-        var response = await client.PostAsJsonAsync("/api/series", new { Name = "TestSeries_Games" });
+        var response = await client.PostAsJsonAsync("/api/series", new { Name = $"TestSeries_Games_{Guid.NewGuid()}" });
         var series = await response.Content.ReadFromJsonAsync<Series>(JsonOpts);
         return series!.Id;
     }
@@ -216,5 +216,44 @@ public class GamesControllerTests : IntegrationTestBase
         var response = await client.PostAsJsonAsync("/api/games", new { Name = "Nope", SeriesId = 1 });
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateGame_DuplicateNameCaseInsensitive_Returns409()
+    {
+        var client = await GetEditorClientAsync();
+        var seriesId = await CreateSeriesAsync(client);
+        await client.PostAsJsonAsync("/api/games", new { Name = "Chrono Trigger", SeriesId = seriesId });
+
+        var response = await client.PostAsJsonAsync("/api/games", new { Name = "chrono trigger", SeriesId = seriesId });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateGame_RenameToExistingName_Returns409()
+    {
+        var client = await GetEditorClientAsync();
+        var seriesId = await CreateSeriesAsync(client);
+        await client.PostAsJsonAsync("/api/games", new { Name = "Secret of Mana", SeriesId = seriesId });
+        var createResponse = await client.PostAsJsonAsync("/api/games", new { Name = "Terranigma", SeriesId = seriesId });
+        var created = await createResponse.Content.ReadFromJsonAsync<Game>(JsonOpts);
+
+        var response = await client.PutAsJsonAsync($"/api/games/{created!.Id}", new { Name = "secret of mana", SeriesId = seriesId });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateGame_RenameToOwnNameDifferentCase_Returns200()
+    {
+        var client = await GetEditorClientAsync();
+        var seriesId = await CreateSeriesAsync(client);
+        var createResponse = await client.PostAsJsonAsync("/api/games", new { Name = "Earthbound", SeriesId = seriesId });
+        var created = await createResponse.Content.ReadFromJsonAsync<Game>(JsonOpts);
+
+        var response = await client.PutAsJsonAsync($"/api/games/{created!.Id}", new { Name = "EARTHBOUND", SeriesId = seriesId });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 }

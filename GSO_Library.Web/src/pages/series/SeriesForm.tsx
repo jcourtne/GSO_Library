@@ -3,6 +3,7 @@ import { Alert, Button, Card, Form, Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { seriesApi } from '../../api/series';
+import { getApiErrorMessage } from '../../api/errors';
 
 export default function SeriesForm() {
   const { id } = useParams<{ id: string }>();
@@ -35,7 +36,7 @@ export default function SeriesForm() {
       queryClient.invalidateQueries({ queryKey: ['series'] });
       navigate('/series');
     },
-    onError: () => setError('Failed to save series'),
+    onError: (err) => setError(getApiErrorMessage(err, 'Failed to save series')),
   });
 
   if (isEdit && isLoading) return <Spinner animation="border" />;

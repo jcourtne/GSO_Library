@@ -42,9 +42,11 @@ public class InstrumentsController(InstrumentRepository instrumentRepository, IA
         instrument.CreatedAt = now;
         instrument.UpdatedAt = now;
         instrument.CreatedBy = User.Identity?.Name;
-        var created = await instrumentRepository.AddInstrumentAsync(instrument);
+        var (created, duplicate) = await instrumentRepository.AddInstrumentAsync(instrument);
+        if (duplicate)
+            return Conflict($"An instrument named '{instrument.Name}' already exists.");
         await auditService.LogAsync(AuditEventType.InstrumentCreate, User.Identity?.Name, null, null,
-            $"instrumentId: {created.Id} ({created.Name})");
+            $"instrumentId: {created!.Id} ({created.Name})");
         return CreatedAtAction(nameof(GetInstrumentById), new { id = created.Id }, created);
     }
 
@@ -53,7 +55,9 @@ public class InstrumentsController(InstrumentRepository instrumentRepository, IA
     public async Task<ActionResult<Instrument>> UpdateInstrument(int id, [FromBody] Instrument instrument)
     {
         instrument.UpdatedAt = DateTime.UtcNow;
-        var updated = await instrumentRepository.UpdateInstrumentAsync(id, instrument);
+        var (updated, duplicate) = await instrumentRepository.UpdateInstrumentAsync(id, instrument);
+        if (duplicate)
+            return Conflict($"An instrument named '{instrument.Name}' already exists.");
         if (updated == null)
             return NotFound();
 

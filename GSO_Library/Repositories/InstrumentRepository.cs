@@ -55,27 +55,39 @@ public class InstrumentRepository
             new { Id = id });
     }
 
-    public async Task<Instrument> AddInstrumentAsync(Instrument instrument)
+    public async Task<(Instrument? Instrument, bool DuplicateName)> AddInstrumentAsync(Instrument instrument)
     {
         using var connection = _connectionFactory.CreateConnection();
+        if (await NameExistsAsync(connection, instrument.Name))
+            return (null, true);
         var id = await connection.InsertReturningIdAsync(
             "INSERT INTO instruments (name, family_id, created_at, updated_at, created_by) VALUES (@Name, @FamilyId, @CreatedAt, @UpdatedAt, @CreatedBy)",
             new { instrument.Name, instrument.FamilyId, instrument.CreatedAt, instrument.UpdatedAt, instrument.CreatedBy });
         instrument.Id = id;
         InvalidateArrangementCache();
-        return instrument;
+        return (instrument, false);
     }
 
-    public async Task<Instrument?> UpdateInstrumentAsync(int id, Instrument instrument)
+    public async Task<(Instrument? Instrument, bool DuplicateName)> UpdateInstrumentAsync(int id, Instrument instrument)
     {
         using var connection = _connectionFactory.CreateConnection();
+        if (await NameExistsAsync(connection, instrument.Name, excludeId: id))
+            return (null, true);
         var rows = await connection.ExecuteAsync(
             "UPDATE instruments SET name = @Name, family_id = @FamilyId, updated_at = @UpdatedAt WHERE id = @Id",
             new { instrument.Name, instrument.FamilyId, instrument.UpdatedAt, Id = id });
-        if (rows == 0) return null;
+        if (rows == 0) return (null, false);
         instrument.Id = id;
         InvalidateArrangementCache();
-        return instrument;
+        return (instrument, false);
+    }
+
+    private static async Task<bool> NameExistsAsync(System.Data.IDbConnection connection, string name, int? excludeId = null)
+    {
+        var sql = "SELECT COUNT(*) FROM instruments WHERE LOWER(name) = LOWER(@Name)";
+        if (excludeId.HasValue) sql += " AND id != @ExcludeId";
+        var count = await connection.ExecuteScalarAsync<int>(sql, new { Name = name, ExcludeId = excludeId });
+        return count > 0;
     }
 
     public async Task<bool> DeleteInstrumentAsync(int id)
