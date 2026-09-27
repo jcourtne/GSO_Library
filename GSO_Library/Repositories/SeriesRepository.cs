@@ -86,9 +86,17 @@ public class SeriesRepository
         using var connection = _connectionFactory.CreateConnection();
         if (await NameExistsAsync(connection, series.Name))
             return (null, true);
-        var id = await connection.InsertReturningIdAsync(
-            "INSERT INTO series (name, description, created_at, updated_at, created_by) VALUES (@Name, @Description, @CreatedAt, @UpdatedAt, @CreatedBy)",
-            new { series.Name, series.Description, series.CreatedAt, series.UpdatedAt, series.CreatedBy });
+        int id;
+        try
+        {
+            id = await connection.InsertReturningIdAsync(
+                "INSERT INTO series (name, description, created_at, updated_at, created_by) VALUES (@Name, @Description, @CreatedAt, @UpdatedAt, @CreatedBy)",
+                new { series.Name, series.Description, series.CreatedAt, series.UpdatedAt, series.CreatedBy });
+        }
+        catch (Exception ex) when (ex.IsUniqueConstraintViolation())
+        {
+            return (null, true);
+        }
         series.Id = id;
         InvalidateArrangementCache();
         return (series, false);
@@ -99,9 +107,17 @@ public class SeriesRepository
         using var connection = _connectionFactory.CreateConnection();
         if (await NameExistsAsync(connection, series.Name, excludeId: id))
             return (null, true);
-        var rows = await connection.ExecuteAsync(
-            "UPDATE series SET name = @Name, description = @Description, updated_at = @UpdatedAt WHERE id = @Id",
-            new { series.Name, series.Description, series.UpdatedAt, Id = id });
+        int rows;
+        try
+        {
+            rows = await connection.ExecuteAsync(
+                "UPDATE series SET name = @Name, description = @Description, updated_at = @UpdatedAt WHERE id = @Id",
+                new { series.Name, series.Description, series.UpdatedAt, Id = id });
+        }
+        catch (Exception ex) when (ex.IsUniqueConstraintViolation())
+        {
+            return (null, true);
+        }
         if (rows == 0) return (null, false);
         series.Id = id;
         InvalidateArrangementCache();

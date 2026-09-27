@@ -109,9 +109,17 @@ public class GameRepository
         using var connection = _connectionFactory.CreateConnection();
         if (await NameExistsAsync(connection, game.Name))
             return (null, true);
-        var id = await connection.InsertReturningIdAsync(
-            "INSERT INTO games (name, description, release_year, series_id, created_at, updated_at, created_by) VALUES (@Name, @Description, @ReleaseYear, @SeriesId, @CreatedAt, @UpdatedAt, @CreatedBy)",
-            new { game.Name, game.Description, game.ReleaseYear, game.SeriesId, game.CreatedAt, game.UpdatedAt, game.CreatedBy });
+        int id;
+        try
+        {
+            id = await connection.InsertReturningIdAsync(
+                "INSERT INTO games (name, description, release_year, series_id, created_at, updated_at, created_by) VALUES (@Name, @Description, @ReleaseYear, @SeriesId, @CreatedAt, @UpdatedAt, @CreatedBy)",
+                new { game.Name, game.Description, game.ReleaseYear, game.SeriesId, game.CreatedAt, game.UpdatedAt, game.CreatedBy });
+        }
+        catch (Exception ex) when (ex.IsUniqueConstraintViolation())
+        {
+            return (null, true);
+        }
         game.Id = id;
         InvalidateArrangementCache();
         return (game, false);
@@ -122,9 +130,17 @@ public class GameRepository
         using var connection = _connectionFactory.CreateConnection();
         if (await NameExistsAsync(connection, game.Name, excludeId: id))
             return (null, true);
-        var rows = await connection.ExecuteAsync(
-            "UPDATE games SET name = @Name, description = @Description, release_year = @ReleaseYear, series_id = @SeriesId, updated_at = @UpdatedAt WHERE id = @Id",
-            new { game.Name, game.Description, game.ReleaseYear, game.SeriesId, game.UpdatedAt, Id = id });
+        int rows;
+        try
+        {
+            rows = await connection.ExecuteAsync(
+                "UPDATE games SET name = @Name, description = @Description, release_year = @ReleaseYear, series_id = @SeriesId, updated_at = @UpdatedAt WHERE id = @Id",
+                new { game.Name, game.Description, game.ReleaseYear, game.SeriesId, game.UpdatedAt, Id = id });
+        }
+        catch (Exception ex) when (ex.IsUniqueConstraintViolation())
+        {
+            return (null, true);
+        }
         if (rows == 0) return (null, false);
         game.Id = id;
         InvalidateArrangementCache();

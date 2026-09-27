@@ -60,9 +60,17 @@ public class InstrumentRepository
         using var connection = _connectionFactory.CreateConnection();
         if (await NameExistsAsync(connection, instrument.Name))
             return (null, true);
-        var id = await connection.InsertReturningIdAsync(
-            "INSERT INTO instruments (name, family_id, created_at, updated_at, created_by) VALUES (@Name, @FamilyId, @CreatedAt, @UpdatedAt, @CreatedBy)",
-            new { instrument.Name, instrument.FamilyId, instrument.CreatedAt, instrument.UpdatedAt, instrument.CreatedBy });
+        int id;
+        try
+        {
+            id = await connection.InsertReturningIdAsync(
+                "INSERT INTO instruments (name, family_id, created_at, updated_at, created_by) VALUES (@Name, @FamilyId, @CreatedAt, @UpdatedAt, @CreatedBy)",
+                new { instrument.Name, instrument.FamilyId, instrument.CreatedAt, instrument.UpdatedAt, instrument.CreatedBy });
+        }
+        catch (Exception ex) when (ex.IsUniqueConstraintViolation())
+        {
+            return (null, true);
+        }
         instrument.Id = id;
         InvalidateArrangementCache();
         return (instrument, false);
@@ -73,9 +81,17 @@ public class InstrumentRepository
         using var connection = _connectionFactory.CreateConnection();
         if (await NameExistsAsync(connection, instrument.Name, excludeId: id))
             return (null, true);
-        var rows = await connection.ExecuteAsync(
-            "UPDATE instruments SET name = @Name, family_id = @FamilyId, updated_at = @UpdatedAt WHERE id = @Id",
-            new { instrument.Name, instrument.FamilyId, instrument.UpdatedAt, Id = id });
+        int rows;
+        try
+        {
+            rows = await connection.ExecuteAsync(
+                "UPDATE instruments SET name = @Name, family_id = @FamilyId, updated_at = @UpdatedAt WHERE id = @Id",
+                new { instrument.Name, instrument.FamilyId, instrument.UpdatedAt, Id = id });
+        }
+        catch (Exception ex) when (ex.IsUniqueConstraintViolation())
+        {
+            return (null, true);
+        }
         if (rows == 0) return (null, false);
         instrument.Id = id;
         InvalidateArrangementCache();

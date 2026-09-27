@@ -45,4 +45,21 @@ public static class DbHelpers
             return await connection.ExecuteScalarAsync<int>(sql + " RETURNING id", param);
         }
     }
+
+    /// <summary>
+    /// True if the exception represents a unique constraint violation, for both PostgreSQL
+    /// (Npgsql.PostgresException, SqlState 23505) and SQLite (SqliteException, SqliteErrorCode 19 /
+    /// SQLITE_CONSTRAINT). Checked by type name via reflection so this project need not reference
+    /// the SQLite driver (test-only) just to recognize its exception type.
+    /// </summary>
+    public static bool IsUniqueConstraintViolation(this Exception ex)
+    {
+        var type = ex.GetType();
+        return type.Name switch
+        {
+            "PostgresException" => type.GetProperty("SqlState")?.GetValue(ex) as string == "23505",
+            "SqliteException" => type.GetProperty("SqliteErrorCode")?.GetValue(ex) is 19,
+            _ => false
+        };
+    }
 }

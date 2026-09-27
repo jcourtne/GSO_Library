@@ -8,7 +8,12 @@ namespace GSO_Library.Data;
 public class TrimmingStringJsonConverter : JsonConverter<string?>
 {
     public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        => reader.GetString()?.Trim();
+    {
+        if (reader.TokenType == JsonTokenType.Null) return null;
+        if (reader.TokenType != JsonTokenType.String)
+            throw new JsonException($"Expected a string value but got {reader.TokenType}.");
+        return reader.GetString()?.Trim();
+    }
 
     public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
         => writer.WriteStringValue(value);
