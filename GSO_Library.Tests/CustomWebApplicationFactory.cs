@@ -247,6 +247,10 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ensemble_id    INTEGER NOT NULL REFERENCES ensembles(id)    ON DELETE CASCADE,
                 PRIMARY KEY (arrangement_id, ensemble_id)
             );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_games_name_lower ON games (LOWER(name));
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_series_name_lower ON series (LOWER(name));
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_instruments_name_lower ON instruments (LOWER(name));
             """);
     }
 
