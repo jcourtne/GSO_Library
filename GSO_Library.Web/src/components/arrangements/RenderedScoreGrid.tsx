@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Alert, Badge, Button, Card, Col, Form, Row, Spinner } from 'react-bootstrap';
+import { Alert, Badge, Button, Card, Col, Form, Modal, Row, Spinner } from 'react-bootstrap';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { arrangementsApi } from '../../api/arrangements';
 import { instrumentSortOrdersApi } from '../../api/instrumentSortOrders';
@@ -77,6 +77,8 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ArrangementFile | null>(null);
+  const [assignTarget, setAssignTarget] = useState<ArrangementFile | null>(null);
+  const [selectedSectionKey, setSelectedSectionKey] = useState<string | null>(null);
   const [dragOverRow, setDragOverRow] = useState<string | null>(null);
   const [autoSorting, setAutoSorting] = useState(false);
   const [selectedSortOrderId, setSelectedSortOrderId] = useState<number | null | undefined>(undefined);
@@ -164,6 +166,20 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
     || type === SCORE_PART_TYPES.PERCUSSION_PART
     || type === SCORE_PART_TYPES.VOICE_PART;
 
+  const handleAssignToSection = (file: ArrangementFile, scorePartType: string, instrumentId: number | null) => {
+    if (instrumentId !== null) {
+      // Adding to an instrument: preserve any existing generic section assignment
+      const newIds = file.instrumentIds.includes(instrumentId)
+        ? file.instrumentIds
+        : [...file.instrumentIds, instrumentId];
+      const newType = isNamedSection(file.scorePartType) ? file.scorePartType : SCORE_PART_TYPES.INSTRUMENT_PART;
+      reassignMutation.mutate({ fileId: file.id, scorePartType: newType, instrumentIds: newIds });
+    } else {
+      // Adding to a generic section: preserve existing instrument assignments
+      reassignMutation.mutate({ fileId: file.id, scorePartType, instrumentIds: file.instrumentIds });
+    }
+  };
+
   const handleRowDrop = (e: React.DragEvent, scorePartType: string, instrumentId: number | null) => {
     e.preventDefault();
     setDragOverRow(null);
@@ -173,18 +189,7 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
     const fileId = parseInt(fileIdStr, 10);
     const file = renderedScoreFiles.find((f) => f.id === fileId);
     if (!file) return;
-
-    if (instrumentId !== null) {
-      // Adding to an instrument: preserve any existing generic section assignment
-      const newIds = file.instrumentIds.includes(instrumentId)
-        ? file.instrumentIds
-        : [...file.instrumentIds, instrumentId];
-      const newType = isNamedSection(file.scorePartType) ? file.scorePartType : SCORE_PART_TYPES.INSTRUMENT_PART;
-      reassignMutation.mutate({ fileId, scorePartType: newType, instrumentIds: newIds });
-    } else {
-      // Adding to a generic section: preserve existing instrument assignments
-      reassignMutation.mutate({ fileId, scorePartType, instrumentIds: file.instrumentIds });
-    }
+    handleAssignToSection(file, scorePartType, instrumentId);
   };
 
   const handleRemoveFromInstrument = (fileId: number, instrumentId: number) => {
@@ -433,6 +438,11 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
                             </Button>
                           )}
                           {editable && (
+                            <Button size="sm" variant="outline-secondary" onClick={() => { if (!checkCanModifyFiles()) return; setAssignTarget(f); setSelectedSectionKey(null); }}>
+                              Assign
+                            </Button>
+                          )}
+                          {editable && (
                             <Button size="sm" variant="outline-danger" onClick={() => { if (!checkCanModifyFiles()) return; setDeleteTarget(f); }}>
                               Delete
                             </Button>
@@ -518,6 +528,51 @@ export default function RenderedScoreGrid({ arrangement, files, editable, canDow
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      <Modal show={!!assignTarget} onHide={() => setAssignTarget(null)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Assign — {assignTarget?.fileName}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          {sections.map((section) => {
+            if (section.type === 'header') {
+              return (
+                <div key={section.key} className="fw-semibold small text-uppercase text-muted mt-2 mb-1" style={{ letterSpacing: '0.05em' }}>
+                  {section.label}
+                </div>
+              );
+            }
+            return (
+              <Form.Check
+                key={section.key}
+                type="radio"
+                id={`assign-section-${section.key}`}
+                name="assign-section"
+                className={`mb-2${section.instrumentId !== null || section.indented ? ' ms-3' : ''}`}
+                label={section.label}
+                checked={selectedSectionKey === section.key}
+                onChange={() => setSelectedSectionKey(section.key)}
+              />
+            );
+          })}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setAssignTarget(null)}>Cancel</Button>
+          <Button
+            variant="primary"
+            disabled={selectedSectionKey === null}
+            onClick={() => {
+              const section = sections.find((s) => s.key === selectedSectionKey && s.type === 'row');
+              if (assignTarget && section) {
+                handleAssignToSection(assignTarget, section.scorePartType, section.instrumentId);
+              }
+              setAssignTarget(null);
+            }}
+          >
+            OK
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </>
   );
 }
