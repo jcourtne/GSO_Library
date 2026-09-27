@@ -153,17 +153,17 @@ public class SeasonZipCacheService(
             : qualifyingArrangements;
 
         var entries = arrangements
-            .SelectMany(a => a.Files.Select(f => (ArrName: a.Name, File: f)))
+            .SelectMany(a => a.Files.Select(f => (ArrName: a.Name, Games: a.Games, File: f)))
             .Where(x => MatchesTypeConfig(x.File, season) && MatchesFilter(x.File, scorePartType, instrumentId, validInstrumentIds, familyInstrumentIds, familyExtraTypes))
             .ToList();
 
         // When scoped to a single arrangement, drop the arrangement-name folder — every file
         // shares it — and guard against rare same-name collisions within that one arrangement.
         var usedEntryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        string EntryName(string arrName, string fileName)
+        string EntryName(string arrName, ICollection<Game> games, string fileName)
         {
             if (!arrangementId.HasValue)
-                return $"{Sanitize(arrName)}/{Sanitize(fileName)}";
+                return $"{Sanitize(ArrangementFolderLabel(arrName, games))}/{Sanitize(fileName)}";
             var name = Sanitize(fileName);
             if (usedEntryNames.Add(name)) return name;
             var stem = Path.GetFileNameWithoutExtension(name);
@@ -184,10 +184,10 @@ public class SeasonZipCacheService(
             {
                 using (var archive = new ZipArchive(fs, ZipArchiveMode.Create, leaveOpen: true))
                 {
-                    foreach (var (arrName, file) in entries)
+                    foreach (var (arrName, games, file) in entries)
                     {
                         var entry = archive.CreateEntry(
-                            EntryName(arrName, file.FileName),
+                            EntryName(arrName, games, file.FileName),
                             CompressionLevel.Fastest);
                         using var entryStream = entry.Open();
                         await using var src = await fileStorage.GetFileAsync(
@@ -352,4 +352,11 @@ public class SeasonZipCacheService(
 
     private static string Sanitize(string name)
         => System.Text.RegularExpressions.Regex.Replace(name, @"[\\/:*?""<>|]", "_");
+
+    private static string ArrangementFolderLabel(string arrName, ICollection<Game> games)
+    {
+        if (games.Count == 0) return arrName;
+        var first = games.First().Name;
+        return games.Count > 1 ? $"{arrName} - {first} and more" : $"{arrName} - {first}";
+    }
 }
