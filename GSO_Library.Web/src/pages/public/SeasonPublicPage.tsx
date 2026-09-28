@@ -50,6 +50,11 @@ export default function SeasonPublicPage() {
     queryFn: () => publicApi.getSeason(token!, submittedPassword),
     enabled: !!token,
     retry: false,
+    // Each fetch counts as a page access server-side, so refetch only when the visitor
+    // actually navigates here again (new mount), not on window refocus/reconnect/interval.
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   // Drop the selection if the arrangement is no longer part of the season (e.g. after a refetch).

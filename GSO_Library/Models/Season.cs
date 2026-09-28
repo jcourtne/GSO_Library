@@ -24,4 +24,5 @@ public class Season
     public virtual Ensemble? Ensemble { get; set; }
     public virtual ICollection<Arrangement> Arrangements { get; set; } = [];
     public virtual ICollection<Performance> Performances { get; set; } = [];
+    public virtual SeasonAnalytics? Analytics { get; set; }
 }

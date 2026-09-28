@@ -164,6 +164,10 @@ public class SeasonRepository
               WHERE sp.season_id = @Id", new { Id = id })).ToList();
         season.Performances = performances;
 
+        season.Analytics = await connection.QuerySingleOrDefaultAsync<SeasonAnalytics>(
+            "SELECT season_id, page_access_count, page_last_accessed_at, file_download_count, file_last_downloaded_at FROM season_analytics WHERE season_id = @Id",
+            new { Id = id }) ?? new SeasonAnalytics { SeasonId = id };
+
         return season;
     }
 
@@ -174,6 +178,7 @@ public class SeasonRepository
             "INSERT INTO seasons (name, ensemble_id, start_date, end_date, notes, created_at, updated_at, created_by) VALUES (@Name, @EnsembleId, @StartDate, @EndDate, @Notes, @CreatedAt, @UpdatedAt, @CreatedBy)",
             new { season.Name, season.EnsembleId, season.StartDate, season.EndDate, season.Notes, season.CreatedAt, season.UpdatedAt, season.CreatedBy });
         season.Id = id;
+        await EnsureAnalyticsRowAsync(id);
         InvalidateArrangementCache();
         return season;
     }
@@ -332,6 +337,36 @@ public class SeasonRepository
         season.SharePasswordHash = await connection.QuerySingleOrDefaultAsync<string?>(
             "SELECT share_password_hash FROM seasons WHERE id=@Id", new { Id = id.Value });
         return season;
+    }
+
+    public async Task EnsureAnalyticsRowAsync(int seasonId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        var isSqlite = connection.GetType().Name.Contains("Sqlite", StringComparison.OrdinalIgnoreCase);
+        var sql = isSqlite
+            ? "INSERT OR IGNORE INTO season_analytics (season_id) VALUES (@Id)"
+            : "INSERT INTO season_analytics (season_id) VALUES (@Id) ON CONFLICT DO NOTHING";
+        await connection.ExecuteAsync(sql, new { Id = seasonId });
+    }
+
+    public async Task RecordPageAccessAsync(int seasonId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        await connection.ExecuteAsync(
+            @"UPDATE season_analytics
+              SET page_access_count = page_access_count + 1, page_last_accessed_at = @Now
+              WHERE season_id = @Id",
+            new { Id = seasonId, Now = DateTime.UtcNow });
+    }
+
+    public async Task RecordFileDownloadAsync(int seasonId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        await connection.ExecuteAsync(
+            @"UPDATE season_analytics
+              SET file_download_count = file_download_count + 1, file_last_downloaded_at = @Now
+              WHERE season_id = @Id",
+            new { Id = seasonId, Now = DateTime.UtcNow });
     }
 
     public async Task<IEnumerable<int>> GetSeasonIdsByArrangementAsync(int arrangementId)

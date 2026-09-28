@@ -214,6 +214,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 share_password_hash TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS season_analytics (
+                season_id INTEGER PRIMARY KEY REFERENCES seasons(id) ON DELETE CASCADE,
+                page_access_count INTEGER NOT NULL DEFAULT 0,
+                page_last_accessed_at TEXT,
+                file_download_count INTEGER NOT NULL DEFAULT 0,
+                file_last_downloaded_at TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS season_share_zips (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
