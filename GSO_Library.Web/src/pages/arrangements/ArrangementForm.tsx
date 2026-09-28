@@ -39,15 +39,19 @@ function setsEqual(a: Set<number>, b: Set<number>): boolean {
 
 function buildInstrumentGroups(instruments: Instrument[]) {
   const seen = new Map<string, Instrument[]>();
+  const familyOrder = new Map<string, number>();
   for (const i of instruments) {
-    const key = i.familyName ?? '';
+    const key = i.familyName ?? 'Other';
     if (!seen.has(key)) seen.set(key, []);
     seen.get(key)!.push(i);
+    if (i.familyId != null) {
+      const order = familyOrder.get(key);
+      if (order === undefined || i.familyId < order) familyOrder.set(key, i.familyId);
+    }
   }
   const groups: { label: string; items: Instrument[] }[] = [];
-  seen.forEach((items, key) => { if (key !== '') groups.push({ label: key, items }); });
-  const unassigned = seen.get('');
-  if (unassigned?.length) groups.push({ label: 'Other', items: unassigned });
+  seen.forEach((items, key) => groups.push({ label: key, items }));
+  groups.sort((a, b) => (familyOrder.get(a.label) ?? Infinity) - (familyOrder.get(b.label) ?? Infinity));
   return groups;
 }
 
