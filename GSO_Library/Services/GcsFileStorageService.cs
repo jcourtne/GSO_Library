@@ -73,4 +73,19 @@ public class GcsFileStorageService : IFileStorageService
             // Treat missing objects as already deleted, matching LocalFileStorageService behavior.
         }
     }
+
+    public async Task<IReadOnlyList<StoredFileInfo>> ListFilesAsync(string folderPrefix, CancellationToken ct = default)
+    {
+        var files = new List<StoredFileInfo>();
+        await foreach (var obj in _storageClient.ListObjectsAsync(_bucketName, $"{folderPrefix}/").WithCancellation(ct))
+        {
+            var lastSlash = obj.Name.LastIndexOf('/');
+            if (lastSlash < 0 || lastSlash == obj.Name.Length - 1) continue; // folder placeholder
+            // Skip objects with no known age so callers never act on a file they can't date.
+            var lastModified = obj.UpdatedDateTimeOffset ?? obj.TimeCreatedDateTimeOffset;
+            if (lastModified == null) continue;
+            files.Add(new StoredFileInfo(obj.Name[..lastSlash], obj.Name[(lastSlash + 1)..], lastModified.Value));
+        }
+        return files;
+    }
 }

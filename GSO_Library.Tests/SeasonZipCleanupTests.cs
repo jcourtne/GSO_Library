@@ -109,6 +109,39 @@ public class SeasonZipCleanupTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task PurgeOrphanedAsync_DeletesOldOrphans_KeepsFreshOrphansAndTrackedFiles()
+    {
+        var seasonId = await CreateSharedSeasonAsync();
+        var folderPath = $"shares/{seasonId}";
+        var twoHoursAgo = DateTimeOffset.UtcNow.AddHours(-2);
+
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var storage = scope.ServiceProvider.GetRequiredService<IFileStorageService>();
+            await storage.SaveFileAsync(folderPath, "orphan_old.zip", new MemoryStream(Encoding.UTF8.GetBytes("old orphan")));
+            await storage.SaveFileAsync(folderPath, "orphan_fresh.zip", new MemoryStream(Encoding.UTF8.GetBytes("fresh orphan")));
+        }
+        InMemoryFileStorageService.SetLastModified(folderPath, "orphan_old.zip", twoHoursAgo);
+
+        await SeedZipAsync(seasonId, "tracked_old", DateTime.UtcNow);
+        InMemoryFileStorageService.SetLastModified(folderPath, "tracked_old.zip", twoHoursAgo);
+
+        int deleted;
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var zipCache = scope.ServiceProvider.GetRequiredService<ISeasonZipCacheService>();
+            deleted = await zipCache.PurgeOrphanedAsync(TimeSpan.FromHours(1));
+        }
+
+        // Other test classes share the static in-memory store, so only a lower bound is reliable.
+        Assert.True(deleted >= 1);
+        Assert.False(await FileExistsAsync(seasonId, "orphan_old"));
+        Assert.True(await FileExistsAsync(seasonId, "orphan_fresh"));
+        Assert.True(await FileExistsAsync(seasonId, "tracked_old"));
+        Assert.True(await RowExistsAsync(seasonId, "tracked_old"));
+    }
+
+    [Fact]
     public async Task RevokeShare_RemovesCachedZipRowAndFile()
     {
         var client = await GetLibrarianClientAsync();

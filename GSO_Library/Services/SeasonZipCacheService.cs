@@ -267,6 +267,81 @@ public class SeasonZipCacheService(
         return deleted;
     }
 
+    /// <summary>
+    /// Deletes stored zips under <c>shares/</c> that have no <c>season_share_zips</c> row (e.g. generation
+    /// failed after saving, or rows were removed by hand) — every other cleanup path starts from the rows,
+    /// so these would otherwise never be found. Files newer than <paramref name="gracePeriod"/> are kept,
+    /// since generation saves the file before writing its row.
+    /// </summary>
+    public async Task<int> PurgeOrphanedAsync(TimeSpan gracePeriod, CancellationToken ct = default)
+    {
+        // List files before loading rows: a zip generated concurrently writes its file first, so
+        // this order can never observe the file while missing a row that already exists.
+        var files = await fileStorage.ListFilesAsync("shares", ct);
+        var trackedKeys = (await zipRepo.GetAllAsync())
+            .Select(z => $"{z.FolderPath}/{z.StoredFileName}")
+            .ToHashSet(StringComparer.Ordinal);
+        var cutoff = DateTimeOffset.UtcNow - gracePeriod;
+
+        var deleted = 0;
+        foreach (var file in files)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (file.LastModified >= cutoff || trackedKeys.Contains($"{file.FolderPath}/{file.StoredFileName}"))
+                continue;
+            try
+            {
+                if (await TryDeleteOrphanAsync(file))
+                    deleted++;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Failed to delete orphaned season zip {FolderPath}/{StoredFileName}; will retry on the next sweep",
+                    file.FolderPath, file.StoredFileName);
+            }
+        }
+        return deleted;
+    }
+
+    /// <summary>
+    /// The snapshot above can go stale — a download may regenerate this exact zip (same path) after
+    /// it was taken. For files laid out as <c>shares/{seasonId}/{zipKey}.zip</c>, take the same lock
+    /// generation holds across save + row upsert, skip if it's busy, and re-check the row before
+    /// deleting. This closes the race within an instance; across instances the re-check narrows it to
+    /// a zip whose generation started and finished between the re-check and the delete.
+    /// </summary>
+    private async Task<bool> TryDeleteOrphanAsync(StoredFileInfo file)
+    {
+        var folderParts = file.FolderPath.Split('/');
+        var isZipLayout = folderParts.Length == 2
+            && int.TryParse(folderParts[1], out _)
+            && file.StoredFileName.EndsWith(".zip", StringComparison.Ordinal);
+        if (!isZipLayout)
+        {
+            // Not a path generation ever writes, so nothing can be racing on it.
+            await fileStorage.DeleteFileAsync(file.FolderPath, file.StoredFileName);
+            return true;
+        }
+
+        var seasonId = int.Parse(folderParts[1]);
+        var zipKey = file.StoredFileName[..^".zip".Length];
+        var sem = GetGenerateLock(seasonId, zipKey);
+        if (!await sem.WaitAsync(0))
+            return false; // being generated right now — it's about to get a row
+        try
+        {
+            if (await zipRepo.GetAsync(seasonId, zipKey) != null)
+                return false;
+            await fileStorage.DeleteFileAsync(file.FolderPath, file.StoredFileName);
+            return true;
+        }
+        finally
+        {
+            sem.Release();
+        }
+    }
+
     public async Task InvalidateForArrangementAsync(int arrangementId)
     {
         var seasonIds = await seasonRepo.GetSeasonIdsByArrangementAsync(arrangementId);

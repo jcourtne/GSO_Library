@@ -6,4 +6,6 @@ public interface IFileStorageService
     Task<Stream> GetFileAsync(string folderPath, string storedFileName);
     Task DeleteFileAsync(string folderPath, string storedFileName);
     Task<bool> ExistsAsync(string folderPath, string storedFileName);
+    /// <summary>Lists every stored file at or below <paramref name="folderPrefix"/>.</summary>
+    Task<IReadOnlyList<StoredFileInfo>> ListFilesAsync(string folderPrefix, CancellationToken ct = default);
 }

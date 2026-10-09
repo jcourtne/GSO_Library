@@ -48,4 +48,21 @@ public class LocalFileStorageService : IFileStorageService
 
         return Task.CompletedTask;
     }
+
+    public Task<IReadOnlyList<StoredFileInfo>> ListFilesAsync(string folderPrefix, CancellationToken ct = default)
+    {
+        var root = Path.Combine(_basePath, folderPrefix);
+        if (!Directory.Exists(root))
+            return Task.FromResult<IReadOnlyList<StoredFileInfo>>([]);
+
+        var files = new List<StoredFileInfo>();
+        foreach (var filePath in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        {
+            ct.ThrowIfCancellationRequested();
+            var folderPath = Path.GetRelativePath(_basePath, Path.GetDirectoryName(filePath)!).Replace('\\', '/');
+            files.Add(new StoredFileInfo(folderPath, Path.GetFileName(filePath),
+                new DateTimeOffset(File.GetLastWriteTimeUtc(filePath), TimeSpan.Zero)));
+        }
+        return Task.FromResult<IReadOnlyList<StoredFileInfo>>(files);
+    }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Data;
 using Dapper;
 using GSO_Library.Data;
@@ -405,39 +406,61 @@ public class SqliteConnectionFactory : IDbConnectionFactory
 }
 
 /// <summary>
-/// In-memory file storage for tests, avoiding disk I/O.
+/// In-memory file storage for tests, avoiding disk I/O. Static and shared across test classes
+/// that run in parallel, hence the concurrent dictionary.
 /// </summary>
 public class InMemoryFileStorageService : IFileStorageService
 {
-    private static readonly Dictionary<string, byte[]> _files = new();
+    private static readonly ConcurrentDictionary<string, (byte[] Bytes, DateTimeOffset LastModified)> _files = new();
 
     private static string GetKey(string folderPath, string storedFileName)
         => $"{folderPath}/{storedFileName}";
+
+    /// <summary>Backdates a stored file so age-based cleanup treats it as old.</summary>
+    public static void SetLastModified(string folderPath, string storedFileName, DateTimeOffset when)
+    {
+        var key = GetKey(folderPath, storedFileName);
+        if (_files.TryGetValue(key, out var file))
+            _files[key] = (file.Bytes, when);
+    }
 
     public async Task<string> SaveFileAsync(string folderPath, string storedFileName, Stream content)
     {
         using var ms = new MemoryStream();
         await content.CopyToAsync(ms);
-        _files[GetKey(folderPath, storedFileName)] = ms.ToArray();
+        _files[GetKey(folderPath, storedFileName)] = (ms.ToArray(), DateTimeOffset.UtcNow);
         return GetKey(folderPath, storedFileName);
     }
 
     public Task<Stream> GetFileAsync(string folderPath, string storedFileName)
     {
         var key = GetKey(folderPath, storedFileName);
-        if (!_files.TryGetValue(key, out var bytes))
+        if (!_files.TryGetValue(key, out var file))
             throw new FileNotFoundException("File not found.", key);
 
-        Stream stream = new MemoryStream(bytes);
+        Stream stream = new MemoryStream(file.Bytes);
         return Task.FromResult(stream);
     }
 
     public Task DeleteFileAsync(string folderPath, string storedFileName)
     {
-        _files.Remove(GetKey(folderPath, storedFileName));
+        _files.TryRemove(GetKey(folderPath, storedFileName), out _);
         return Task.CompletedTask;
     }
 
     public Task<bool> ExistsAsync(string folderPath, string storedFileName)
         => Task.FromResult(_files.ContainsKey(GetKey(folderPath, storedFileName)));
+
+    public Task<IReadOnlyList<StoredFileInfo>> ListFilesAsync(string folderPrefix, CancellationToken ct = default)
+    {
+        IReadOnlyList<StoredFileInfo> files = _files
+            .Where(kv => kv.Key.StartsWith($"{folderPrefix}/", StringComparison.Ordinal))
+            .Select(kv =>
+            {
+                var lastSlash = kv.Key.LastIndexOf('/');
+                return new StoredFileInfo(kv.Key[..lastSlash], kv.Key[(lastSlash + 1)..], kv.Value.LastModified);
+            })
+            .ToList();
+        return Task.FromResult(files);
+    }
 }

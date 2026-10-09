@@ -44,6 +44,13 @@ public class SeasonShareZipRepository(IDbConnectionFactory connectionFactory)
             new { SeasonId = seasonId });
     }
 
+    public async Task<IEnumerable<SeasonShareZip>> GetAllAsync()
+    {
+        using var connection = connectionFactory.CreateConnection();
+        return await connection.QueryAsync<SeasonShareZip>(
+            "SELECT id, season_id, zip_key, folder_path, stored_file_name, created_at FROM season_share_zips");
+    }
+
     public async Task<IEnumerable<SeasonShareZip>> GetExpiredAsync(DateTime cutoffUtc)
     {
         using var connection = connectionFactory.CreateConnection();
