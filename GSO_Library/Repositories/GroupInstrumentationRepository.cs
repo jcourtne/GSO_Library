@@ -77,7 +77,7 @@ public class GroupInstrumentationRepository
     public async Task<(GroupInstrumentation? GroupInstrumentation, bool DuplicateName)> AddGroupInstrumentationAsync(GroupInstrumentation groupInstrumentation)
     {
         using var connection = _connectionFactory.CreateConnection();
-        if (await NameExistsAsync(connection, groupInstrumentation.Name))
+        if (await connection.NameExistsAsync("group_instrumentations", groupInstrumentation.Name))
             return (null, true);
         int id;
         try
@@ -98,7 +98,7 @@ public class GroupInstrumentationRepository
     public async Task<(GroupInstrumentation? GroupInstrumentation, bool DuplicateName)> UpdateGroupInstrumentationAsync(int id, GroupInstrumentation groupInstrumentation)
     {
         using var connection = _connectionFactory.CreateConnection();
-        if (await NameExistsAsync(connection, groupInstrumentation.Name, excludeId: id))
+        if (await connection.NameExistsAsync("group_instrumentations", groupInstrumentation.Name, excludeId: id))
             return (null, true);
         int rows;
         try
@@ -115,14 +115,6 @@ public class GroupInstrumentationRepository
         groupInstrumentation.Id = id;
         InvalidateArrangementCache();
         return (groupInstrumentation, false);
-    }
-
-    private static async Task<bool> NameExistsAsync(System.Data.IDbConnection connection, string name, int? excludeId = null)
-    {
-        var sql = "SELECT COUNT(*) FROM group_instrumentations WHERE LOWER(name) = LOWER(@Name)";
-        if (excludeId.HasValue) sql += " AND id != @ExcludeId";
-        var count = await connection.ExecuteScalarAsync<int>(sql, new { Name = name, ExcludeId = excludeId });
-        return count > 0;
     }
 
     public async Task<bool> DeleteGroupInstrumentationAsync(int id)

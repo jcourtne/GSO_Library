@@ -153,17 +153,30 @@ public class SeasonZipCacheService(
             : qualifyingArrangements;
 
         var entries = arrangements
-            .SelectMany(a => a.Files.Select(f => (ArrName: a.Name, Games: a.Games, File: f)))
+            .SelectMany(a => a.Files.Select(f => (ArrangementId: a.Id, File: f)))
             .Where(x => MatchesTypeConfig(x.File, season) && MatchesFilter(x.File, scorePartType, instrumentId, validInstrumentIds, familyInstrumentIds, familyExtraTypes))
             .ToList();
+
+        // One folder per arrangement. Labels are assigned in id order and suffixed " (2)", " (3)", …
+        // on collision so same-named arrangements never merge into a single folder.
+        var folderLabels = new Dictionary<int, string>();
+        var usedFolderLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var a in arrangements.OrderBy(a => a.Id))
+        {
+            var label = Sanitize(ArrangementFolderLabel(a.Name, a.Games));
+            var unique = label;
+            for (var n = 2; !usedFolderLabels.Add(unique); n++)
+                unique = $"{label} ({n})";
+            folderLabels[a.Id] = unique;
+        }
 
         // When scoped to a single arrangement, drop the arrangement-name folder — every file
         // shares it — and guard against rare same-name collisions within that one arrangement.
         var usedEntryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        string EntryName(string arrName, ICollection<Game> games, string fileName)
+        string EntryName(int entryArrangementId, string fileName)
         {
             if (!arrangementId.HasValue)
-                return $"{Sanitize(ArrangementFolderLabel(arrName, games))}/{Sanitize(fileName)}";
+                return $"{folderLabels[entryArrangementId]}/{Sanitize(fileName)}";
             var name = Sanitize(fileName);
             if (usedEntryNames.Add(name)) return name;
             var stem = Path.GetFileNameWithoutExtension(name);
@@ -184,10 +197,10 @@ public class SeasonZipCacheService(
             {
                 using (var archive = new ZipArchive(fs, ZipArchiveMode.Create, leaveOpen: true))
                 {
-                    foreach (var (arrName, games, file) in entries)
+                    foreach (var (entryArrangementId, file) in entries)
                     {
                         var entry = archive.CreateEntry(
-                            EntryName(arrName, games, file.FileName),
+                            EntryName(entryArrangementId, file.FileName),
                             CompressionLevel.Fastest);
                         using var entryStream = entry.Open();
                         await using var src = await fileStorage.GetFileAsync(
@@ -356,7 +369,8 @@ public class SeasonZipCacheService(
     private static string ArrangementFolderLabel(string arrName, ICollection<Game> games)
     {
         if (games.Count == 0) return arrName;
-        var first = games.First().Name;
+        // Order explicitly — the games collection has no guaranteed order, and the label must be stable.
+        var first = games.OrderBy(g => g.Name).ThenBy(g => g.Id).First().Name;
         return games.Count > 1 ? $"{arrName} - {first} and more" : $"{arrName} - {first}";
     }
 }

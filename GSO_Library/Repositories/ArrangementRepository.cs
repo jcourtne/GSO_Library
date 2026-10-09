@@ -445,7 +445,7 @@ public class ArrangementRepository
         var linkExists = await connection.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM arrangement_group_instrumentations WHERE arrangement_id = @ArrangementId AND group_instrumentation_id = @GroupInstrumentationId",
             new { ArrangementId = arrangementId, GroupInstrumentationId = groupInstrumentationId });
-        if (linkExists > 0) return false;
+        if (linkExists > 0) return true; // already linked — idempotent
 
         await connection.ExecuteAsync(
             "INSERT INTO arrangement_group_instrumentations (arrangement_id, group_instrumentation_id) VALUES (@ArrangementId, @GroupInstrumentationId)",

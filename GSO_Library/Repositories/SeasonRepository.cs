@@ -178,7 +178,6 @@ public class SeasonRepository
             "INSERT INTO seasons (name, ensemble_id, start_date, end_date, notes, created_at, updated_at, created_by) VALUES (@Name, @EnsembleId, @StartDate, @EndDate, @Notes, @CreatedAt, @UpdatedAt, @CreatedBy)",
             new { season.Name, season.EnsembleId, season.StartDate, season.EndDate, season.Notes, season.CreatedAt, season.UpdatedAt, season.CreatedBy });
         season.Id = id;
-        await EnsureAnalyticsRowAsync(id);
         InvalidateArrangementCache();
         return season;
     }
@@ -224,11 +223,9 @@ public class SeasonRepository
 
         try
         {
-            var isSqlite = connection.GetType().Name.Contains("Sqlite", StringComparison.OrdinalIgnoreCase);
-            var sql = isSqlite
-                ? "INSERT OR IGNORE INTO season_arrangements (season_id, arrangement_id) VALUES (@SeasonId, @ArrangementId)"
-                : "INSERT INTO season_arrangements (season_id, arrangement_id) VALUES (@SeasonId, @ArrangementId) ON CONFLICT DO NOTHING";
-            var rows = await connection.ExecuteAsync(sql, new { SeasonId = seasonId, ArrangementId = arrangementId });
+            var rows = await connection.ExecuteAsync(
+                "INSERT INTO season_arrangements (season_id, arrangement_id) VALUES (@SeasonId, @ArrangementId) ON CONFLICT DO NOTHING",
+                new { SeasonId = seasonId, ArrangementId = arrangementId });
             if (rows == 0) return false;
             InvalidateArrangementCache();
             return true;
@@ -261,11 +258,9 @@ public class SeasonRepository
 
         try
         {
-            var isSqlite = connection.GetType().Name.Contains("Sqlite", StringComparison.OrdinalIgnoreCase);
-            var sql = isSqlite
-                ? "INSERT OR IGNORE INTO season_performances (season_id, performance_id) VALUES (@SeasonId, @PerformanceId)"
-                : "INSERT INTO season_performances (season_id, performance_id) VALUES (@SeasonId, @PerformanceId) ON CONFLICT DO NOTHING";
-            var rows = await connection.ExecuteAsync(sql, new { SeasonId = seasonId, PerformanceId = performanceId });
+            var rows = await connection.ExecuteAsync(
+                "INSERT INTO season_performances (season_id, performance_id) VALUES (@SeasonId, @PerformanceId) ON CONFLICT DO NOTHING",
+                new { SeasonId = seasonId, PerformanceId = performanceId });
             if (rows == 0) return false;
             return true;
         }
@@ -339,23 +334,15 @@ public class SeasonRepository
         return season;
     }
 
-    public async Task EnsureAnalyticsRowAsync(int seasonId)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var isSqlite = connection.GetType().Name.Contains("Sqlite", StringComparison.OrdinalIgnoreCase);
-        var sql = isSqlite
-            ? "INSERT OR IGNORE INTO season_analytics (season_id) VALUES (@Id)"
-            : "INSERT INTO season_analytics (season_id) VALUES (@Id) ON CONFLICT DO NOTHING";
-        await connection.ExecuteAsync(sql, new { Id = seasonId });
-    }
-
     public async Task RecordPageAccessAsync(int seasonId)
     {
         using var connection = _connectionFactory.CreateConnection();
         await connection.ExecuteAsync(
-            @"UPDATE season_analytics
-              SET page_access_count = page_access_count + 1, page_last_accessed_at = @Now
-              WHERE season_id = @Id",
+            @"INSERT INTO season_analytics (season_id, page_access_count, page_last_accessed_at)
+              VALUES (@Id, 1, @Now)
+              ON CONFLICT (season_id) DO UPDATE SET
+                page_access_count = season_analytics.page_access_count + 1,
+                page_last_accessed_at = excluded.page_last_accessed_at",
             new { Id = seasonId, Now = DateTime.UtcNow });
     }
 
@@ -363,9 +350,11 @@ public class SeasonRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         await connection.ExecuteAsync(
-            @"UPDATE season_analytics
-              SET file_download_count = file_download_count + 1, file_last_downloaded_at = @Now
-              WHERE season_id = @Id",
+            @"INSERT INTO season_analytics (season_id, file_download_count, file_last_downloaded_at)
+              VALUES (@Id, 1, @Now)
+              ON CONFLICT (season_id) DO UPDATE SET
+                file_download_count = season_analytics.file_download_count + 1,
+                file_last_downloaded_at = excluded.file_last_downloaded_at",
             new { Id = seasonId, Now = DateTime.UtcNow });
     }
 

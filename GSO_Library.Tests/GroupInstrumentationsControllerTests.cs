@@ -180,7 +180,7 @@ public class GroupInstrumentationsControllerTests : IntegrationTestBase
         Assert.Contains(linked!.GroupInstrumentations, g => g.Id == gi.Id);
 
         var duplicateAdd = await client.PostAsync($"/api/arrangements/{arrangement.Id}/group-instrumentations/{gi.Id}", null);
-        Assert.Equal(HttpStatusCode.BadRequest, duplicateAdd.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, duplicateAdd.StatusCode);
 
         var removeResponse = await client.DeleteAsync($"/api/arrangements/{arrangement.Id}/group-instrumentations/{gi.Id}");
         Assert.Equal(HttpStatusCode.NoContent, removeResponse.StatusCode);
@@ -190,21 +190,21 @@ public class GroupInstrumentationsControllerTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task AddGroupInstrumentation_MissingGroupInstrumentation_Returns404()
+    {
+        var client = await GetEditorClientAsync();
+        var arrangement = await CreateArrangementAsync(client);
+        var response = await client.PostAsync($"/api/arrangements/{arrangement.Id}/group-instrumentations/99999", null);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task AddGroupInstrumentation_MissingArrangement_Returns404()
     {
         var client = await GetEditorClientAsync();
         var gi = await CreateGroupInstrumentationAsync(client);
         var response = await client.PostAsync($"/api/arrangements/99999/group-instrumentations/{gi.Id}", null);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task AddGroupInstrumentation_MissingGroupInstrumentation_Returns400()
-    {
-        var client = await GetEditorClientAsync();
-        var arrangement = await CreateArrangementAsync(client);
-        var response = await client.PostAsync($"/api/arrangements/{arrangement.Id}/group-instrumentations/99999", null);
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

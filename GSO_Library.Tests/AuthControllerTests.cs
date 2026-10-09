@@ -229,6 +229,37 @@ public class AuthControllerTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Login_PasswordWithSurroundingWhitespace_IsNotTrimmed()
+    {
+        var adminClient = await GetAdminClientAsync();
+        const string password = "  SpacedPass123!  ";
+        var registerResponse = await adminClient.PostAsJsonAsync("/api/auth/register", new RegisterRequest
+        {
+            Username = "spacedpassworduser",
+            Email = "spacedpassworduser@test.com",
+            Password = password,
+            FirstName = "Spaced",
+            LastName = "Password"
+        });
+        Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
+
+        var unauthClient = GetUnauthenticatedClient();
+        var exactResponse = await unauthClient.PostAsJsonAsync("/api/auth/login", new LoginRequest
+        {
+            Username = "spacedpassworduser",
+            Password = password
+        });
+        Assert.Equal(HttpStatusCode.OK, exactResponse.StatusCode);
+
+        var trimmedResponse = await unauthClient.PostAsJsonAsync("/api/auth/login", new LoginRequest
+        {
+            Username = "spacedpassworduser",
+            Password = password.Trim()
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, trimmedResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task GrantAndRemoveRole_AsAdmin_Succeeds()
     {
         var client = await GetAdminClientAsync();

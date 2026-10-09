@@ -106,8 +106,7 @@ public class EnsembleRepository
     public async Task<IEnumerable<EnsembleMemberDto>> GetEnsembleMembersAsync(int ensembleId)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var isSqlite = connection.GetType().Name.Contains("Sqlite", StringComparison.OrdinalIgnoreCase);
-        var usersTable = isSqlite ? "AspNetUsers" : "\"AspNetUsers\"";
+        var usersTable = connection.IsSqlite() ? "AspNetUsers" : "\"AspNetUsers\"";
         return await connection.QueryAsync<EnsembleMemberDto>(
             $"SELECT u.\"Id\", u.\"UserName\", u.\"Email\", u.\"FirstName\", u.\"LastName\" " +
             $"FROM {usersTable} u INNER JOIN user_ensembles ue ON u.\"Id\" = ue.user_id " +
@@ -151,11 +150,9 @@ public class EnsembleRepository
         var ensembleExists = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ensembles WHERE id = @Id", new { Id = ensembleId });
         if (ensembleExists == 0) return null;
 
-        var isSqlite = connection.GetType().Name.Contains("Sqlite", StringComparison.OrdinalIgnoreCase);
-        var sql = isSqlite
-            ? "INSERT OR IGNORE INTO user_ensembles (user_id, ensemble_id) VALUES (@UserId, @EnsembleId)"
-            : "INSERT INTO user_ensembles (user_id, ensemble_id) VALUES (@UserId, @EnsembleId) ON CONFLICT DO NOTHING";
-        var rows = await connection.ExecuteAsync(sql, new { UserId = userId, EnsembleId = ensembleId });
+        var rows = await connection.ExecuteAsync(
+            "INSERT INTO user_ensembles (user_id, ensemble_id) VALUES (@UserId, @EnsembleId) ON CONFLICT DO NOTHING",
+            new { UserId = userId, EnsembleId = ensembleId });
         return rows > 0;
     }
 

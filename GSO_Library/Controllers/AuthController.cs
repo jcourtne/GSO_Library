@@ -190,11 +190,6 @@ public class AuthController : ControllerBase
             });
         }
 
-        if (user.LockoutEnd.HasValue && user.LockoutEnd <= DateTimeOffset.UtcNow && user.AccessFailedCount > 0)
-        {
-            await _userManager.ResetAccessFailedCountAsync(user);
-        }
-
         var result = await _signInManager.PasswordSignInAsync(user, request.Password, false, lockoutOnFailure: true);
         if (result.IsLockedOut)
         {

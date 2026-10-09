@@ -84,7 +84,7 @@ public class SeriesRepository
     public async Task<(Series? Series, bool DuplicateName)> AddSeriesAsync(Series series)
     {
         using var connection = _connectionFactory.CreateConnection();
-        if (await NameExistsAsync(connection, series.Name))
+        if (await connection.NameExistsAsync("series", series.Name))
             return (null, true);
         int id;
         try
@@ -105,7 +105,7 @@ public class SeriesRepository
     public async Task<(Series? Series, bool DuplicateName)> UpdateSeriesAsync(int id, Series series)
     {
         using var connection = _connectionFactory.CreateConnection();
-        if (await NameExistsAsync(connection, series.Name, excludeId: id))
+        if (await connection.NameExistsAsync("series", series.Name, excludeId: id))
             return (null, true);
         int rows;
         try
@@ -122,14 +122,6 @@ public class SeriesRepository
         series.Id = id;
         InvalidateArrangementCache();
         return (series, false);
-    }
-
-    private static async Task<bool> NameExistsAsync(System.Data.IDbConnection connection, string name, int? excludeId = null)
-    {
-        var sql = "SELECT COUNT(*) FROM series WHERE LOWER(name) = LOWER(@Name)";
-        if (excludeId.HasValue) sql += " AND id != @ExcludeId";
-        var count = await connection.ExecuteScalarAsync<int>(sql, new { Name = name, ExcludeId = excludeId });
-        return count > 0;
     }
 
     public async Task<bool> DeleteSeriesAsync(int id)

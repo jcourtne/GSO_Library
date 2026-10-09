@@ -58,7 +58,14 @@ function buildInstrumentGroups(instruments: Instrument[]) {
   return groups;
 }
 
+// Keyed on the route id so navigating between arrangements remounts the form, resetting
+// its one-time initialization and unsaved-changes baseline.
 export default function ArrangementForm() {
+  const { id } = useParams<{ id: string }>();
+  return <ArrangementFormContent key={id ?? 'new'} />;
+}
+
+function ArrangementFormContent() {
   const { id } = useParams<{ id: string }>();
   const isEdit = !!id;
   const navigate = useNavigate();

@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using GSO_Library.Data;
+
 namespace GSO_Library.Dtos;
 
 public class ShareConfigRequest
@@ -5,6 +8,7 @@ public class ShareConfigRequest
     public bool IncludePdf { get; set; } = true;
     public bool IncludeNotation { get; set; }
     public bool IncludePlayback { get; set; }
+    [JsonConverter(typeof(RawStringJsonConverter))]
     public string? Password { get; set; }
     public bool ClearPassword { get; set; }
 }

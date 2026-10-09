@@ -241,11 +241,10 @@ public class ArrangementsController : ControllerBase
         var deny = await EnforceWriteAccessAsync(arrangement);
         if (deny != null) return deny;
 
+        // null = arrangement missing, false = group instrumentation missing; re-linking is a no-op success
         var result = await _arrangementRepository.AddGroupInstrumentationAsync(arrangementId, groupInstrumentationId);
-        if (result == null)
+        if (result != true)
             return NotFound();
-        if (!result.Value)
-            return BadRequest();
 
         return NoContent();
     }

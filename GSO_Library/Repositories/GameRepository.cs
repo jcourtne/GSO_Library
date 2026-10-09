@@ -107,7 +107,7 @@ public class GameRepository
     public async Task<(Game? Game, bool DuplicateName)> AddGameAsync(Game game)
     {
         using var connection = _connectionFactory.CreateConnection();
-        if (await NameExistsAsync(connection, game.Name))
+        if (await connection.NameExistsAsync("games", game.Name))
             return (null, true);
         int id;
         try
@@ -128,7 +128,7 @@ public class GameRepository
     public async Task<(Game? Game, bool DuplicateName)> UpdateGameAsync(int id, Game game)
     {
         using var connection = _connectionFactory.CreateConnection();
-        if (await NameExistsAsync(connection, game.Name, excludeId: id))
+        if (await connection.NameExistsAsync("games", game.Name, excludeId: id))
             return (null, true);
         int rows;
         try
@@ -145,14 +145,6 @@ public class GameRepository
         game.Id = id;
         InvalidateArrangementCache();
         return (game, false);
-    }
-
-    private static async Task<bool> NameExistsAsync(System.Data.IDbConnection connection, string name, int? excludeId = null)
-    {
-        var sql = "SELECT COUNT(*) FROM games WHERE LOWER(name) = LOWER(@Name)";
-        if (excludeId.HasValue) sql += " AND id != @ExcludeId";
-        var count = await connection.ExecuteScalarAsync<int>(sql, new { Name = name, ExcludeId = excludeId });
-        return count > 0;
     }
 
     public async Task<bool> DeleteGameAsync(int id)

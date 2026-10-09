@@ -58,7 +58,7 @@ public class InstrumentRepository
     public async Task<(Instrument? Instrument, bool DuplicateName)> AddInstrumentAsync(Instrument instrument)
     {
         using var connection = _connectionFactory.CreateConnection();
-        if (await NameExistsAsync(connection, instrument.Name))
+        if (await connection.NameExistsAsync("instruments", instrument.Name))
             return (null, true);
         int id;
         try
@@ -79,7 +79,7 @@ public class InstrumentRepository
     public async Task<(Instrument? Instrument, bool DuplicateName)> UpdateInstrumentAsync(int id, Instrument instrument)
     {
         using var connection = _connectionFactory.CreateConnection();
-        if (await NameExistsAsync(connection, instrument.Name, excludeId: id))
+        if (await connection.NameExistsAsync("instruments", instrument.Name, excludeId: id))
             return (null, true);
         int rows;
         try
@@ -96,14 +96,6 @@ public class InstrumentRepository
         instrument.Id = id;
         InvalidateArrangementCache();
         return (instrument, false);
-    }
-
-    private static async Task<bool> NameExistsAsync(System.Data.IDbConnection connection, string name, int? excludeId = null)
-    {
-        var sql = "SELECT COUNT(*) FROM instruments WHERE LOWER(name) = LOWER(@Name)";
-        if (excludeId.HasValue) sql += " AND id != @ExcludeId";
-        var count = await connection.ExecuteScalarAsync<int>(sql, new { Name = name, ExcludeId = excludeId });
-        return count > 0;
     }
 
     public async Task<bool> DeleteInstrumentAsync(int id)
