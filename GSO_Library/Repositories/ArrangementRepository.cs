@@ -61,6 +61,9 @@ public class ArrangementRepository
             var allGames = (await connection.QueryAsync<Game>(
                 "SELECT id, name, description, series_id, created_at, updated_at, created_by FROM games")).ToList();
 
+            var allGroupInstrumentations = (await connection.QueryAsync<GroupInstrumentation>(
+                "SELECT id, name, description, created_at, updated_at, created_by FROM group_instrumentations")).ToList();
+
             var allSeries = (await connection.QueryAsync<Series>(
                 "SELECT id, name, description, created_at, updated_at, created_by FROM series")).ToList();
 
@@ -73,6 +76,9 @@ public class ArrangementRepository
 
             var arrangementGames = (await connection.QueryAsync<(int ArrangementId, int GameId)>(
                 "SELECT arrangement_id, game_id FROM arrangement_games")).ToList();
+
+            var arrangementGroupInstrumentations = (await connection.QueryAsync<(int ArrangementId, int GroupInstrumentationId)>(
+                "SELECT arrangement_id, group_instrumentation_id FROM arrangement_group_instrumentations")).ToList();
 
             var arrangementInstruments = (await connection.QueryAsync<(int ArrangementId, int InstrumentId)>(
                 "SELECT arrangement_id, instrument_id FROM arrangement_instruments")).ToList();
@@ -103,6 +109,7 @@ public class ArrangementRepository
             var seriesLookup = allSeries.ToDictionary(s => s.Id);
             var seasonLookup = allSeasons.ToDictionary(s => s.Id);
             var gameLookup = allGames.ToDictionary(g => g.Id);
+            var groupInstrumentationLookup = allGroupInstrumentations.ToDictionary(gi => gi.Id);
             var instrumentLookup = allInstruments.ToDictionary(i => i.Id);
             var performanceLookup = allPerformances.ToDictionary(p => p.Id);
 
@@ -113,6 +120,14 @@ public class ArrangementRepository
             // Build junction lookups
             var gamesByArrangement = arrangementGames.GroupBy(ag => ag.ArrangementId)
                 .ToDictionary(g => g.Key, g => g.Select(ag => gameLookup.GetValueOrDefault(ag.GameId)).Where(x => x != null).ToList()!);
+
+            var groupInstrumentationsByArrangement = arrangementGroupInstrumentations.GroupBy(agi => agi.ArrangementId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(agi => groupInstrumentationLookup.GetValueOrDefault(agi.GroupInstrumentationId))
+                          .Where(x => x != null)
+                          .OrderBy(gi => gi!.Name)
+                          .ToList()!);
 
             var defaultSortPositions = (await connection.QueryAsync<(int InstrumentId, int Position)>(
                 """
@@ -154,6 +169,7 @@ public class ArrangementRepository
             foreach (var a in allArrangements)
             {
                 a.Games = gamesByArrangement.GetValueOrDefault(a.Id, [])!;
+                a.GroupInstrumentations = groupInstrumentationsByArrangement.GetValueOrDefault(a.Id, [])!;
                 a.Instruments = instrumentsByArrangement.GetValueOrDefault(a.Id, [])!;
                 a.Performances = performancesByArrangement.GetValueOrDefault(a.Id, [])!;
                 a.Seasons = seasonsByArrangement.GetValueOrDefault(a.Id, [])!;
@@ -205,6 +221,11 @@ public class ArrangementRepository
             .Select(g => new { Id = g.Key, Name = g.First().Series!.Name })
             .OrderBy(s => s.Name)
             .ToList();
+        var groupInstrumentations = arrangements.SelectMany(a => a.GroupInstrumentations)
+            .GroupBy(gi => gi.Id)
+            .Select(gi => new { Id = gi.Key, Name = gi.First().Name })
+            .OrderBy(gi => gi.Name)
+            .ToList();
         using var connection = _connectionFactory.CreateConnection();
         var defaultSortPositions = (await connection.QueryAsync<(int InstrumentId, int Position)>(
             """
@@ -221,7 +242,7 @@ public class ArrangementRepository
             .OrderBy(i => defaultSortPositions.TryGetValue(i.Id, out var pos) ? pos : int.MaxValue)
             .ThenBy(i => i.Name)
             .ToList();
-        return new { Composers = composers, Arrangers = arrangers, Games = games, Series = series, Instruments = instruments };
+        return new { Composers = composers, Arrangers = arrangers, Games = games, Series = series, Instruments = instruments, GroupInstrumentations = groupInstrumentations };
     }
 
     public async Task<Arrangement?> GetArrangementByIdAsync(int id)
@@ -233,7 +254,7 @@ public class ArrangementRepository
     public async Task<PaginatedResult<Arrangement>> GetArrangementsAsync(
         int page, int pageSize, int[]? gameIds = null, int[]? seriesIds = null, int[]? instrumentIds = null, int? performanceId = null,
         string? sortBy = null, string? sortDirection = null, string? search = null, string[]? composers = null, string[]? arrangers = null,
-        bool instrumentMatchAll = false)
+        bool instrumentMatchAll = false, int[]? groupInstrumentationIds = null)
     {
         var arrangements = await GetCachedArrangementsAsync();
         IEnumerable<Arrangement> filtered = arrangements;
@@ -249,6 +270,9 @@ public class ArrangementRepository
 
         if (gameIds?.Length > 0)
             filtered = filtered.Where(a => a.Games.Any(g => gameIds.Contains(g.Id)));
+
+        if (groupInstrumentationIds?.Length > 0)
+            filtered = filtered.Where(a => a.GroupInstrumentations.Any(gi => groupInstrumentationIds.Contains(gi.Id)));
 
         if (seriesIds?.Length > 0)
             filtered = filtered.Where(a => a.Games.Any(g => seriesIds.Contains(g.SeriesId)));
@@ -400,6 +424,47 @@ public class ArrangementRepository
         var rows = await connection.ExecuteAsync(
             "DELETE FROM arrangement_games WHERE arrangement_id = @ArrangementId AND game_id = @GameId",
             new { ArrangementId = arrangementId, GameId = gameId });
+        if (rows == 0) return false;
+
+        InvalidateCache();
+        return true;
+    }
+
+    public async Task<bool?> AddGroupInstrumentationAsync(int arrangementId, int groupInstrumentationId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var arrangementExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangements WHERE id = @Id", new { Id = arrangementId });
+        if (arrangementExists == 0) return null;
+
+        var groupInstrumentationExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM group_instrumentations WHERE id = @Id", new { Id = groupInstrumentationId });
+        if (groupInstrumentationExists == 0) return false;
+
+        var linkExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangement_group_instrumentations WHERE arrangement_id = @ArrangementId AND group_instrumentation_id = @GroupInstrumentationId",
+            new { ArrangementId = arrangementId, GroupInstrumentationId = groupInstrumentationId });
+        if (linkExists > 0) return false;
+
+        await connection.ExecuteAsync(
+            "INSERT INTO arrangement_group_instrumentations (arrangement_id, group_instrumentation_id) VALUES (@ArrangementId, @GroupInstrumentationId)",
+            new { ArrangementId = arrangementId, GroupInstrumentationId = groupInstrumentationId });
+        InvalidateCache();
+        return true;
+    }
+
+    public async Task<bool?> RemoveGroupInstrumentationAsync(int arrangementId, int groupInstrumentationId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var arrangementExists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM arrangements WHERE id = @Id", new { Id = arrangementId });
+        if (arrangementExists == 0) return null;
+
+        var rows = await connection.ExecuteAsync(
+            "DELETE FROM arrangement_group_instrumentations WHERE arrangement_id = @ArrangementId AND group_instrumentation_id = @GroupInstrumentationId",
+            new { ArrangementId = arrangementId, GroupInstrumentationId = groupInstrumentationId });
         if (rows == 0) return false;
 
         InvalidateCache();

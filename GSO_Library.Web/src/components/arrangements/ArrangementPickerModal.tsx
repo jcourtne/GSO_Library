@@ -27,6 +27,7 @@ interface Props {
 export default function ArrangementPickerModal({ show, onHide, excludeIds, onSelect, isPending, getAddDisabledReason, canDownload }: Props) {
   const [search, setSearch] = useState('');
   const [gameIds, setGameIds] = useState<number[]>([]);
+  const [groupInstrumentationIds, setGroupInstrumentationIds] = useState<number[]>([]);
   const [seriesIds, setSeriesIds] = useState<number[]>([]);
   const [instrumentIds, setInstrumentIds] = useState<number[]>([]);
   const [instrumentMatchAll, setInstrumentMatchAll] = useState(false);
@@ -39,6 +40,7 @@ export default function ArrangementPickerModal({ show, onHide, excludeIds, onSel
     if (show) {
       setSearch('');
       setGameIds([]);
+      setGroupInstrumentationIds([]);
       setSeriesIds([]);
       setInstrumentIds([]);
       setInstrumentMatchAll(false);
@@ -55,10 +57,11 @@ export default function ArrangementPickerModal({ show, onHide, excludeIds, onSel
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['arrangements-picker', { search, gameIds, seriesIds, instrumentIds, instrumentMatchAll, composers, arrangers, page }],
+    queryKey: ['arrangements-picker', { search, gameIds, groupInstrumentationIds, seriesIds, instrumentIds, instrumentMatchAll, composers, arrangers, page }],
     queryFn: () => arrangementsApi.list({
       search: search || undefined,
       gameIds: gameIds.length ? gameIds : undefined,
+      groupInstrumentationIds: groupInstrumentationIds.length ? groupInstrumentationIds : undefined,
       seriesIds: seriesIds.length ? seriesIds : undefined,
       instrumentIds: instrumentIds.length ? instrumentIds : undefined,
       instrumentMatchAll: instrumentMatchAll || undefined,
@@ -72,11 +75,12 @@ export default function ArrangementPickerModal({ show, onHide, excludeIds, onSel
     enabled: show,
   });
 
-  const hasFilters = !!(search || gameIds.length || seriesIds.length || instrumentIds.length || composers.length || arrangers.length);
+  const hasFilters = !!(search || gameIds.length || groupInstrumentationIds.length || seriesIds.length || instrumentIds.length || composers.length || arrangers.length);
 
   const clearAll = () => {
     setSearch('');
     setGameIds([]);
+    setGroupInstrumentationIds([]);
     setSeriesIds([]);
     setInstrumentIds([]);
     setInstrumentMatchAll(false);
@@ -134,6 +138,12 @@ export default function ArrangementPickerModal({ show, onHide, excludeIds, onSel
                 onChange={(v) => { setInstrumentIds(v as number[]); setPage(1); }}
                 matchMode={instrumentMatchAll ? 'all' : 'any'}
                 onMatchModeChange={(m) => { setInstrumentMatchAll(m === 'all'); setPage(1); }}
+              />
+              <FilterPanelSection
+                label="Group Instrumentation"
+                options={filterOptions?.groupInstrumentations.map((g) => ({ value: g.id, label: g.name })) ?? []}
+                selected={groupInstrumentationIds}
+                onChange={(v) => { setGroupInstrumentationIds(v as number[]); setPage(1); }}
               />
               <FilterPanelSection
                 label="Composers"

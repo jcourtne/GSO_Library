@@ -30,6 +30,12 @@ export const arrangementsApi = {
   removeGame: (arrangementId: number, gameId: number) =>
     apiClient.delete(`/arrangements/${arrangementId}/games/${gameId}`),
 
+  addGroupInstrumentation: (arrangementId: number, groupInstrumentationId: number) =>
+    apiClient.post(`/arrangements/${arrangementId}/group-instrumentations/${groupInstrumentationId}`),
+
+  removeGroupInstrumentation: (arrangementId: number, groupInstrumentationId: number) =>
+    apiClient.delete(`/arrangements/${arrangementId}/group-instrumentations/${groupInstrumentationId}`),
+
   addInstrument: (arrangementId: number, instrumentId: number) =>
     apiClient.post(`/arrangements/${arrangementId}/instruments/${instrumentId}`),
 

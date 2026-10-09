@@ -131,6 +131,23 @@ export default function ArrangementDetail() {
 
           <Card className="mb-3">
             <Card.Body>
+              <Card.Title>Group Instrumentation</Card.Title>
+              {arrangement.groupInstrumentations?.length > 0 ? (
+                <div className="d-flex flex-wrap gap-1">
+                  {arrangement.groupInstrumentations.map((g) => (
+                    <Link key={g.id} to={`/group-instrumentations/${g.id}/edit`} className="text-decoration-none">
+                      <Badge bg="info">{g.name}</Badge>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted mb-0">None</p>
+              )}
+            </Card.Body>
+          </Card>
+
+          <Card className="mb-3">
+            <Card.Body>
               <Card.Title>Instruments</Card.Title>
               {arrangement.instruments?.length > 0 ? (() => {
                 const seen = new Map<string, typeof arrangement.instruments>();

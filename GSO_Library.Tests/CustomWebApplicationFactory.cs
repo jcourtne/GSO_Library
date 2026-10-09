@@ -256,7 +256,23 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 PRIMARY KEY (arrangement_id, ensemble_id)
             );
 
+            CREATE TABLE IF NOT EXISTS group_instrumentations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS arrangement_group_instrumentations (
+                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
+                group_instrumentation_id INTEGER NOT NULL REFERENCES group_instrumentations(id) ON DELETE CASCADE,
+                PRIMARY KEY (arrangement_id, group_instrumentation_id)
+            );
+
             CREATE UNIQUE INDEX IF NOT EXISTS ux_games_name_lower ON games (LOWER(name));
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_group_instrumentations_name_lower ON group_instrumentations (LOWER(name));
             CREATE UNIQUE INDEX IF NOT EXISTS ux_series_name_lower ON series (LOWER(name));
             CREATE UNIQUE INDEX IF NOT EXISTS ux_instruments_name_lower ON instruments (LOWER(name));
             """);

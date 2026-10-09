@@ -124,12 +124,12 @@ public class ArrangementsController : ControllerBase
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         [FromQuery] string? sortBy = null, [FromQuery] string? sortDirection = null,
         [FromQuery] string? search = null, [FromQuery] string[]? composers = null, [FromQuery] string[]? arrangers = null,
-        [FromQuery] bool instrumentMatchAll = false)
+        [FromQuery] bool instrumentMatchAll = false, [FromQuery] int[]? groupInstrumentationIds = null)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameIds, seriesIds, instrumentIds, performanceId, sortBy, sortDirection, search, composers, arrangers, instrumentMatchAll);
+        var result = await _arrangementRepository.GetArrangementsAsync(page, pageSize, gameIds, seriesIds, instrumentIds, performanceId, sortBy, sortDirection, search, composers, arrangers, instrumentMatchAll, groupInstrumentationIds);
         return Ok(result);
     }
 
@@ -224,6 +224,42 @@ public class ArrangementsController : ControllerBase
         if (deny != null) return deny;
 
         var result = await _arrangementRepository.RemoveGameAsync(arrangementId, gameId);
+        if (result == null)
+            return NotFound();
+        if (!result.Value)
+            return NotFound();
+
+        return NoContent();
+    }
+
+    [HttpPost("{arrangementId}/group-instrumentations/{groupInstrumentationId}")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
+    public async Task<IActionResult> AddGroupInstrumentation(int arrangementId, int groupInstrumentationId)
+    {
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
+
+        var result = await _arrangementRepository.AddGroupInstrumentationAsync(arrangementId, groupInstrumentationId);
+        if (result == null)
+            return NotFound();
+        if (!result.Value)
+            return BadRequest();
+
+        return NoContent();
+    }
+
+    [HttpDelete("{arrangementId}/group-instrumentations/{groupInstrumentationId}")]
+    [Authorize(Roles = Roles.ArrangementEditors)]
+    public async Task<IActionResult> RemoveGroupInstrumentation(int arrangementId, int groupInstrumentationId)
+    {
+        var arrangement = await _arrangementRepository.GetArrangementByIdAsync(arrangementId);
+        if (arrangement == null) return NotFound();
+        var deny = await EnforceWriteAccessAsync(arrangement);
+        if (deny != null) return deny;
+
+        var result = await _arrangementRepository.RemoveGroupInstrumentationAsync(arrangementId, groupInstrumentationId);
         if (result == null)
             return NotFound();
         if (!result.Value)

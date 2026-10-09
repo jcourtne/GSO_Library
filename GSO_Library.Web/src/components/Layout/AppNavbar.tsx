@@ -39,11 +39,12 @@ export default function AppNavbar() {
                       title="Arrangement Fields"
                       id="nav-arrangement-fields"
                       className={dropdownButton}
-                      active={isActive('/games', '/series', '/instruments')}
+                      active={isActive('/games', '/series', '/instruments', '/group-instrumentations')}
                     >
                       <NavDropdown.Item as={Link} to="/games">Games</NavDropdown.Item>
                       <NavDropdown.Item as={Link} to="/series">Series</NavDropdown.Item>
                       <NavDropdown.Item as={Link} to="/instruments">Instruments</NavDropdown.Item>
+                      <NavDropdown.Item as={Link} to="/group-instrumentations">Group Instrumentations</NavDropdown.Item>
                     </NavDropdown>
                     <NavDropdown
                       title="Orchestra"
