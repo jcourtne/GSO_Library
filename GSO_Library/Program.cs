@@ -51,6 +51,7 @@ builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.Converters.Add(new TrimmingStringJsonConverter());
     });
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -132,6 +133,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddScoped<ArrangementRepository>();
 builder.Services.AddScoped<ArrangementFileRepository>();
 builder.Services.AddScoped<GameRepository>();
+builder.Services.AddScoped<GroupInstrumentationRepository>();
 builder.Services.AddScoped<SeriesRepository>();
 builder.Services.AddScoped<InstrumentRepository>();
 builder.Services.AddScoped<InstrumentFamilyRepository>();

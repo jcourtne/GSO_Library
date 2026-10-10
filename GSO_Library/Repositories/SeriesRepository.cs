@@ -81,27 +81,47 @@ public class SeriesRepository
         return new PaginatedResult<Series> { Items = seriesList, Page = page, PageSize = pageSize, TotalCount = totalCount };
     }
 
-    public async Task<Series> AddSeriesAsync(Series series)
+    public async Task<(Series? Series, bool DuplicateName)> AddSeriesAsync(Series series)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var id = await connection.InsertReturningIdAsync(
-            "INSERT INTO series (name, description, created_at, updated_at, created_by) VALUES (@Name, @Description, @CreatedAt, @UpdatedAt, @CreatedBy)",
-            new { series.Name, series.Description, series.CreatedAt, series.UpdatedAt, series.CreatedBy });
+        if (await connection.NameExistsAsync("series", series.Name))
+            return (null, true);
+        int id;
+        try
+        {
+            id = await connection.InsertReturningIdAsync(
+                "INSERT INTO series (name, description, created_at, updated_at, created_by) VALUES (@Name, @Description, @CreatedAt, @UpdatedAt, @CreatedBy)",
+                new { series.Name, series.Description, series.CreatedAt, series.UpdatedAt, series.CreatedBy });
+        }
+        catch (Exception ex) when (ex.IsUniqueConstraintViolation())
+        {
+            return (null, true);
+        }
         series.Id = id;
         InvalidateArrangementCache();
-        return series;
+        return (series, false);
     }
 
-    public async Task<Series?> UpdateSeriesAsync(int id, Series series)
+    public async Task<(Series? Series, bool DuplicateName)> UpdateSeriesAsync(int id, Series series)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var rows = await connection.ExecuteAsync(
-            "UPDATE series SET name = @Name, description = @Description, updated_at = @UpdatedAt WHERE id = @Id",
-            new { series.Name, series.Description, series.UpdatedAt, Id = id });
-        if (rows == 0) return null;
+        if (await connection.NameExistsAsync("series", series.Name, excludeId: id))
+            return (null, true);
+        int rows;
+        try
+        {
+            rows = await connection.ExecuteAsync(
+                "UPDATE series SET name = @Name, description = @Description, updated_at = @UpdatedAt WHERE id = @Id",
+                new { series.Name, series.Description, series.UpdatedAt, Id = id });
+        }
+        catch (Exception ex) when (ex.IsUniqueConstraintViolation())
+        {
+            return (null, true);
+        }
+        if (rows == 0) return (null, false);
         series.Id = id;
         InvalidateArrangementCache();
-        return series;
+        return (series, false);
     }
 
     public async Task<bool> DeleteSeriesAsync(int id)

@@ -1,5 +1,6 @@
 import type { Ensemble } from './ensemble';
 import type { Game } from './game';
+import type { GroupInstrumentation } from './groupInstrumentation';
 import type { Instrument } from './instrument';
 import type { Performance } from './performance';
 import type { Season } from './season';
@@ -30,6 +31,7 @@ export interface Arrangement {
   createdBy?: string;
   files: ArrangementFile[];
   games: Game[];
+  groupInstrumentations: GroupInstrumentation[];
   instruments: Instrument[];
   performances: Performance[];
   seasons?: Season[];
@@ -47,6 +49,7 @@ export interface ArrangementRequest {
 
 export interface ArrangementFilterParams {
   gameIds?: number[];
+  groupInstrumentationIds?: number[];
   seriesIds?: number[];
   instrumentIds?: number[];
   instrumentMatchAll?: boolean;
@@ -66,4 +69,5 @@ export interface ArrangementFilterOptions {
   games: FilterOption[];
   series: FilterOption[];
   instruments: FilterOption[];
+  groupInstrumentations: FilterOption[];
 }

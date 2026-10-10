@@ -14,9 +14,10 @@ interface FileSectionProps {
   editable: boolean;
   accept?: string;
   canDownload?: boolean;
+  checkCanModifyFiles?: () => boolean;
 }
 
-export default function FileSection({ title, files, arrangementId, editable, accept, canDownload = true }: FileSectionProps) {
+export default function FileSection({ title, files, arrangementId, editable, accept, canDownload = true, checkCanModifyFiles = () => true }: FileSectionProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
@@ -53,6 +54,7 @@ export default function FileSection({ title, files, arrangementId, editable, acc
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!checkCanModifyFiles()) { e.target.value = ''; return; }
     setError('');
     setUploading(true);
     uploadMutation.mutate(file);
@@ -77,6 +79,7 @@ export default function FileSection({ title, files, arrangementId, editable, acc
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (!file) return;
+    if (!checkCanModifyFiles()) return;
     setError('');
     setUploading(true);
     uploadMutation.mutate(file);
@@ -104,7 +107,10 @@ export default function FileSection({ title, files, arrangementId, editable, acc
                   <ProgressBar animated now={100} className="mt-2" />
                 </>
               ) : (
-                <small className="text-muted">Drag & drop or click to upload</small>
+                <>
+                  <small className="text-muted d-block">Drag & drop or click to upload</small>
+                  <small className="text-muted">Max file size: 30 MB</small>
+                </>
               )}
               <input
                 type="file"
@@ -136,7 +142,7 @@ export default function FileSection({ title, files, arrangementId, editable, acc
                         </Button>
                       )}
                       {editable && (
-                        <Button size="sm" variant="outline-danger" onClick={() => setDeleteTarget(f)}>
+                        <Button size="sm" variant="outline-danger" onClick={() => { if (!checkCanModifyFiles()) return; setDeleteTarget(f); }}>
                           Delete
                         </Button>
                       )}

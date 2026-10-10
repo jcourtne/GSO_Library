@@ -12,6 +12,8 @@ import SeriesList from './pages/series/SeriesList';
 import SeriesForm from './pages/series/SeriesForm';
 import GameList from './pages/games/GameList';
 import GameForm from './pages/games/GameForm';
+import GroupInstrumentationList from './pages/groupInstrumentations/GroupInstrumentationList';
+import GroupInstrumentationForm from './pages/groupInstrumentations/GroupInstrumentationForm';
 import InstrumentList from './pages/instruments/InstrumentList';
 import InstrumentForm from './pages/instruments/InstrumentForm';
 import PerformanceList from './pages/performances/PerformanceList';
@@ -78,6 +80,11 @@ export default function App() {
               <Route path="games" element={<GameList />} />
               <Route path="games/new" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><GameForm /></ProtectedRoute>} />
               <Route path="games/:id/edit" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><GameForm /></ProtectedRoute>} />
+
+              {/* Group Instrumentations */}
+              <Route path="group-instrumentations" element={<GroupInstrumentationList />} />
+              <Route path="group-instrumentations/new" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><GroupInstrumentationForm /></ProtectedRoute>} />
+              <Route path="group-instrumentations/:id/edit" element={<ProtectedRoute requiredRoles={ensembleLibrarianRoles}><GroupInstrumentationForm /></ProtectedRoute>} />
 
               {/* Instruments */}
               <Route path="instruments" element={<InstrumentList />} />

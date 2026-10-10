@@ -21,6 +21,7 @@ export default function ArrangementList() {
   const [sortBy, setSortBy] = useState('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [gameIds, setGameIds] = useState<number[]>([]);
+  const [groupInstrumentationIds, setGroupInstrumentationIds] = useState<number[]>([]);
   const [seriesIds, setSeriesIds] = useState<number[]>([]);
   const [instrumentIds, setInstrumentIds] = useState<number[]>([]);
   const [instrumentMatchAll, setInstrumentMatchAll] = useState(false);
@@ -29,10 +30,11 @@ export default function ArrangementList() {
   const [search, setSearch] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['arrangements', { page, pageSize, sortBy, sortDirection, gameIds, seriesIds, instrumentIds, instrumentMatchAll, composers, arrangers, search }],
+    queryKey: ['arrangements', { page, pageSize, sortBy, sortDirection, gameIds, groupInstrumentationIds, seriesIds, instrumentIds, instrumentMatchAll, composers, arrangers, search }],
     queryFn: () => arrangementsApi.list({
       page, pageSize, sortBy, sortDirection,
       gameIds: gameIds.length ? gameIds : undefined,
+      groupInstrumentationIds: groupInstrumentationIds.length ? groupInstrumentationIds : undefined,
       seriesIds: seriesIds.length ? seriesIds : undefined,
       instrumentIds: instrumentIds.length ? instrumentIds : undefined,
       instrumentMatchAll: instrumentMatchAll || undefined,
@@ -57,6 +59,7 @@ export default function ArrangementList() {
   const clearAllFilters = () => {
     setSearch('');
     setGameIds([]);
+    setGroupInstrumentationIds([]);
     setSeriesIds([]);
     setInstrumentIds([]);
     setInstrumentMatchAll(false);
@@ -65,7 +68,7 @@ export default function ArrangementList() {
     setPage(1);
   };
 
-  const hasFilters = search || gameIds.length || seriesIds.length || instrumentIds.length || composers.length || arrangers.length;
+  const hasFilters = search || gameIds.length || groupInstrumentationIds.length || seriesIds.length || instrumentIds.length || composers.length || arrangers.length;
 
   const joinWithOverflow = (items: string[], limit = 2) => {
     if (!items?.length) return '-';
@@ -81,6 +84,11 @@ export default function ArrangementList() {
       key: 'games',
       label: 'Games',
       render: (a: Arrangement) => joinWithOverflow(a.games?.map((g) => g.name) ?? []),
+    },
+    {
+      key: 'groupInstrumentations',
+      label: 'Group Instrumentation',
+      render: (a: Arrangement) => joinWithOverflow(a.groupInstrumentations?.map((g) => g.name) ?? []),
     },
     {
       key: 'year',
@@ -140,6 +148,12 @@ export default function ArrangementList() {
               onChange={(v) => { setInstrumentIds(v as number[]); setPage(1); }}
               matchMode={instrumentMatchAll ? 'all' : 'any'}
               onMatchModeChange={(m) => { setInstrumentMatchAll(m === 'all'); setPage(1); }}
+            />
+            <FilterPanelSection
+              label="Group Instrumentation"
+              options={filterOptions.data?.groupInstrumentations.map((g) => ({ value: g.id, label: g.name })) ?? []}
+              selected={groupInstrumentationIds}
+              onChange={(v) => { setGroupInstrumentationIds(v as number[]); setPage(1); }}
             />
             <FilterPanelSection
               label="Composers"

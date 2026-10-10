@@ -55,6 +55,7 @@ public class AuthController : ControllerBase
         var users = await _userManager.Users.ToListAsync();
         var usernames = users.Select(u => u.UserName).Where(n => n != null).Cast<string>();
         var lastLogins = await _userRepository.GetLastLoginsAsync(usernames);
+        var ensembleLookup = await _ensembleRepository.GetEnsemblesForUsersAsync(users.Select(u => u.Id));
         var userResponses = new List<UserResponse>();
 
         foreach (var user in users)
@@ -68,8 +69,11 @@ public class AuthController : ControllerBase
                 FirstName = user.FirstName,
                 LastName = user.LastName,
                 IsDisabled = user.IsDisabled,
+                IsLockedOut = await _userManager.IsLockedOutAsync(user),
+                LockoutEnd = user.LockoutEnd,
                 LastLoginAt = user.UserName != null ? lastLogins.GetValueOrDefault(user.UserName) : null,
-                Roles = roles.ToList()
+                Roles = roles.ToList(),
+                Ensembles = ensembleLookup.GetValueOrDefault(user.Id, [])
             });
         }
 
@@ -86,6 +90,7 @@ public class AuthController : ControllerBase
 
         var roles = await _userManager.GetRolesAsync(user);
         var lastLogin = user.UserName != null ? await _userRepository.GetLastLoginAsync(user.UserName) : null;
+        var ensembles = await _ensembleRepository.GetEnsemblesForUserAsync(user.Id);
         return Ok(new UserResponse
         {
             Id = user.Id,
@@ -94,8 +99,11 @@ public class AuthController : ControllerBase
             FirstName = user.FirstName,
             LastName = user.LastName,
             IsDisabled = user.IsDisabled,
+            IsLockedOut = await _userManager.IsLockedOutAsync(user),
+            LockoutEnd = user.LockoutEnd,
             LastLoginAt = lastLogin,
-            Roles = roles.ToList()
+            Roles = roles.ToList(),
+            Ensembles = ensembles.Select(e => new EnsembleSummaryDto { Id = e.Id, Name = e.Name }).ToList()
         });
     }
 
@@ -545,6 +553,9 @@ public class AuthController : ControllerBase
             });
         }
 
+        await _userManager.SetLockoutEndDateAsync(user, null);
+        await _userManager.ResetAccessFailedCountAsync(user);
+
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
         await _auditService.LogAsync(AuditEventType.PasswordReset, User.Identity?.Name, user.UserName, ip, null);
 
@@ -552,6 +563,35 @@ public class AuthController : ControllerBase
         {
             Success = true,
             Message = "Password reset successfully",
+            UserId = user.Id,
+            Username = user.UserName
+        });
+    }
+
+    [HttpPost("unlock/{userId}")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<ActionResult<AuthResponse>> UnlockAccount(string userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            return NotFound(new AuthResponse
+            {
+                Success = false,
+                Message = "User not found"
+            });
+        }
+
+        await _userManager.SetLockoutEndDateAsync(user, null);
+        await _userManager.ResetAccessFailedCountAsync(user);
+
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        await _auditService.LogAsync(AuditEventType.AccountUnlock, User.Identity?.Name, user.UserName, ip, null);
+
+        return Ok(new AuthResponse
+        {
+            Success = true,
+            Message = "Account unlocked successfully",
             UserId = user.Id,
             Username = user.UserName
         });

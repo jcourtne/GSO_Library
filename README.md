@@ -107,7 +107,7 @@ Key settings in `GSO_Library/appsettings.json`:
 | `FileStorage:BasePath` | Directory for uploaded arrangement files when using local storage (default: `./uploads`) |
 | `GCS:BucketName` | Google Cloud Storage bucket name; if set, GCS is used for file storage instead of local disk |
 | `FileUpload:AllowedExtensions` | Permitted file types (.pdf, .xml, .mxl, .mid, .midi, .mp3, .wav, .flac, .ogg, .mscz, .dorico, .sib) |
-| `FileUpload:MaxFileSizeBytes` | Max upload size (default: 50 MB) |
+| `FileUpload:MaxFileSizeBytes` | Max upload size (default: 30 MB; kept under Cloud Run's 32 MB request body limit) |
 | `Cors:AllowedOrigins` | Array of allowed CORS origins (default: `["http://localhost:5173"]`) |
 | `SeedUsersFile` | Path to the seed users JSON file |
 

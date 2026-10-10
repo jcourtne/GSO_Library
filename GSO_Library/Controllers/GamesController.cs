@@ -42,9 +42,11 @@ public class GamesController(GameRepository gameRepository, IAuditService auditS
         game.CreatedAt = now;
         game.UpdatedAt = now;
         game.CreatedBy = User.Identity?.Name;
-        var createdGame = await gameRepository.AddGameAsync(game);
+        var (createdGame, duplicate) = await gameRepository.AddGameAsync(game);
+        if (duplicate)
+            return Conflict($"A game named '{game.Name}' already exists.");
         await auditService.LogAsync(AuditEventType.GameCreate, User.Identity?.Name, null, null,
-            $"gameId: {createdGame.Id} ({createdGame.Name})");
+            $"gameId: {createdGame!.Id} ({createdGame.Name})");
         return CreatedAtAction(nameof(GetGameById), new { id = createdGame.Id }, createdGame);
     }
 
@@ -53,7 +55,9 @@ public class GamesController(GameRepository gameRepository, IAuditService auditS
     public async Task<ActionResult<Game>> UpdateGame(int id, [FromBody] Game game)
     {
         game.UpdatedAt = DateTime.UtcNow;
-        var updated = await gameRepository.UpdateGameAsync(id, game);
+        var (updated, duplicate) = await gameRepository.UpdateGameAsync(id, game);
+        if (duplicate)
+            return Conflict($"A game named '{game.Name}' already exists.");
         if (updated == null)
             return NotFound();
 

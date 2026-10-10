@@ -33,6 +33,9 @@ export const authApi = {
   enableUser: (userId: string) =>
     apiClient.post<AuthResponse>(`/auth/enable/${userId}`).then((r) => r.data),
 
+  unlockUser: (userId: string) =>
+    apiClient.post<AuthResponse>(`/auth/unlock/${userId}`).then((r) => r.data),
+
   grantRole: (data: RoleManagementRequest) =>
     apiClient.post<RoleManagementResponse>('/auth/grant-role', data).then((r) => r.data),
 

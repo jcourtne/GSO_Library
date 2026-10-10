@@ -34,6 +34,8 @@ public class PublicController(
         if (!ValidatePassword(season, pw))
             return Ok(new SeasonPublicDto { Name = season.Name, RequiresPassword = true });
 
+        await seasonRepo.RecordPageAccessAsync(season.Id);
+
         var sortPositions = await GetDefaultSortPositionsAsync();
         return Ok(BuildDto(season, sortPositions));
     }
@@ -76,6 +78,8 @@ public class PublicController(
 
         if (arrangementId.HasValue && !season.Arrangements.Any(a => a.Id == arrangementId.Value && a.QualifiesForEnsemble(season.EnsembleId)))
             return BadRequest("Invalid arrangementId");
+
+        await seasonRepo.RecordFileDownloadAsync(season.Id);
 
         var zipKey = zipCache.BuildZipKey(scorePartType, instrumentId, familyId, arrangementId);
         var (stream, zipFileName) = await zipCache.GetOrGenerateAsync(season, zipKey, scorePartType, instrumentId, familyId, arrangementId);
@@ -258,6 +262,7 @@ public class PublicController(
                 Name = a.Name,
                 Composers = a.Composers.ToList(),
                 Arrangers = a.Arrangers.ToList(),
+                Games = a.Games.Select(g => g.Name).ToList(),
             }).ToList(),
             DownloadSections = sections,
         };

@@ -50,6 +50,11 @@ export default function SeasonPublicPage() {
     queryFn: () => publicApi.getSeason(token!, submittedPassword),
     enabled: !!token,
     retry: false,
+    // Each fetch counts as a page access server-side, so refetch only when the visitor
+    // actually navigates here again (new mount), not on window refocus/reconnect/interval.
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   // Drop the selection if the arrangement is no longer part of the season (e.g. after a refetch).
@@ -192,9 +197,14 @@ export default function SeasonPublicPage() {
                       action
                       active={sel === a.id}
                       onClick={() => setSelectedArrangementId((prev) => (prev === a.id ? null : a.id))}
-                      className="px-0"
+                      className="px-3"
                     >
                       <div className="fw-semibold">{a.name}</div>
+                      {a.games.length > 0 && (
+                        <div className={sel === a.id ? 'small' : 'text-muted small'}>
+                          {a.games.slice(0, 3).join(', ')}{a.games.length > 3 ? ', …' : ''}
+                        </div>
+                      )}
                       <div className={sel === a.id ? 'small' : 'text-muted small'}>
                         {[
                           a.composers.length > 0 && `Composed by ${a.composers.join(', ')}`,

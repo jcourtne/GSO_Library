@@ -104,27 +104,47 @@ public class GameRepository
         return new PaginatedResult<Game> { Items = games, Page = page, PageSize = pageSize, TotalCount = totalCount };
     }
 
-    public async Task<Game> AddGameAsync(Game game)
+    public async Task<(Game? Game, bool DuplicateName)> AddGameAsync(Game game)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var id = await connection.InsertReturningIdAsync(
-            "INSERT INTO games (name, description, release_year, series_id, created_at, updated_at, created_by) VALUES (@Name, @Description, @ReleaseYear, @SeriesId, @CreatedAt, @UpdatedAt, @CreatedBy)",
-            new { game.Name, game.Description, game.ReleaseYear, game.SeriesId, game.CreatedAt, game.UpdatedAt, game.CreatedBy });
+        if (await connection.NameExistsAsync("games", game.Name))
+            return (null, true);
+        int id;
+        try
+        {
+            id = await connection.InsertReturningIdAsync(
+                "INSERT INTO games (name, description, release_year, series_id, created_at, updated_at, created_by) VALUES (@Name, @Description, @ReleaseYear, @SeriesId, @CreatedAt, @UpdatedAt, @CreatedBy)",
+                new { game.Name, game.Description, game.ReleaseYear, game.SeriesId, game.CreatedAt, game.UpdatedAt, game.CreatedBy });
+        }
+        catch (Exception ex) when (ex.IsUniqueConstraintViolation())
+        {
+            return (null, true);
+        }
         game.Id = id;
         InvalidateArrangementCache();
-        return game;
+        return (game, false);
     }
 
-    public async Task<Game?> UpdateGameAsync(int id, Game game)
+    public async Task<(Game? Game, bool DuplicateName)> UpdateGameAsync(int id, Game game)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var rows = await connection.ExecuteAsync(
-            "UPDATE games SET name = @Name, description = @Description, release_year = @ReleaseYear, series_id = @SeriesId, updated_at = @UpdatedAt WHERE id = @Id",
-            new { game.Name, game.Description, game.ReleaseYear, game.SeriesId, game.UpdatedAt, Id = id });
-        if (rows == 0) return null;
+        if (await connection.NameExistsAsync("games", game.Name, excludeId: id))
+            return (null, true);
+        int rows;
+        try
+        {
+            rows = await connection.ExecuteAsync(
+                "UPDATE games SET name = @Name, description = @Description, release_year = @ReleaseYear, series_id = @SeriesId, updated_at = @UpdatedAt WHERE id = @Id",
+                new { game.Name, game.Description, game.ReleaseYear, game.SeriesId, game.UpdatedAt, Id = id });
+        }
+        catch (Exception ex) when (ex.IsUniqueConstraintViolation())
+        {
+            return (null, true);
+        }
+        if (rows == 0) return (null, false);
         game.Id = id;
         InvalidateArrangementCache();
-        return game;
+        return (game, false);
     }
 
     public async Task<bool> DeleteGameAsync(int id)

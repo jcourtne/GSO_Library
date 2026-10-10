@@ -8,6 +8,7 @@ public static class AuditEventType
     public const string FileDownload = "FileDownload";
     public const string AccountDisable = "AccountDisable";
     public const string AccountEnable = "AccountEnable";
+    public const string AccountUnlock = "AccountUnlock";
     public const string RoleGrant = "RoleGrant";
     public const string RoleRemove = "RoleRemove";
     public const string PasswordReset = "PasswordReset";
@@ -19,6 +20,8 @@ public static class AuditEventType
     public const string EnsembleDelete = "EnsembleDelete";
     public const string GameCreate = "GameCreate";
     public const string GameDelete = "GameDelete";
+    public const string GroupInstrumentationCreate = "GroupInstrumentationCreate";
+    public const string GroupInstrumentationDelete = "GroupInstrumentationDelete";
     public const string SeriesCreate = "SeriesCreate";
     public const string SeriesDelete = "SeriesDelete";
     public const string InstrumentCreate = "InstrumentCreate";

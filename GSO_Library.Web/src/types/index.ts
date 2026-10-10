@@ -2,6 +2,7 @@ export type { LoginRequest, RegisterRequest, RefreshRequest, UpdateCredentialsRe
 export type { PaginatedResult, PaginationParams } from './common';
 export type { Arrangement, ArrangementRequest, ArrangementFile, ArrangementFilterParams, ArrangementFilterOptions } from './arrangement';
 export type { Game } from './game';
+export type { GroupInstrumentation } from './groupInstrumentation';
 export type { Series } from './series';
 export type { Instrument } from './instrument';
 export type { InstrumentFamily } from './instrumentFamily';

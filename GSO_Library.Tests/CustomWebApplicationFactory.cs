@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Data;
 using Dapper;
 using GSO_Library.Data;
@@ -214,6 +215,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 share_password_hash TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS season_analytics (
+                season_id INTEGER PRIMARY KEY REFERENCES seasons(id) ON DELETE CASCADE,
+                page_access_count INTEGER NOT NULL DEFAULT 0,
+                page_last_accessed_at TEXT,
+                file_download_count INTEGER NOT NULL DEFAULT 0,
+                file_last_downloaded_at TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS season_share_zips (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 season_id INTEGER NOT NULL REFERENCES seasons(id) ON DELETE CASCADE,
@@ -247,6 +256,26 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ensemble_id    INTEGER NOT NULL REFERENCES ensembles(id)    ON DELETE CASCADE,
                 PRIMARY KEY (arrangement_id, ensemble_id)
             );
+
+            CREATE TABLE IF NOT EXISTS group_instrumentations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS arrangement_group_instrumentations (
+                arrangement_id INTEGER NOT NULL REFERENCES arrangements(id) ON DELETE CASCADE,
+                group_instrumentation_id INTEGER NOT NULL REFERENCES group_instrumentations(id) ON DELETE CASCADE,
+                PRIMARY KEY (arrangement_id, group_instrumentation_id)
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_games_name_lower ON games (LOWER(name));
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_group_instrumentations_name_lower ON group_instrumentations (LOWER(name));
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_series_name_lower ON series (LOWER(name));
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_instruments_name_lower ON instruments (LOWER(name));
             """);
     }
 
@@ -377,39 +406,61 @@ public class SqliteConnectionFactory : IDbConnectionFactory
 }
 
 /// <summary>
-/// In-memory file storage for tests, avoiding disk I/O.
+/// In-memory file storage for tests, avoiding disk I/O. Static and shared across test classes
+/// that run in parallel, hence the concurrent dictionary.
 /// </summary>
 public class InMemoryFileStorageService : IFileStorageService
 {
-    private static readonly Dictionary<string, byte[]> _files = new();
+    private static readonly ConcurrentDictionary<string, (byte[] Bytes, DateTimeOffset LastModified)> _files = new();
 
     private static string GetKey(string folderPath, string storedFileName)
         => $"{folderPath}/{storedFileName}";
+
+    /// <summary>Backdates a stored file so age-based cleanup treats it as old.</summary>
+    public static void SetLastModified(string folderPath, string storedFileName, DateTimeOffset when)
+    {
+        var key = GetKey(folderPath, storedFileName);
+        if (_files.TryGetValue(key, out var file))
+            _files[key] = (file.Bytes, when);
+    }
 
     public async Task<string> SaveFileAsync(string folderPath, string storedFileName, Stream content)
     {
         using var ms = new MemoryStream();
         await content.CopyToAsync(ms);
-        _files[GetKey(folderPath, storedFileName)] = ms.ToArray();
+        _files[GetKey(folderPath, storedFileName)] = (ms.ToArray(), DateTimeOffset.UtcNow);
         return GetKey(folderPath, storedFileName);
     }
 
     public Task<Stream> GetFileAsync(string folderPath, string storedFileName)
     {
         var key = GetKey(folderPath, storedFileName);
-        if (!_files.TryGetValue(key, out var bytes))
+        if (!_files.TryGetValue(key, out var file))
             throw new FileNotFoundException("File not found.", key);
 
-        Stream stream = new MemoryStream(bytes);
+        Stream stream = new MemoryStream(file.Bytes);
         return Task.FromResult(stream);
     }
 
     public Task DeleteFileAsync(string folderPath, string storedFileName)
     {
-        _files.Remove(GetKey(folderPath, storedFileName));
+        _files.TryRemove(GetKey(folderPath, storedFileName), out _);
         return Task.CompletedTask;
     }
 
     public Task<bool> ExistsAsync(string folderPath, string storedFileName)
         => Task.FromResult(_files.ContainsKey(GetKey(folderPath, storedFileName)));
+
+    public Task<IReadOnlyList<StoredFileInfo>> ListFilesAsync(string folderPrefix, CancellationToken ct = default)
+    {
+        IReadOnlyList<StoredFileInfo> files = _files
+            .Where(kv => kv.Key.StartsWith($"{folderPrefix}/", StringComparison.Ordinal))
+            .Select(kv =>
+            {
+                var lastSlash = kv.Key.LastIndexOf('/');
+                return new StoredFileInfo(kv.Key[..lastSlash], kv.Key[(lastSlash + 1)..], kv.Value.LastModified);
+            })
+            .ToList();
+        return Task.FromResult(files);
+    }
 }

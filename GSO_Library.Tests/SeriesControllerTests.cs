@@ -194,4 +194,40 @@ public class SeriesControllerTests : IntegrationTestBase
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Fact]
+    public async Task CreateSeries_DuplicateNameCaseInsensitive_Returns409()
+    {
+        var client = await GetEditorClientAsync();
+        await client.PostAsJsonAsync("/api/series", new { Name = "Metroid" });
+
+        var response = await client.PostAsJsonAsync("/api/series", new { Name = "metroid" });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateSeries_RenameToExistingName_Returns409()
+    {
+        var client = await GetEditorClientAsync();
+        await client.PostAsJsonAsync("/api/series", new { Name = "Kirby" });
+        var createResponse = await client.PostAsJsonAsync("/api/series", new { Name = "Star Fox" });
+        var created = await createResponse.Content.ReadFromJsonAsync<Series>(JsonOpts);
+
+        var response = await client.PutAsJsonAsync($"/api/series/{created!.Id}", new { Name = "kirby" });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateSeries_RenameToOwnNameDifferentCase_Returns200()
+    {
+        var client = await GetEditorClientAsync();
+        var createResponse = await client.PostAsJsonAsync("/api/series", new { Name = "Pikmin" });
+        var created = await createResponse.Content.ReadFromJsonAsync<Series>(JsonOpts);
+
+        var response = await client.PutAsJsonAsync($"/api/series/{created!.Id}", new { Name = "PIKMIN" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 }

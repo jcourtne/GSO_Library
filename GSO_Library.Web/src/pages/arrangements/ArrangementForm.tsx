@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Badge, Button, Card, Col, Form, ListGroup, Modal, Row, Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -6,6 +6,7 @@ import { arrangementsApi } from '../../api/arrangements';
 import { authApi } from '../../api/auth';
 import { ensemblesApi } from '../../api/ensembles';
 import { gamesApi } from '../../api/games';
+import { groupInstrumentationsApi } from '../../api/groupInstrumentations';
 import { instrumentsApi } from '../../api/instruments';
 import { instrumentSortOrdersApi } from '../../api/instrumentSortOrders';
 import { useAuth } from '../../hooks/useAuth';
@@ -13,26 +14,58 @@ import { useArrangementAccess } from '../../hooks/useArrangementAccess';
 import FileSection from '../../components/arrangements/FileSection';
 import RenderedScoreGrid from '../../components/arrangements/RenderedScoreGrid';
 import QuickCreateGameModal from '../../components/common/QuickCreateGameModal';
+import QuickCreateGroupInstrumentationModal from '../../components/common/QuickCreateGroupInstrumentationModal';
 import QuickCreateInstrumentModal from '../../components/common/QuickCreateInstrumentModal';
+import ConfirmModal from '../../components/common/ConfirmModal';
 import { categorizeFiles, NOTATION_ACCEPT, PLAYBACK_ACCEPT } from '../../utils/fileCategories';
 import { useDragAutoScroll } from '../../hooks/useDragAutoScroll';
 import type { ArrangementRequest, Instrument } from '../../types';
 
+interface FormBaseline {
+  form: ArrangementRequest;
+  gameIds: Set<number>;
+  groupInstrumentationIds: Set<number>;
+  instrumentIds: Set<number>;
+  ensembleIds: Set<number>;
+}
+
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((v, i) => v === b[i]);
+}
+
+function setsEqual(a: Set<number>, b: Set<number>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
+}
+
 function buildInstrumentGroups(instruments: Instrument[]) {
   const seen = new Map<string, Instrument[]>();
+  const familyOrder = new Map<string, number>();
   for (const i of instruments) {
-    const key = i.familyName ?? '';
+    const key = i.familyName ?? 'Other';
     if (!seen.has(key)) seen.set(key, []);
     seen.get(key)!.push(i);
+    if (i.familyId != null) {
+      const order = familyOrder.get(key);
+      if (order === undefined || i.familyId < order) familyOrder.set(key, i.familyId);
+    }
   }
   const groups: { label: string; items: Instrument[] }[] = [];
-  seen.forEach((items, key) => { if (key !== '') groups.push({ label: key, items }); });
-  const unassigned = seen.get('');
-  if (unassigned?.length) groups.push({ label: 'Other', items: unassigned });
+  seen.forEach((items, key) => groups.push({ label: key, items }));
+  groups.sort((a, b) => (familyOrder.get(a.label) ?? Infinity) - (familyOrder.get(b.label) ?? Infinity));
   return groups;
 }
 
+// Keyed on the route id so navigating between arrangements remounts the form, resetting
+// its one-time initialization and unsaved-changes baseline.
 export default function ArrangementForm() {
+  const { id } = useParams<{ id: string }>();
+  return <ArrangementFormContent key={id ?? 'new'} />;
+}
+
+function ArrangementFormContent() {
   const { id } = useParams<{ id: string }>();
   const isEdit = !!id;
   const navigate = useNavigate();
@@ -69,12 +102,15 @@ export default function ArrangementForm() {
 
   // Track linked entity IDs
   const [linkedGameIds, setLinkedGameIds] = useState<Set<number>>(new Set());
+  const [linkedGroupInstrumentationIds, setLinkedGroupInstrumentationIds] = useState<Set<number>>(new Set());
   const [linkedInstrumentIds, setLinkedInstrumentIds] = useState<Set<number>>(new Set());
   const [linkedEnsembleIds, setLinkedEnsembleIds] = useState<Set<number>>(new Set());
 
   // Picker modal state
   const [showGamePicker, setShowGamePicker] = useState(false);
   const [gameSearch, setGameSearch] = useState('');
+  const [showGroupInstrumentationPicker, setShowGroupInstrumentationPicker] = useState(false);
+  const [groupInstrumentationSearch, setGroupInstrumentationSearch] = useState('');
   const [showInstrumentPicker, setShowInstrumentPicker] = useState(false);
   const [instrumentSearch, setInstrumentSearch] = useState('');
   const [pickerSortOrderId, setPickerSortOrderId] = useState<number | null>(null);
@@ -83,6 +119,7 @@ export default function ArrangementForm() {
 
   // Load reference data for linking
   const allGames = useQuery({ queryKey: ['games-all'], queryFn: () => gamesApi.list({ page: 1, pageSize: 100 }) });
+  const allGroupInstrumentations = useQuery({ queryKey: ['group-instrumentations-all'], queryFn: () => groupInstrumentationsApi.list({ page: 1, pageSize: 100, sortBy: 'name' }) });
   const allInstruments = useQuery({ queryKey: ['instruments-all'], queryFn: () => instrumentsApi.list({ page: 1, pageSize: 100, sortBy: 'name' }) });
   const sortOrders = useQuery({ queryKey: ['instrument-sort-orders'], queryFn: instrumentSortOrdersApi.list });
   // Admin/Librarian can pick from all ensembles; Submitters can only pick their own
@@ -96,23 +133,62 @@ export default function ArrangementForm() {
 
   // Quick-create modal state
   const [showCreateGame, setShowCreateGame] = useState(false);
+  const [showCreateGroupInstrumentation, setShowCreateGroupInstrumentation] = useState(false);
   const [showCreateInstrument, setShowCreateInstrument] = useState(false);
 
+  // Unsaved-changes guard for file operations
+  const hasInitializedFormRef = useRef(false);
+  const baselineRef = useRef<FormBaseline | null>(null);
+  const [showUnsavedFilesBlockedModal, setShowUnsavedFilesBlockedModal] = useState(false);
+
   useEffect(() => {
-    if (existing) {
-      setForm({
+    if (existing && !hasInitializedFormRef.current) {
+      hasInitializedFormRef.current = true;
+      const nextForm: ArrangementRequest = {
         name: existing.name,
         description: existing.description || '',
         arrangers: existing.arrangers || [],
         composers: existing.composers || [],
         durationSeconds: existing.durationSeconds,
         year: existing.year,
-      });
-      setLinkedGameIds(new Set(existing.games?.map((g) => g.id) || []));
-      setLinkedInstrumentIds(new Set(existing.instruments?.map((i) => i.id) || []));
-      setLinkedEnsembleIds(new Set(existing.ensembles?.map((e) => e.id) || []));
+      };
+      const nextGameIds = new Set(existing.games?.map((g) => g.id) || []);
+      const nextGroupInstrumentationIds = new Set(existing.groupInstrumentations?.map((g) => g.id) || []);
+      const nextInstrumentIds = new Set(existing.instruments?.map((i) => i.id) || []);
+      const nextEnsembleIds = new Set(existing.ensembles?.map((e) => e.id) || []);
+      setForm(nextForm);
+      setLinkedGameIds(nextGameIds);
+      setLinkedGroupInstrumentationIds(nextGroupInstrumentationIds);
+      setLinkedInstrumentIds(nextInstrumentIds);
+      setLinkedEnsembleIds(nextEnsembleIds);
+      baselineRef.current = { form: nextForm, gameIds: nextGameIds, groupInstrumentationIds: nextGroupInstrumentationIds, instrumentIds: nextInstrumentIds, ensembleIds: nextEnsembleIds };
     }
   }, [existing]);
+
+  const isFormDirty = (): boolean => {
+    const b = baselineRef.current;
+    if (!b) return false;
+    if (composerInput.trim() !== '' || arrangerInput.trim() !== '') return true;
+    if (form.name !== b.form.name) return true;
+    if ((form.description || '') !== (b.form.description || '')) return true;
+    if (form.durationSeconds !== b.form.durationSeconds) return true;
+    if (form.year !== b.form.year) return true;
+    if (!arraysEqual(form.composers || [], b.form.composers || [])) return true;
+    if (!arraysEqual(form.arrangers || [], b.form.arrangers || [])) return true;
+    if (!setsEqual(linkedGameIds, b.gameIds)) return true;
+    if (!setsEqual(linkedGroupInstrumentationIds, b.groupInstrumentationIds)) return true;
+    if (!setsEqual(linkedInstrumentIds, b.instrumentIds)) return true;
+    if (!setsEqual(linkedEnsembleIds, b.ensembleIds)) return true;
+    return false;
+  };
+
+  const handleCheckCanModifyFiles = (): boolean => {
+    if (isFormDirty()) {
+      setShowUnsavedFilesBlockedModal(true);
+      return false;
+    }
+    return true;
+  };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -137,6 +213,7 @@ export default function ArrangementForm() {
       // Sync relationships in edit mode
       if (isEdit && existing) {
         const oldGameIds = new Set(existing.games?.map((g) => g.id) || []);
+        const oldGroupInstrumentationIds = new Set(existing.groupInstrumentations?.map((g) => g.id) || []);
         const oldInstrumentIds = new Set(existing.instruments?.map((i) => i.id) || []);
         const oldEnsembleIds = new Set(existing.ensembles?.map((e) => e.id) || []);
 
@@ -146,6 +223,13 @@ export default function ArrangementForm() {
         }
         for (const gid of oldGameIds) {
           if (!linkedGameIds.has(gid)) await arrangementsApi.removeGame(arrangementId, gid);
+        }
+        // Group instrumentations
+        for (const giid of linkedGroupInstrumentationIds) {
+          if (!oldGroupInstrumentationIds.has(giid)) await arrangementsApi.addGroupInstrumentation(arrangementId, giid);
+        }
+        for (const giid of oldGroupInstrumentationIds) {
+          if (!linkedGroupInstrumentationIds.has(giid)) await arrangementsApi.removeGroupInstrumentation(arrangementId, giid);
         }
         // Instruments
         for (const iid of linkedInstrumentIds) {
@@ -165,6 +249,7 @@ export default function ArrangementForm() {
         // New arrangement - add all selected relationships. A new arrangement starts with no
         // ensembles (public) unless the user picked some here.
         for (const gid of linkedGameIds) await arrangementsApi.addGame(arrangementId, gid);
+        for (const giid of linkedGroupInstrumentationIds) await arrangementsApi.addGroupInstrumentation(arrangementId, giid);
         for (const iid of linkedInstrumentIds) await arrangementsApi.addInstrument(arrangementId, iid);
         for (const eid of linkedEnsembleIds) await arrangementsApi.addEnsemble(arrangementId, eid);
       }
@@ -376,6 +461,79 @@ export default function ArrangementForm() {
 
             <Card className="mb-3">
               <Card.Body>
+                <Card.Title>Group Instrumentation</Card.Title>
+                {linkedGroupInstrumentationIds.size > 0 ? (
+                  <ListGroup variant="flush" className="mb-2">
+                    {allGroupInstrumentations.data?.items
+                      .filter((g) => linkedGroupInstrumentationIds.has(g.id))
+                      .map((g) => (
+                        <ListGroup.Item key={g.id} className="d-flex justify-content-between align-items-center px-0">
+                          {g.name}
+                          <Button
+                            variant="outline-danger"
+                            size="sm"
+                            onClick={() => {
+                              const next = new Set(linkedGroupInstrumentationIds);
+                              next.delete(g.id);
+                              setLinkedGroupInstrumentationIds(next);
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </ListGroup.Item>
+                      ))}
+                  </ListGroup>
+                ) : (
+                  <p className="text-muted mb-2">No group instrumentations selected</p>
+                )}
+                <Button variant="outline-primary" size="sm" onClick={() => { setGroupInstrumentationSearch(''); setShowGroupInstrumentationPicker(true); }}>
+                  Add
+                </Button>
+              </Card.Body>
+            </Card>
+
+            <Modal show={showGroupInstrumentationPicker} onHide={() => setShowGroupInstrumentationPicker(false)}>
+              <Modal.Header closeButton>
+                <Modal.Title>Add Group Instrumentations</Modal.Title>
+              </Modal.Header>
+              <Modal.Body>
+                <Form.Control
+                  placeholder="Search group instrumentations..."
+                  value={groupInstrumentationSearch}
+                  onChange={(e) => setGroupInstrumentationSearch(e.target.value)}
+                  className="mb-3"
+                  autoFocus
+                />
+                <ListGroup style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                  {allGroupInstrumentations.data?.items
+                    .filter((g) => !linkedGroupInstrumentationIds.has(g.id) && g.name.toLowerCase().includes(groupInstrumentationSearch.toLowerCase()))
+                    .map((g) => (
+                      <ListGroup.Item
+                        key={g.id}
+                        action
+                        onClick={() => {
+                          const next = new Set(linkedGroupInstrumentationIds);
+                          next.add(g.id);
+                          setLinkedGroupInstrumentationIds(next);
+                        }}
+                      >
+                        {g.name}
+                      </ListGroup.Item>
+                    ))}
+                </ListGroup>
+              </Modal.Body>
+              <Modal.Footer>
+                <Button variant="outline-success" onClick={() => setShowCreateGroupInstrumentation(true)}>
+                  Create New
+                </Button>
+                <Button variant="secondary" onClick={() => setShowGroupInstrumentationPicker(false)}>
+                  Done
+                </Button>
+              </Modal.Footer>
+            </Modal>
+
+            <Card className="mb-3">
+              <Card.Body>
                 <Card.Title>Instruments</Card.Title>
                 {linkedInstrumentIds.size > 0 ? (() => {
                   const defaultSo = sortOrders.data?.find((so) => so.isDefault);
@@ -578,6 +736,9 @@ export default function ArrangementForm() {
             {saveMutation.isPending ? <Spinner size="sm" animation="border" /> : (isEdit ? 'Save Changes' : 'Create Arrangement')}
           </Button>
           <Button variant="secondary" className="ms-2" onClick={() => navigate(isEdit ? `/arrangements/${id}` : '/arrangements')}>Cancel</Button>
+          {isEdit && isFormDirty() && (
+            <Badge bg="warning" text="dark" className="ms-2">Unsaved changes</Badge>
+          )}
         </div>
       </Form>
 
@@ -588,6 +749,15 @@ export default function ArrangementForm() {
           const next = new Set(linkedGameIds);
           next.add(game.id);
           setLinkedGameIds(next);
+        }}
+      />
+      <QuickCreateGroupInstrumentationModal
+        show={showCreateGroupInstrumentation}
+        onHide={() => setShowCreateGroupInstrumentation(false)}
+        onCreated={(groupInstrumentation) => {
+          const next = new Set(linkedGroupInstrumentationIds);
+          next.add(groupInstrumentation.id);
+          setLinkedGroupInstrumentationIds(next);
         }}
       />
       <QuickCreateInstrumentModal
@@ -604,12 +774,23 @@ export default function ArrangementForm() {
         return (
           <div className="mt-4">
             <h4>Files</h4>
-            <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={Number(id)} editable accept={NOTATION_ACCEPT} />
-            <RenderedScoreGrid arrangement={existing} files={files} editable canDownload />
-            <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={Number(id)} editable accept={PLAYBACK_ACCEPT} />
+            <FileSection title="Notation Files" files={categorized.notationFiles} arrangementId={Number(id)} editable accept={NOTATION_ACCEPT} checkCanModifyFiles={handleCheckCanModifyFiles} />
+            <RenderedScoreGrid arrangement={existing} files={files} editable canDownload checkCanModifyFiles={handleCheckCanModifyFiles} />
+            <FileSection title="Playback Files" files={categorized.playbackFiles} arrangementId={Number(id)} editable accept={PLAYBACK_ACCEPT} checkCanModifyFiles={handleCheckCanModifyFiles} />
           </div>
         );
       })()}
+
+      <ConfirmModal
+        show={showUnsavedFilesBlockedModal}
+        title="Unsaved Changes"
+        message="You have unsaved changes to this arrangement. Please save your changes and refresh the page before uploading, deleting, or reorganizing files."
+        confirmLabel="OK"
+        confirmVariant="primary"
+        hideCancel
+        onConfirm={() => setShowUnsavedFilesBlockedModal(false)}
+        onCancel={() => setShowUnsavedFilesBlockedModal(false)}
+      />
     </>
   );
 }

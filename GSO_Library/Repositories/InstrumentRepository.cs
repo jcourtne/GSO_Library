@@ -55,27 +55,47 @@ public class InstrumentRepository
             new { Id = id });
     }
 
-    public async Task<Instrument> AddInstrumentAsync(Instrument instrument)
+    public async Task<(Instrument? Instrument, bool DuplicateName)> AddInstrumentAsync(Instrument instrument)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var id = await connection.InsertReturningIdAsync(
-            "INSERT INTO instruments (name, family_id, created_at, updated_at, created_by) VALUES (@Name, @FamilyId, @CreatedAt, @UpdatedAt, @CreatedBy)",
-            new { instrument.Name, instrument.FamilyId, instrument.CreatedAt, instrument.UpdatedAt, instrument.CreatedBy });
+        if (await connection.NameExistsAsync("instruments", instrument.Name))
+            return (null, true);
+        int id;
+        try
+        {
+            id = await connection.InsertReturningIdAsync(
+                "INSERT INTO instruments (name, family_id, created_at, updated_at, created_by) VALUES (@Name, @FamilyId, @CreatedAt, @UpdatedAt, @CreatedBy)",
+                new { instrument.Name, instrument.FamilyId, instrument.CreatedAt, instrument.UpdatedAt, instrument.CreatedBy });
+        }
+        catch (Exception ex) when (ex.IsUniqueConstraintViolation())
+        {
+            return (null, true);
+        }
         instrument.Id = id;
         InvalidateArrangementCache();
-        return instrument;
+        return (instrument, false);
     }
 
-    public async Task<Instrument?> UpdateInstrumentAsync(int id, Instrument instrument)
+    public async Task<(Instrument? Instrument, bool DuplicateName)> UpdateInstrumentAsync(int id, Instrument instrument)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var rows = await connection.ExecuteAsync(
-            "UPDATE instruments SET name = @Name, family_id = @FamilyId, updated_at = @UpdatedAt WHERE id = @Id",
-            new { instrument.Name, instrument.FamilyId, instrument.UpdatedAt, Id = id });
-        if (rows == 0) return null;
+        if (await connection.NameExistsAsync("instruments", instrument.Name, excludeId: id))
+            return (null, true);
+        int rows;
+        try
+        {
+            rows = await connection.ExecuteAsync(
+                "UPDATE instruments SET name = @Name, family_id = @FamilyId, updated_at = @UpdatedAt WHERE id = @Id",
+                new { instrument.Name, instrument.FamilyId, instrument.UpdatedAt, Id = id });
+        }
+        catch (Exception ex) when (ex.IsUniqueConstraintViolation())
+        {
+            return (null, true);
+        }
+        if (rows == 0) return (null, false);
         instrument.Id = id;
         InvalidateArrangementCache();
-        return instrument;
+        return (instrument, false);
     }
 
     public async Task<bool> DeleteInstrumentAsync(int id)

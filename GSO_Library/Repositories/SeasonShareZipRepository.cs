@@ -17,8 +17,7 @@ public class SeasonShareZipRepository(IDbConnectionFactory connectionFactory)
     public async Task UpsertAsync(int seasonId, string zipKey, string folderPath, string storedFileName)
     {
         using var connection = connectionFactory.CreateConnection();
-        var typeName = connection.GetType().Name;
-        if (typeName.Contains("Sqlite", StringComparison.OrdinalIgnoreCase))
+        if (connection.IsSqlite())
         {
             await connection.ExecuteAsync(
                 "INSERT OR REPLACE INTO season_share_zips (season_id, zip_key, folder_path, stored_file_name, created_at) VALUES (@SeasonId, @ZipKey, @FolderPath, @StoredFileName, @CreatedAt)",
@@ -43,6 +42,13 @@ public class SeasonShareZipRepository(IDbConnectionFactory connectionFactory)
         return await connection.QueryAsync<SeasonShareZip>(
             "SELECT id, season_id, zip_key, folder_path, stored_file_name, created_at FROM season_share_zips WHERE season_id = @SeasonId",
             new { SeasonId = seasonId });
+    }
+
+    public async Task<IEnumerable<SeasonShareZip>> GetAllAsync()
+    {
+        using var connection = connectionFactory.CreateConnection();
+        return await connection.QueryAsync<SeasonShareZip>(
+            "SELECT id, season_id, zip_key, folder_path, stored_file_name, created_at FROM season_share_zips");
     }
 
     public async Task<IEnumerable<SeasonShareZip>> GetExpiredAsync(DateTime cutoffUtc)

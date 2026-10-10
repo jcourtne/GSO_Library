@@ -937,6 +937,92 @@ public class SeasonsControllerTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task CreateSeason_HasZeroedAnalyticsRow()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync("Ens_AnalyticsInit");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_AnalyticsInit");
+
+        var response = await client.GetAsync($"/api/seasons/{season.Id}");
+        response.EnsureSuccessStatusCode();
+        var fetched = (await response.Content.ReadFromJsonAsync<Season>(JsonOpts))!;
+
+        Assert.NotNull(fetched.Analytics);
+        Assert.Equal(0, fetched.Analytics!.PageAccessCount);
+        Assert.Null(fetched.Analytics.PageLastAccessedAt);
+        Assert.Equal(0, fetched.Analytics.FileDownloadCount);
+        Assert.Null(fetched.Analytics.FileLastDownloadedAt);
+    }
+
+    [Fact]
+    public async Task GetPublicSeason_RequiresPassword_DoesNotIncrementAccessCount()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync("Ens_AnalyticsPwGate");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_AnalyticsPwGate");
+
+        var shareResponse = await client.PostAsJsonAsync($"/api/seasons/{season.Id}/share", new
+        {
+            IncludePdf = true,
+            IncludeNotation = false,
+            IncludePlayback = false,
+            Password = "secret123",
+        });
+        shareResponse.EnsureSuccessStatusCode();
+        var body = await shareResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
+        var token = body.GetProperty("token").GetString()!;
+
+        var anon = GetUnauthenticatedClient();
+        (await anon.GetAsync($"/api/public/seasons/{token}")).EnsureSuccessStatusCode();
+        var wrongPw = GetUnauthenticatedClient();
+        wrongPw.DefaultRequestHeaders.Add("X-Share-Password", "wrong");
+        (await wrongPw.GetAsync($"/api/public/seasons/{token}")).EnsureSuccessStatusCode();
+
+        var fetched = (await (await client.GetAsync($"/api/seasons/{season.Id}")).Content.ReadFromJsonAsync<Season>(JsonOpts))!;
+        Assert.Equal(0, fetched.Analytics!.PageAccessCount);
+        Assert.Null(fetched.Analytics.PageLastAccessedAt);
+    }
+
+    [Fact]
+    public async Task GetPublicSeason_Successful_IncrementsAccessCount()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync("Ens_AnalyticsAccess");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_AnalyticsAccess");
+        var token = await ConfigureShareAsync(client, season.Id);
+
+        var anon = GetUnauthenticatedClient();
+        (await anon.GetAsync($"/api/public/seasons/{token}")).EnsureSuccessStatusCode();
+        (await anon.GetAsync($"/api/public/seasons/{token}")).EnsureSuccessStatusCode();
+
+        var fetched = (await (await client.GetAsync($"/api/seasons/{season.Id}")).Content.ReadFromJsonAsync<Season>(JsonOpts))!;
+        Assert.Equal(2, fetched.Analytics!.PageAccessCount);
+        Assert.NotNull(fetched.Analytics.PageLastAccessedAt);
+    }
+
+    [Fact]
+    public async Task PrepareDownload_DoesNotIncrementDownloadCount_DownloadDoes()
+    {
+        var client = await GetLibrarianClientAsync();
+        var ensemble = await CreateEnsembleAsync("Ens_AnalyticsDl");
+        var season = await CreateSeasonAsync(client, ensemble.Id, "Season_AnalyticsDl");
+        var token = await ConfigureShareAsync(client, season.Id);
+
+        var anon = GetUnauthenticatedClient();
+        (await anon.PostAsync($"/api/public/seasons/{token}/prepare-download", null)).EnsureSuccessStatusCode();
+
+        var afterPrepare = (await (await client.GetAsync($"/api/seasons/{season.Id}")).Content.ReadFromJsonAsync<Season>(JsonOpts))!;
+        Assert.Equal(0, afterPrepare.Analytics!.FileDownloadCount);
+        Assert.Null(afterPrepare.Analytics.FileLastDownloadedAt);
+
+        (await anon.GetAsync($"/api/public/seasons/{token}/download")).EnsureSuccessStatusCode();
+
+        var afterDownload = (await (await client.GetAsync($"/api/seasons/{season.Id}")).Content.ReadFromJsonAsync<Season>(JsonOpts))!;
+        Assert.Equal(1, afterDownload.Analytics!.FileDownloadCount);
+        Assert.NotNull(afterDownload.Analytics.FileLastDownloadedAt);
+    }
+
+    [Fact]
     public async Task GetPublicSeason_IncludesArrangementIdAndCounts()
     {
         var client = await GetLibrarianClientAsync();

@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { instrumentsApi } from '../../api/instruments';
 import { instrumentFamiliesApi } from '../../api/instrumentFamilies';
+import { getApiErrorMessage } from '../../api/errors';
 
 export default function InstrumentForm() {
   const { id } = useParams<{ id: string }>();
@@ -41,7 +42,7 @@ export default function InstrumentForm() {
       queryClient.invalidateQueries({ queryKey: ['instruments'] });
       navigate('/instruments');
     },
-    onError: () => setError('Failed to save instrument'),
+    onError: (err) => setError(getApiErrorMessage(err, 'Failed to save instrument')),
   });
 
   if (isEdit && isLoading) return <Spinner animation="border" />;

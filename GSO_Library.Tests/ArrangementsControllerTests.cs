@@ -30,7 +30,7 @@ public class ArrangementsControllerTests : IntegrationTestBase
 
     private async Task<int> CreateSeriesAsync(HttpClient client)
     {
-        var response = await client.PostAsJsonAsync("/api/series", new { Name = "Arr_TestSeries" });
+        var response = await client.PostAsJsonAsync("/api/series", new { Name = $"Arr_TestSeries_{Guid.NewGuid()}" });
         var series = await response.Content.ReadFromJsonAsync<Series>(JsonOpts);
         return series!.Id;
     }
@@ -39,7 +39,7 @@ public class ArrangementsControllerTests : IntegrationTestBase
     {
         var response = await client.PostAsJsonAsync("/api/games", new
         {
-            Name = "Arr_TestGame",
+            Name = $"Arr_TestGame_{Guid.NewGuid()}",
             SeriesId = seriesId
         });
         var game = await response.Content.ReadFromJsonAsync<Game>(JsonOpts);

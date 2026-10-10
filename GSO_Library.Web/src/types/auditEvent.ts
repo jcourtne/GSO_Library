@@ -20,6 +20,8 @@ export const AUDIT_EVENT_TYPES = [
   'FileUpload',
   'GameCreate',
   'GameDelete',
+  'GroupInstrumentationCreate',
+  'GroupInstrumentationDelete',
   'InstrumentCreate',
   'InstrumentDelete',
   'LoginFailure',

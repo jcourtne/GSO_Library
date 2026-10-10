@@ -371,6 +371,16 @@ export default function SeasonDetail() {
             </Card.Body>
           </Card>
 
+          <Card className="mb-3">
+            <Card.Body>
+              <Card.Title>Analytics</Card.Title>
+              <p><strong>Page views:</strong> {season.analytics?.pageAccessCount ?? 0}</p>
+              <p><strong>Last viewed:</strong> {season.analytics?.pageLastAccessedAt ? new Date(season.analytics.pageLastAccessedAt).toLocaleDateString() : <span className="text-muted">—</span>}</p>
+              <p><strong>Downloads:</strong> {season.analytics?.fileDownloadCount ?? 0}</p>
+              <p><strong>Last downloaded:</strong> {season.analytics?.fileLastDownloadedAt ? new Date(season.analytics.fileLastDownloadedAt).toLocaleDateString() : <span className="text-muted">—</span>}</p>
+            </Card.Body>
+          </Card>
+
           {canEditForEnsemble(season.ensembleId) && (
             <Card className="mb-3">
               <Card.Body>
